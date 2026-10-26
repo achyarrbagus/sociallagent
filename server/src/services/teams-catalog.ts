@@ -1008,7 +1008,7 @@ export function teamsCatalogService(db: Db) {
     result.warnings.push(...warnings);
     await logCatalogEvent("company.team_catalog_installed", companyId, prepared.team, options.actor, {
       warningCount: result.warnings.length,
-      agentCount: result.agents.filter((agent) => agent.action === "created").length,
+      agentCount: result.agents.filter((agent) => !adoptedSlugs.includes(agent.slug)).length,
       projectCount: result.projects.length,
       skillPreparationCount: prepared.skillPreparations.length,
     });

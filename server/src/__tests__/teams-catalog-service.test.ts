@@ -30,8 +30,10 @@ vi.mock("../services/company-skills.js", () => ({
   companySkillService: () => mockCompanySkillService,
 }));
 
+const mockLogActivity = vi.hoisted(() => vi.fn());
+
 vi.mock("../services/activity-log.js", () => ({
-  logActivity: vi.fn(),
+  logActivity: mockLogActivity,
 }));
 
 const {
@@ -269,6 +271,35 @@ describe("teamsCatalogService", () => {
       const [, previewOptions] = mockCompanyPortabilityService.previewImport.mock.calls.at(-1)!;
       expect(previewOptions).toMatchObject({ adoptAgents: { ceo: DIRECTOR_ID } });
       expect(result.warnings.join("\n")).not.toContain("adds another Agency Director");
+    });
+
+    it("logs an install agentCount that excludes the adopted manager", async () => {
+      mockAgentService.getById.mockResolvedValue(director);
+      mockCompanyPortabilityService.importBundle.mockResolvedValueOnce({
+        company: { id: "company-1", name: "Paperclip", action: "unchanged" },
+        agents: [
+          { slug: "ceo", id: DIRECTOR_ID, action: "skip", name: "Agency Director", reason: "Adopted existing agent." },
+          { slug: "cto", id: "a2", action: "created", name: "CTO", reason: null },
+          { slug: "qa", id: "a3", action: "created", name: "QA", reason: null },
+        ],
+        projects: [],
+        envInputs: [],
+        warnings: [],
+      });
+      const svc = teamsCatalogService({} as any);
+
+      await svc.installCatalogTeam("company-1", "core-exec-team", {
+        adoptManagerAgentId: DIRECTOR_ID,
+        actor: { actorType: "user", actorId: "user-1", userId: "user-1" },
+      });
+
+      expect(mockLogActivity).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: "company.team_catalog_installed",
+          details: expect.objectContaining({ agentCount: 2 }),
+        }),
+      );
     });
 
     it("rejects adopt of non-ceo agent", async () => {
