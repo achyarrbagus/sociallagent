@@ -1,9 +1,10 @@
 import { Router } from "express";
 import type { Db } from "@paperclipai/db";
-import { applyOnboardingSeedSchema } from "@paperclipai/shared";
+import { applyOnboardingSeedSchema, ensureAgencyTeamSchema } from "@paperclipai/shared";
 import { validate } from "../middleware/index.js";
+import { agencyCoreTeamService, type EnsureAgencyCoreTeamResult } from "../services/agency-core-team.js";
 import { onboardingSeedService } from "../services/onboarding-seed.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 /**
  * Receiver for the onboarding seed Paperclip Cloud collects at signup and
@@ -28,10 +29,16 @@ import { assertCompanyAccess, getActorInfo } from "./authz.js";
  * transaction as the seed. Because Cloud stops retrying on a 2xx, anything this
  * route reports as applied must already be durable — a half that can still be
  * lost after the response is a half that is lost for good.
+ *
+ * Once the seed has committed a Director, the default agency team is installed
+ * under her. That install is best-effort and never fails the push: whatever it
+ * throws is reported as `agencyTeam.status: "failed"` so Cloud still records
+ * the seed and the owner keeps a usable Director.
  */
 export function onboardingSeedRoutes(db: Db) {
   const router = Router();
   const svc = onboardingSeedService(db);
+  const agencyTeam = agencyCoreTeamService(db);
 
   router.post(
     "/companies/:companyId/onboarding-seed",
@@ -47,7 +54,17 @@ export function onboardingSeedRoutes(db: Db) {
       // and re-logs. Handling it here instead, as this route used to, could only
       // pick which half to lose: 500 and the retry reports `changed: false` and
       // never logs; 200 and Cloud stops retrying with the entry still absent.
-      const result = await svc.apply(companyId, req.body, getActorInfo(req));
+      const actor = getActorInfo(req);
+      const result = await svc.apply(companyId, req.body, actor);
+
+      let agencyTeamResult: EnsureAgencyCoreTeamResult | null = null;
+      if (result.agentId) {
+        try {
+          agencyTeamResult = await agencyTeam.ensureInstalled(companyId, result.agentId, actor);
+        } catch (error) {
+          agencyTeamResult = { status: "failed", error: error instanceof Error ? error.message : String(error) };
+        }
+      }
 
       res.status(200).json({
         companyId,
@@ -57,7 +74,23 @@ export function onboardingSeedRoutes(db: Db) {
         goalId: result.goalId,
         agentId: result.agentId,
         issueId: result.issueId,
+        agencyTeam: agencyTeamResult,
       });
+    },
+  );
+
+  // The board's onboarding retry: installs the default agency team under the
+  // given Agency Director. Director validation surfaces as 409/422; a failed
+  // install is a 200 with `status: "failed"` so the owner sees why.
+  router.post(
+    "/companies/:companyId/onboarding/agency-team",
+    validate(ensureAgencyTeamSchema),
+    async (req, res) => {
+      const companyId = req.params.companyId as string;
+      assertBoard(req);
+      assertCompanyAccess(req, companyId);
+      const result = await agencyTeam.ensureInstalled(companyId, req.body.agentId, getActorInfo(req));
+      res.status(200).json(result);
     },
   );
 

@@ -34,3 +34,19 @@ export const applyOnboardingSeedSchema = z.object({
 });
 
 export type ApplyOnboardingSeed = z.infer<typeof applyOnboardingSeedSchema>;
+
+/** Body for installing the default agency team under an onboarding Agency Director. */
+export const ensureAgencyTeamSchema = z.object({
+  agentId: z.string().uuid(),
+});
+
+export type EnsureAgencyTeam = z.infer<typeof ensureAgencyTeamSchema>;
+
+/**
+ * Outcome of installing the default agency team. A failed install never undoes
+ * onboarding: the Agency Director stays usable and the owner sees `error`.
+ */
+export type EnsureAgencyCoreTeamResult =
+  | { status: "installed"; agentIds: string[]; warnings: string[] }
+  | { status: "already_installed" }
+  | { status: "failed"; error: string };

@@ -643,6 +643,9 @@ export {
 export {
   applyOnboardingSeedSchema,
   type ApplyOnboardingSeed,
+  ensureAgencyTeamSchema,
+  type EnsureAgencyTeam,
+  type EnsureAgencyCoreTeamResult,
 } from "./onboarding-seed.js";
 
 export {

@@ -6,6 +6,7 @@ import {
   activityLog,
   agents,
   companyOnboardingSeeds,
+  companySkills,
   goals,
   issues,
   projects,
@@ -54,6 +55,8 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     await ctx.db.delete(projects);
     await ctx.db.delete(agents);
     await ctx.db.delete(goals);
+    // Rows the agency-core team install adds alongside its agents.
+    await ctx.db.delete(companySkills);
     await resetCompanyIssueFixtures(ctx.db);
   });
 
@@ -64,6 +67,21 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
 
   function post(app: ReturnType<typeof routeApp>, companyId: string, body: unknown) {
     return request(app).post(`/api/companies/${companyId}/onboarding-seed`).send(body);
+  }
+
+  // The seed hires the Agency Director; the default agency team installed under
+  // her adds specialists, so seed assertions read the Director alone.
+  function directorsOf(companyId: string) {
+    return ctx.db.select().from(agents).where(and(eq(agents.companyId, companyId), eq(agents.role, "ceo")));
+  }
+
+  function agentsOf(companyId: string) {
+    return ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+  }
+
+  // The agency team brings its own Agency Operations project.
+  function onboardingProjectsOf(companyId: string) {
+    return ctx.db.select().from(projects).where(and(eq(projects.companyId, companyId), eq(projects.name, "Onboarding")));
   }
 
   // Ordering, not eventual consistency: every assertion below reads the
@@ -80,6 +98,8 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(response.body.applied).toBe(true);
     expect(response.body.changed).toBe(true);
     expect(response.body.revision).toBe(SEED.revision);
+    expect(response.body.agencyTeam).toMatchObject({ status: "installed" });
+    expect(response.body.agencyTeam.agentIds).toHaveLength(11);
 
     const companyGoals = await ctx.db.select().from(goals).where(eq(goals.companyId, companyId));
     expect(companyGoals).toHaveLength(1);
@@ -87,7 +107,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(companyGoals[0]?.level).toBe("company");
     expect(companyGoals[0]?.status).toBe("active");
 
-    const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const companyAgents = await directorsOf(companyId);
     expect(companyAgents).toHaveLength(1);
     expect(companyAgents[0]?.name).toBe("Ada");
     // The seed's free-text role is a job title; the structural role stays `ceo`.
@@ -111,7 +131,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(companyIssues[0]?.assigneeAgentId).toBe(companyAgents[0]?.id);
     expect(companyIssues[0]?.goalId).toBe(companyGoals[0]?.id);
 
-    const companyProjects = await ctx.db.select().from(projects).where(eq(projects.companyId, companyId));
+    const companyProjects = await onboardingProjectsOf(companyId);
     expect(companyProjects).toHaveLength(1);
     expect(companyProjects[0]?.name).toBe("Onboarding");
     expect(companyIssues[0]?.projectId).toBe(companyProjects[0]?.id);
@@ -135,7 +155,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
       const response = await post(app, companyId, SEED);
 
       expect(response.status).toBe(200);
-      const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+      const companyAgents = await directorsOf(companyId);
       expect(companyAgents).toHaveLength(1);
       expect(companyAgents[0]).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } });
     } finally {
@@ -154,11 +174,11 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
       const { companyId, app } = await seedCompany();
       const response = await post(app, companyId, SEED);
       expect(response.status).toBe(200);
-      const [agent] = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+      const [agent] = await directorsOf(companyId);
       expect(agent).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex" } });
       expect(agent?.adapterConfig).toMatchObject({ paperclipSkillSync: { desiredSkills: expect.arrayContaining(["paperclipai/paperclip/paperclip-create-agent"]) } });
       expect((await post(app, companyId, SEED)).body.changed).toBe(false);
-      const [replayed] = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+      const [replayed] = await directorsOf(companyId);
       expect(replayed?.adapterConfig).toEqual(agent?.adapterConfig);
     } finally {
       if (previous === undefined) delete process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE;
@@ -180,11 +200,13 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(replay.body.changed).toBe(false);
     expect(replay.body.agentId).toBe(first.body.agentId);
     expect(replay.body.issueId).toBe(first.body.issueId);
+    expect(replay.body.agencyTeam).toEqual({ status: "already_installed" });
 
-    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+    expect(await directorsOf(companyId)).toHaveLength(1);
+    expect(await agentsOf(companyId)).toHaveLength(12);
     expect(await ctx.db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(1);
     expect(await ctx.db.select().from(goals).where(eq(goals.companyId, companyId))).toHaveLength(1);
-    expect(await ctx.db.select().from(projects).where(eq(projects.companyId, companyId))).toHaveLength(1);
+    expect(await onboardingProjectsOf(companyId)).toHaveLength(1);
   });
 
   it("updates in place when the customer edits their answers and the revision changes", async () => {
@@ -204,7 +226,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(revised.body.agentId).toBe(first.body.agentId);
     expect(revised.body.issueId).toBe(first.body.issueId);
 
-    const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const companyAgents = await directorsOf(companyId);
     expect(companyAgents).toHaveLength(1);
     expect(companyAgents[0]?.name).toBe("Grace");
     expect(companyAgents[0]?.title).toBe("Head of Ops");
@@ -237,6 +259,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(await ctx.db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(0);
     expect(response.body.agentId).toBeNull();
     expect(response.body.issueId).toBeNull();
+    expect(response.body.agencyTeam).toBeNull();
   });
 
   it("accepts a revision-only seed and records it", async () => {
@@ -288,12 +311,12 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
         .from(companyOnboardingSeeds)
         .where(eq(companyOnboardingSeeds.companyId, companyId)),
     ).toHaveLength(0);
-    const committedAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const committedAgents = await agentsOf(companyId);
     expect(committedAgents).toHaveLength(1);
     expect(await ctx.db.select().from(projects).where(eq(projects.companyId, companyId))).toHaveLength(0);
 
     await post(app, companyId, SEED).expect(200);
-    expect((await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).map(agent => agent.id))
+    expect((await directorsOf(companyId)).map(agent => agent.id))
       .toEqual(committedAgents.map(agent => agent.id));
     expect(
       await ctx.db
@@ -388,7 +411,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     const response = await post(app, companyId, SEED);
 
     expect(response.status).toBe(200);
-    const companyProjects = await ctx.db.select().from(projects).where(eq(projects.companyId, companyId));
+    const companyProjects = await onboardingProjectsOf(companyId);
     expect(companyProjects).toHaveLength(1);
     const companyIssues = await ctx.db.select().from(issues).where(eq(issues.companyId, companyId));
     expect(companyIssues[0]?.projectId).toBe(companyProjects[0]?.id);
@@ -411,8 +434,9 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(second.status).toBe(200);
 
     expect(await ctx.db.select().from(goals).where(eq(goals.companyId, companyId))).toHaveLength(1);
-    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
-    expect(await ctx.db.select().from(projects).where(eq(projects.companyId, companyId))).toHaveLength(1);
+    expect(await directorsOf(companyId)).toHaveLength(1);
+    expect(await agentsOf(companyId)).toHaveLength(12);
+    expect(await onboardingProjectsOf(companyId)).toHaveLength(1);
     expect(await ctx.db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(1);
     expect(await ctx.db.select().from(companyOnboardingSeeds)).toHaveLength(1);
   });
@@ -445,9 +469,101 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
 
     const companyIssues = await ctx.db.select().from(issues).where(eq(issues.companyId, companyId));
     expect(companyIssues).toHaveLength(1);
-    const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const companyAgents = await directorsOf(companyId);
     const companyGoals = await ctx.db.select().from(goals).where(eq(goals.companyId, companyId));
     expect(companyIssues[0]?.assigneeAgentId).toBe(companyAgents[0]?.id);
     expect(companyIssues[0]?.goalId).toBe(companyGoals[0]?.id);
+  });
+});
+
+describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding/agency-team", () => {
+  const ctx = useEmbeddedPostgres("onboarding-agency-team-route");
+  let runnerSelectionSpy: { mockRestore(): void } | undefined;
+
+  beforeEach(async () => {
+    const selection = await import("../services/agent-runner-selection.js");
+    runnerSelectionSpy = vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+      selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "linux", architecture: "x64" } }));
+  });
+
+  afterEach(() => {
+    runnerSelectionSpy?.mockRestore();
+  });
+
+  async function seedDirector() {
+    const seeded = await seedCompanyWithBoardAccess(ctx.db, "Agency team route");
+    const [director] = await ctx.db.insert(agents).values({
+      companyId: seeded.companyId,
+      name: "Rina",
+      role: "ceo",
+      adapterType: "claude_local",
+      adapterConfig: { model: "claude-opus-5-5" },
+    }).returning();
+    return { ...seeded, director: director! };
+  }
+
+  function post(app: ReturnType<typeof routeApp>, companyId: string, body: unknown) {
+    return request(app).post(`/api/companies/${companyId}/onboarding/agency-team`).send(body);
+  }
+
+  it("installs the team for the board and reports a replay as already installed", async () => {
+    const { companyId, actor, director } = await seedDirector();
+    const app = routeApp(ctx.db, actor, onboardingSeedRoutes);
+
+    const first = await post(app, companyId, { agentId: director.id });
+    expect(first.status).toBe(200);
+    expect(first.body).toMatchObject({ status: "installed" });
+    expect(first.body.agentIds).toHaveLength(11);
+
+    const replay = await post(app, companyId, { agentId: director.id });
+    expect(replay.status).toBe(200);
+    expect(replay.body).toEqual({ status: "already_installed" });
+  });
+
+  it("refuses an agent actor", async () => {
+    const { companyId, director } = await seedDirector();
+    const agentActor = { type: "agent", agentId: director.id, companyId, source: "agent_key" };
+    const app = routeApp(ctx.db, agentActor as unknown as BoardActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: director.id });
+
+    expect(response.status).toBe(403);
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("refuses a board user without access to the company", async () => {
+    const { companyId, director } = await seedDirector();
+    const strangerActor: BoardActor = {
+      type: "board",
+      source: "session",
+      userId: `user-${randomUUID()}`,
+      companyIds: [randomUUID()],
+      memberships: [],
+      isInstanceAdmin: false,
+    };
+    const app = routeApp(ctx.db, strangerActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: director.id });
+
+    expect(response.status).toBe(403);
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("rejects a Director from another company", async () => {
+    const { companyId, actor } = await seedDirector();
+    const other = await seedDirector();
+    const app = routeApp(ctx.db, actor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: other.director.id });
+
+    expect(response.status).toBe(422);
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("rejects a body without a valid agent id", async () => {
+    const { companyId, actor } = await seedDirector();
+    const app = routeApp(ctx.db, actor, onboardingSeedRoutes);
+
+    expect((await post(app, companyId, { agentId: "not-a-uuid" })).status).toBe(400);
   });
 });

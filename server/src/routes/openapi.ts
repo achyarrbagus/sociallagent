@@ -1,5 +1,6 @@
 import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestationSchema, createGrokInvitationSchema, configureGrokRoutineSchema, verifyGrokRoutineSchema, recoverGrokRoutineSchema, pairGrokBindingSchema, stopGrokWorkSchema, retryGrokDeliverySchema, updateFastResponseSchema } from "@paperclipai/shared";
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@paperclipai/shared";
+import { ensureAgencyTeamSchema } from "@paperclipai/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
 import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema } from "@paperclipai/shared";
 import { createAgencyContentSchema, reviseAgencyContentSchema, decideAgencyContentSchema, linkAgencyContentTaskSchema, contentRevisionExpectationSchema, listAgencyContentSchema } from "@paperclipai/shared";
@@ -8366,6 +8367,15 @@ registry.registerPath({
   summary: "Apply the onboarding seed Paperclip Cloud collected at signup",
   request: { params: z.object({ companyId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/onboarding/agency-team",
+  tags: ["companies"],
+  summary: "Install the default agency team under the onboarding Agency Director",
+  request: { params: z.object({ companyId: z.string() }), body: jsonBody(ensureAgencyTeamSchema) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 409: r.conflict, 422: r.unprocessable },
 });
 
 registry.registerPath({
