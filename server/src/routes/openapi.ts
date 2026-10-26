@@ -1,6 +1,8 @@
 import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestationSchema, createGrokInvitationSchema, configureGrokRoutineSchema, verifyGrokRoutineSchema, recoverGrokRoutineSchema, pairGrokBindingSchema, stopGrokWorkSchema, retryGrokDeliverySchema, updateFastResponseSchema } from "@paperclipai/shared";
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@paperclipai/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
+import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema } from "@paperclipai/shared";
+import { createAgencyContentSchema, reviseAgencyContentSchema, decideAgencyContentSchema, linkAgencyContentTaskSchema, contentRevisionExpectationSchema, listAgencyContentSchema } from "@paperclipai/shared";
 import { agentCaseHandoffSchema, caseWorkflowDocumentTextSchema, doneCaseHandoffSchema, createWorkflowSchema, updateWorkflowSchema, listWorkflowsSchema, readWorkflowQuerySchema } from "@paperclipai/shared";
 import {
   experimentalApiPaths,
@@ -1391,6 +1393,13 @@ const browserUseOperations = [
 ] as const;
 
 const BOARD_ONLY_OPERATIONS = new Set([
+  "POST /api/companies/{companyId}/content-items",
+  "POST /api/companies/{companyId}/content-items/{contentId}/decisions",
+  "POST /api/companies/{companyId}/content-items/{contentId}/tasks",
+  "POST /api/companies/{companyId}/agency/clients",
+  "PATCH /api/companies/{companyId}/agency/clients/{id}",
+  "POST /api/companies/{companyId}/agency/brands",
+  "PATCH /api/companies/{companyId}/agency/brands/{id}",
   "GET /api/agents/{id}/project-access",
   "POST /api/agents/{id}/project-access",
   "POST /api/issues/{id}/interactions/{interactionId}/dismiss",
@@ -1811,7 +1820,7 @@ function applyDocumentFixups(document: any): any {
       in: "cookie",
       name: "paperclip_session",
       description:
-        "Board session cookie in authenticated mode. Paperclip uses Better Auth; cookie transport may vary by deployment.",
+        "Board session cookie in authenticated mode. SocialAgent uses Better Auth; cookie transport may vary by deployment.",
     },
     [BOARD_API_KEY_AUTH_SCHEME]: {
       type: "http",
@@ -1825,7 +1834,7 @@ function applyDocumentFixups(document: any): any {
       scheme: "bearer",
       bearerFormat: "Agent API Key or Agent JWT",
       description:
-        "Agent API key or Paperclip-issued local agent JWT presented in the Authorization bearer header.",
+        "Agent API key or SocialAgent-issued local agent JWT presented in the Authorization bearer header.",
     },
     [RUNTIME_TOOLS_BEARER_AUTH_SCHEME]: {
       type: "http",
@@ -1838,7 +1847,7 @@ function applyDocumentFixups(document: any): any {
       type: "http",
       scheme: "bearer",
       bearerFormat: "Task-bound agent JWT",
-      description: "Paperclip-issued JWT bound to an active task run. Agent API keys, board sessions, and connection-only tokens are rejected.",
+      description: "SocialAgent-issued JWT bound to an active task run. Agent API keys, board sessions, and connection-only tokens are rejected.",
     },
   };
   document.security = AUTHENTICATED_SECURITY;
@@ -1880,6 +1889,13 @@ function applyDocumentFixups(document: any): any {
       if (isVoiceSessionOperation(path)) {
         operation.security = [{[BOARD_SESSION_AUTH_SCHEME]: []}];
         operation["x-paperclip-authorization"] = {actor: "board", sessionBound: true};
+      }
+
+      if (path.startsWith("/api/companies/{companyId}/agency") && !["get", "head", "options"].includes(method)) {
+        operation["x-paperclip-authorization"] = { actor: "board", companyRole: "owner", localImplicitBoard: true };
+      }
+      if (path.startsWith("/api/companies/{companyId}/content-items") && authLevel === "board") {
+        operation["x-paperclip-authorization"] = { actor: "board", companyRole: "owner", localImplicitBoard: true };
       }
 
       const key = operationKey(method, path);
@@ -2408,7 +2424,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Create a chat endpoint",
   description:
-    "Creates one provider bot endpoint bound permanently to one Paperclip agent. Provider setup and verification happen in later calls.",
+    "Creates one provider bot endpoint bound permanently to one SocialAgent agent. Provider setup and verification happen in later calls.",
   request: {
     params: z.object({ companyId: z.string().uuid() }),
     body: jsonBody(createChatEndpointSchema),
@@ -2501,8 +2517,8 @@ const githubBotOperations: Array<{
     response: chatEndpointResponseSchema,
   },
   {
-    method: "get", suffix: "reviews", summary: "List review evidence attached to Paperclip tasks",
-    description: "Returns up to 100 newest review records for this endpoint. Each review references ordinary Paperclip tasks and runs; it is not an independent scheduler.",
+    method: "get", suffix: "reviews", summary: "List review evidence attached to SocialAgent tasks",
+    description: "Returns up to 100 newest review records for this endpoint. Each review references ordinary SocialAgent tasks and runs; it is not an independent scheduler.",
     response: z.array(githubReviewResponseSchema),
   },
   {
@@ -2540,7 +2556,7 @@ const githubBotOperations: Array<{
   },
   {
     method: "post", suffix: "repositories/refresh", summary: "Refresh repositories available to the bot installation",
-    description: "Fetches current installation access from GitHub and reconciles resources while preserving Paperclip repository enablement. Return parameters alone never prove installation access.",
+    description: "Fetches current installation access from GitHub and reconciles resources while preserving SocialAgent repository enablement. Return parameters alone never prove installation access.",
     response: z.array(chatEndpointResourceResponseSchema),
   },
   {
@@ -2605,7 +2621,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Configure or change chat endpoint lifecycle state",
   description:
-    "Runs a setup or lifecycle action. `configure` and `reconnect` accept provider credentials (Slack: `botToken`, `signingSecret`; GitHub: `appId`, `privateKey` after Paperclip generates the webhook secret; Discord: `applicationId`, `guildId`, `botToken`; Microsoft Teams: `clientId`, `tenantId`, `clientSecret`; Telegram: `botToken`; iMessage Photon: `projectSecret`, with nonsecret `photon.projectId` and `photon.lineId` configuration). Credentials are stored as Paperclip secret references and are never returned. Other actions do not require credentials.",
+    "Runs a setup or lifecycle action. `configure` and `reconnect` accept provider credentials (Slack: `botToken`, `signingSecret`; GitHub: `appId`, `privateKey` after SocialAgent generates the webhook secret; Discord: `applicationId`, `guildId`, `botToken`; Microsoft Teams: `clientId`, `tenantId`, `clientSecret`; Telegram: `botToken`; iMessage Photon: `projectSecret`, with nonsecret `photon.projectId` and `photon.lineId` configuration). Credentials are stored as SocialAgent secret references and are never returned. Other actions do not require credentials.",
   request: {
     params: z.object({ endpointId: z.string().uuid() }),
     body: jsonBody(configureChatEndpointSchema),
@@ -2671,7 +2687,7 @@ for (const action of ["registration", "install", "resume"] as const) {
 registry.registerPath({
   method: "get", path: "/api/chat-slack/oauth/callback", tags: ["chat-channels"],
   summary: "Complete Slack bot installation and return to the saved wizard",
-  description: "Authenticated, actor/session-bound OAuth callback. State is claimed once before exchanging the code. Installation links the Slack installer to the initiating Paperclip account; reauthorization preserves an established account link. Cross-site browser navigation may receive a same-origin continuation before exchange.",
+  description: "Authenticated, actor/session-bound OAuth callback. State is claimed once before exchanging the code. Installation links the Slack installer to the initiating SocialAgent account; reauthorization preserves an established account link. Cross-site browser navigation may receive a same-origin continuation before exchange.",
   request: { query: z.object({ state: z.string(), code: z.string().optional(), error: z.string().optional() }) },
   responses: { 200: { description: "Same-origin continuation page" }, 303: { description: "Return to saved Slack setup" }, 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 409: r.conflict },
 });
@@ -2756,7 +2772,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Complete a chat endpoint setup test",
   description:
-    "Activates a verifying endpoint only after Paperclip has received a real provider event since the server-issued setup test boundary. iMessage Photon additionally requires a fresh linked sender's task and a successful outbound agent publication.",
+    "Activates a verifying endpoint only after SocialAgent has received a real provider event since the server-issued setup test boundary. iMessage Photon additionally requires a fresh linked sender's task and a successful outbound agent publication.",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
   responses: {
     200: r.ok(chatEndpointResponseSchema),
@@ -2811,7 +2827,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "List external identities seen by a chat endpoint",
   description:
-    "Lists provider identities and their explicit Paperclip identity-link status for this endpoint's provider account.",
+    "Lists provider identities and their explicit SocialAgent identity-link status for this endpoint's provider account.",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
   responses: {
     200: r.ok(z.array(chatPrincipalLinkResponseSchema)),
@@ -2827,7 +2843,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Create an external identity-link intent",
   description:
-    "Creates a short-lived confirmation URL for a human external identity belonging to this endpoint. The signed-in Paperclip user must confirm the link separately.",
+    "Creates a short-lived confirmation URL for a human external identity belonging to this endpoint. The signed-in SocialAgent user must confirm the link separately.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -2892,7 +2908,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Confirm an external identity link",
   description:
-    "Links the token's external identity to the currently signed-in Paperclip user after rechecking active company membership and canonical-link conflicts.",
+    "Links the token's external identity to the currently signed-in SocialAgent user after rechecking active company membership and canonical-link conflicts.",
   request: { body: jsonBody(confirmChatIdentityLinkSchema) },
   responses: {
     200: r.ok(chatIdentityLinkConfirmationResponseSchema),
@@ -2910,7 +2926,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "List external conversations and bound tasks",
   description:
-    "Lists each durable provider conversation-to-Paperclip-task binding for the endpoint, including provider and task links and the latest publication state.",
+    "Lists each durable provider conversation-to-SocialAgent-task binding for the endpoint, including provider and task links and the latest publication state.",
   request: { params: z.object({ endpointId: z.string().uuid() }) },
   responses: {
     200: r.ok(z.array(chatConversationResponseSchema)),
@@ -3012,7 +3028,7 @@ registry.registerPath({
   tags: ["chat-channels"],
   summary: "Resolve an unconfirmed provider action",
   description:
-    "After checking the provider, an operator may mark an ambiguous durable provider reply delivered, retry it while accepting duplicate risk, or cancel it. Slack slash-command task starts support explicit retry or cancel only. Paperclip never replays an ambiguous provider action automatically, and every resolution is audited.",
+    "After checking the provider, an operator may mark an ambiguous durable provider reply delivered, retry it while accepting duplicate risk, or cancel it. Slack slash-command task starts support explicit retry or cancel only. SocialAgent never replays an ambiguous provider action automatically, and every resolution is audited.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -3035,9 +3051,9 @@ registry.registerPath({
   method: "post",
   path: "/api/chat-endpoints/{endpointId}/conversations/{conversationId}/publications",
   tags: ["chat-channels"],
-  summary: "Publish a Paperclip task comment to an external conversation",
+  summary: "Publish a SocialAgent task comment to an external conversation",
   description:
-    "Explicitly projects an eligible comment from the bound Paperclip task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. A Board send with an already-bound attachment returns 409 with code chat_board_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
+    "Explicitly projects an eligible comment from the bound SocialAgent task into the provider conversation. The endpoint, conversation, and comment must belong to the same binding. A Board send with an already-bound attachment returns 409 with code chat_board_send_attachments_already_bound and request-scoped details (endpointId, conversationId, idempotencyKey, attachmentIds). This durable rejection queues no publication and is replayed for the same key even if the file later becomes unbound. Correcting it requires an explicit new send identity. Other errors do not establish non-delivery.",
   request: {
     params: z.object({
       endpointId: z.string().uuid(),
@@ -3189,7 +3205,7 @@ registry.registerPath({
   path: "/api/agent-avatars/{version}/{palette}/{file}",
   tags: ["agents"],
   summary: "Render or retrieve a public preset agent portrait",
-  description: "On-demand PNG artwork; no agent or company lookup. Logical size determines face detail independently of density. Background defaults to transparent; paperclip-dark supplies the opaque Paperclip dark-mode background for Slack exports. Successful URLs are immutable for one year and return a content-derived ETag. Cache entries regenerate after deletion.",
+  description: "On-demand PNG artwork; no agent or company lookup. Logical size determines face detail independently of density. Background defaults to transparent; paperclip-dark supplies the opaque SocialAgent dark-mode background for Slack exports. Successful URLs are immutable for one year and return a content-derived ETag. Cache entries regenerate after deletion.",
   request: {
     params: z.object({
       version: z.literal("cap-v1"),
@@ -4039,7 +4055,7 @@ registry.registerPath({
   tags: ["agents"],
   summary: "Wake up an agent",
   description:
-    "Board failed-run retries supply failedRunId with reason retry_failed_run. Paperclip derives the exact request and current authorization; a chat retry may return a durable queued/deferred receipt before a run exists. Caller task/comment markers and fresh-session overrides do not authorize replay.",
+    "Board failed-run retries supply failedRunId with reason retry_failed_run. SocialAgent derives the exact request and current authorization; a chat retry may return a durable queued/deferred receipt before a run exists. Caller task/comment markers and fresh-session overrides do not authorize replay.",
   request: {
     params: z.object({ id: z.string() }),
     body: jsonBody(wakeAgentSchema),
@@ -5291,6 +5307,51 @@ registry.registerPath({
 });
 
 // ─── Goals ───────────────────────────────────────────────────────────────────
+
+for (const [method, suffix, body, summary] of [
+  ["get", "", undefined, "List authorized brand/campaign content with effective owner review status"],
+  ["post", "", createAgencyContentSchema, "Create a content idea (agency owner only)"],
+  ["get", "/{contentId}", undefined, "Read a content snapshot, linked tasks and current approval validity"],
+  ["get", "/{contentId}/revisions", undefined, "List immutable revision history"],
+  ["get", "/{contentId}/revisions/{revisionNumber}", undefined, "Read a specific immutable revision and its owner decisions"],
+  ["post", "/{contentId}/revisions", reviseAgencyContentSchema, "Save a new revision and clear prior approval (owner or assigned production agent)"],
+  ["post", "/{contentId}/submit", contentRevisionExpectationSchema, "Submit the exact production revision for owner review"],
+  ["post", "/{contentId}/decisions", decideAgencyContentSchema, "Select an idea, approve, request changes or reject (agency owner only)"],
+  ["post", "/{contentId}/tasks", linkAgencyContentTaskSchema, "Retain an authorized same-campaign production task source (owner only)"],
+] as const) {
+  registry.registerPath({ method, path: `/api/companies/{companyId}/content-items${suffix}`, tags: ["agency-content"], summary,
+    request: { params: z.object({ companyId: z.string().guid(), ...(suffix.includes("{contentId}") ? { contentId: z.string().guid() } : {}), ...(suffix.includes("{revisionNumber}") ? { revisionNumber: z.coerce.number().int().positive() } : {}) }),
+      ...(body ? { body: jsonBody(body) } : {}),
+      ...(method === "get" && !suffix ? { query: listAgencyContentSchema } : {}),
+      ...(method === "get" && suffix === "/{contentId}/revisions" ? { query: z.object({ before: z.coerce.number().int().positive().optional() }) } : {}),
+    }, responses: { [method === "post" && (!suffix || suffix.endsWith("/revisions")) ? 201 : 200]: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound, 409: { description: "Revision, state, context or asset changed" }, 422: r.badRequest } });
+}
+
+for (const suffix of ["", "/clients", "/brands"]) {
+  registry.registerPath({
+    method: "get", path: `/api/companies/{companyId}/agency${suffix}`, tags: ["agency"],
+    summary: suffix ? `List agency ${suffix.slice(1)}` : "Read company-wide client and brand context with owner management availability",
+    request: { params: z.object({ companyId: z.string().guid() }) },
+    responses: { 200: r.ok(), 401: r.unauthorized },
+  });
+}
+for (const [kind, create, update] of [
+  ["clients", createAgencyClientSchema, updateAgencyClientSchema],
+  ["brands", createAgencyBrandSchema, updateAgencyBrandSchema],
+] as const) {
+  registry.registerPath({
+    method: "post", path: `/api/companies/{companyId}/agency/${kind}`, tags: ["agency"],
+    summary: `Create an agency ${kind === "clients" ? "client" : "brand"} (owner only)`,
+    request: { params: z.object({ companyId: z.string().guid() }), body: jsonBody(create) },
+    responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized, 422: r.badRequest },
+  });
+  registry.registerPath({
+    method: "patch", path: `/api/companies/{companyId}/agency/${kind}/{id}`, tags: ["agency"],
+    summary: `Edit or archive an agency ${kind === "clients" ? "client" : "brand"} (owner only)`,
+    request: { params: z.object({ companyId: z.string().guid(), id: z.string().guid() }), body: jsonBody(update) },
+    responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 404: r.notFound, 422: r.badRequest },
+  });
+}
 
 registry.registerPath({
   method: "get",
@@ -7751,7 +7812,7 @@ registry.registerPath({
   method: "post",
   path: "/api/heartbeat-runs/{runId}/runtime-requests/{requestId}/resolve",
   tags: ["runs"],
-  summary: "Resolve a pending Paperclip runner runtime request",
+  summary: "Resolve a pending SocialAgent runner runtime request",
   request: {
     params: z.object({ runId: heartbeatRunIdParamSchema, requestId: z.string() }),
     body: jsonBody(
@@ -12286,7 +12347,7 @@ registerCurrentRoute({
 });
 registerCurrentRoute({
   method: "delete", path: "/api/companies/{companyId}/agents/{agentId}/dot-binding", tags: ["agents"],
-  summary: "Revoke a Dot connection and fence its active Paperclip assignments",
+  summary: "Revoke a Dot connection and fence its active SocialAgent assignments",
   responses: { 204: { description: "Dot connection revoked; external stop is unconfirmed" },
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
@@ -12340,7 +12401,7 @@ registerCurrentRoute({
 });
 registerCurrentRoute({
   method: "post", path: "/api/companies/{companyId}/agents/{agentId}/grok-binding/stop", tags: ["agents"],
-  summary: "Revoke Paperclip work-session authority without confirming remote termination",
+  summary: "Revoke SocialAgent work-session authority without confirming remote termination",
   body: stopGrokWorkSchema,
   responses: { 200: r.ok(),
     400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
@@ -12669,9 +12730,9 @@ export function buildOpenApiDocument(): any {
   return applyDocumentFixups({
     openapi: "3.0.0",
     info: {
-      title: "Paperclip API",
+      title: "SocialAgent API",
       version: "1.0.0",
-      description: "REST API for the Paperclip AI agent management platform",
+      description: "REST API for the SocialAgent AI creative agency workspace",
     },
     servers: [{ url: "/" }],
     components: registry.buildComponents(),

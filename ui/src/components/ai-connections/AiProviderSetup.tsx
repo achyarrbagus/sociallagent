@@ -71,6 +71,7 @@ export function AiProviderSetup({
   environmentId,
   initialProvider,
   initialProtocol,
+  gatewayPreset,
   providerLabel,
   advancedOnly = false,
   submitLabel,
@@ -83,6 +84,7 @@ export function AiProviderSetup({
   environmentId?: string;
   initialProvider?: ProviderChoice;
   initialProtocol?: AiProviderRouting["protocol"];
+  gatewayPreset?: { name: string; baseUrl: string };
   providerLabel?: string;
   advancedOnly?: boolean;
   submitLabel?: string;
@@ -113,7 +115,7 @@ export function AiProviderSetup({
   const [auth, setAuth] = useState<AiProviderRouting["auth"]>(
     reconnect?.routing?.auth ?? "bearer",
   );
-  const [baseUrl, setBaseUrl] = useState(reconnect?.routing?.baseUrl ?? "");
+  const [baseUrl, setBaseUrl] = useState(reconnect?.routing?.baseUrl ?? gatewayPreset?.baseUrl ?? "");
   const [region, setRegion] = useState(
     reconnect?.routing?.region ?? "us-east-1",
   );
@@ -133,7 +135,7 @@ export function AiProviderSetup({
     queryKey: ["agents", companyId, "provider-access"],
     queryFn: () => agentsApi.list(companyId),
   });
-  const label = providerLabel ?? providers.find((p) => p.id === provider)?.name ?? (provider === "github" ? "GitHub Copilot" : "provider");
+  const label = providerLabel ?? gatewayPreset?.name ?? providers.find((p) => p.id === provider)?.name ?? (provider === "github" ? "GitHub Copilot" : "provider");
   const advanced = reconnect ? Boolean(reconnect.routing) : ["openrouter", "bedrock", "gateway", "local"].includes(provider ?? "");
   const nativeProvider: AiProvider =
     provider === "bedrock"
@@ -146,7 +148,9 @@ export function AiProviderSetup({
   const name =
     reconnect?.name ??
     `${ownership === "personal" ? "My" : "Company"} ${
-      provider === "gateway" && baseUrl
+      provider === "gateway" && gatewayPreset
+        ? gatewayPreset.name
+        : provider === "gateway" && baseUrl
         ? (() => {
             try {
               return new URL(baseUrl).hostname;

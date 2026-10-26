@@ -201,7 +201,7 @@ export function FastResponseSettingsView({
             />
             <p className="text-xs text-muted-foreground">
               Covers accepted external messages from people without a linked
-              Paperclip account.
+              SocialAgent account.
             </p>
           </div>
         </fieldset>

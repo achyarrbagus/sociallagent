@@ -36,6 +36,9 @@ import {
   type PluginManagedProjectResolution,
 } from "@paperclipai/shared";
 import { conflict, unprocessable } from "../errors.js";
+import { assertActiveAgencyBrand } from "./agency.js";
+import { invalidateAgencyProjectContent } from "./agency-content-invalidation.js";
+import { lockAgencyContentCompany } from "./agency-content-lifecycle.js";
 import { listCurrentRuntimeServicesForProjectWorkspaces } from "./workspace-runtime-read-model.js";
 import { parseProjectExecutionWorkspacePolicy } from "./execution-workspace-policy.js";
 import { mergeProjectWorkspaceRuntimeConfig, readProjectWorkspaceRuntimeConfig } from "./project-workspace-runtime-config.js";
@@ -674,6 +677,8 @@ export function projectService(db: Db, options: { captureWorkspaceUpdates?: bool
 
     return db.transaction(async (tx) => {
       const txDb = tx as unknown as Db;
+      if (projectData.brandId) await lockAgencyContentCompany(txDb, companyId);
+      if (projectData.brandId) await assertActiveAgencyBrand(txDb, companyId, projectData.brandId);
       const row = await tx
         .insert(projects)
         .values({ ...projectData, goalId: legacyGoalId, companyId })
@@ -971,12 +976,20 @@ export function projectService(db: Db, options: { captureWorkspaceUpdates?: bool
       const db = tx as unknown as Db;
       const { goalIds: inputGoalIds, ...projectData } = data;
       const ids = resolveGoalIds({ goalIds: inputGoalIds, goalId: projectData.goalId });
+      if (projectData.brandId !== undefined || projectData.description !== undefined || projectData.archivedAt !== undefined) {
+        const [scope] = await db.select({ companyId: projects.companyId }).from(projects).where(eq(projects.id, id));
+        if (!scope) return null;
+        await lockAgencyContentCompany(db, scope.companyId);
+      }
       const existingProject = await db
-        .select({ id: projects.id, companyId: projects.companyId, name: projects.name, archivedAt: projects.archivedAt, executionWorkspacePolicy: projects.executionWorkspacePolicy })
+        .select({ id: projects.id, companyId: projects.companyId, brandId: projects.brandId, description: projects.description, name: projects.name, archivedAt: projects.archivedAt, executionWorkspacePolicy: projects.executionWorkspacePolicy })
         .from(projects)
         .where(eq(projects.id, id)).for("update")
         .then((rows) => rows[0] ?? null);
       if (!existingProject) return null;
+      if (projectData.brandId && projectData.brandId !== existingProject.brandId) {
+        await assertActiveAgencyBrand(db, existingProject.companyId, projectData.brandId);
+      }
       if (projectData.executionWorkspacePolicy !== undefined &&
           projectData.executionWorkspacePolicy?.storageProviderPluginId !== existingProject.executionWorkspacePolicy?.storageProviderPluginId) {
         const providers = await listProjectWorkspaceProviders(db, existingProject.companyId);
@@ -1016,6 +1029,11 @@ export function projectService(db: Db, options: { captureWorkspaceUpdates?: bool
           await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`issue-privacy-tree:${existingProject.companyId}`}, 0))`);
         }
         const [updated] = await tx.update(projects).set(updates).where(eq(projects.id, id)).returning();
+        if ((projectData.brandId !== undefined && projectData.brandId !== existingProject.brandId)
+          || (projectData.description !== undefined && projectData.description !== existingProject.description)
+          || projectData.archivedAt !== undefined) {
+          await invalidateAgencyProjectContent(tx as unknown as Db, existingProject.companyId, id);
+        }
         if (updated?.visibility === "private" && updates.visibility === "private") {
           const protectedRows = await tx.execute(sql`with recursive protected_tasks as (
             select i.id from issues i where i.project_id = ${id} and i.company_id = ${updated.companyId}

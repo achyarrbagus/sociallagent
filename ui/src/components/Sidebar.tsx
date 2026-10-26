@@ -9,7 +9,6 @@ import {
   Search,
   SquarePen,
   Network,
-  Boxes,
   Repeat,
   Layers,
   GitBranch,
@@ -231,6 +230,8 @@ export function Sidebar({ children }: { children?: ReactNode }) {
               <SidebarStarredProjects />
             </>
           ) : null}
+          <SidebarNavItem to="/agency" label="Clients & Brands" icon={Users} />
+          <SidebarNavItem to="/content" label="Content & Review" icon={SquarePen} />
           <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
           <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
           {showCases ? (
@@ -271,7 +272,6 @@ export function Sidebar({ children }: { children?: ReactNode }) {
             collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
           >
             <SidebarNavItem to="/agents" label="Agents" icon={Users} />
-            <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
             <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} />
             <SidebarNavItem to="/activity" label="Audit" icon={History} />
           </SidebarSection>

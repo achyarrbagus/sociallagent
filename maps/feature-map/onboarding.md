@@ -36,6 +36,12 @@ Use `/<company-prefix>/onboarding` to resume an existing company's agent setup;
 the unprefixed route starts at organization naming on self-hosted instances.
 Cloud-managed instances reuse their existing company for agent setup.
 
+In **Connect a model**, select Codex or Claude Code and API-key credentials to
+use **Connect 9Router**. The shortcut fills an editable local gateway URL;
+model selection and the existing agent connection test follow saving. See
+[9Router setup](../../doc/9router.md). This uses the existing managed gateway
+connection permissions and does not start a 9Router server.
+
 ### `cli-setup`
 
 Use `paperclipai onboard --help` or `paperclipai run --help` to select an isolated data directory before setup.

@@ -391,3 +391,28 @@ operation logs retain their app authorization. Workspace `_issuePrivacySources` 
 operation privacy metadata protect app-record disclosure; they do not grant or deny
 filesystem execution or task-bound file browsing. Current trust and sandbox policy,
 publication receipts, binding checks, and lifecycle locks remain authoritative.
+
+## Creative agency foundation (2026-10-25)
+
+An agency can use one company to manage clients and their brands through
+**Clients & Brands** (`/agency`). Owners create, edit, archive and restore client
+and brand profiles; agents and other authorized company members can read this
+company-wide context. Profiles store audience, tone, brief, website and timezone,
+not credentials. They are not an independent brand privacy boundary.
+
+Projects can optionally bind to a brand as campaigns. Existing projects remain
+valid without a brand. New bindings require an active same-company brand and
+client; archiving retains history and prevents new bindings.
+
+The optional **Agency Studio** catalog team adds an account manager and creative,
+content, SEO, marketing, copywriting, design, analysis and publication-preparation
+roles. Creative Strategist provides the owner a ranked shortlist of ideas with
+audience insight, hook, format, CTA, evidence and experiment proposals. Owner
+selection hands an idea to production; it does not approve publication. The team
+is installed through the normal preview/configuration/governance flow.
+
+Client approval is not required. Revision-bound owner content review is now implemented in the
+[content production flow](agency-content.md). A content calendar and automated
+provider publishing remain subsequent implementation slices described in the
+[agency PRD](plans/2026-10-25-prd-rewrite-creative-agency.md). Content approval does
+not imply provider publication authority.

@@ -1,4 +1,8 @@
 export const queryKeys = {
+  agency: (companyId: string) => ["agency", companyId] as const,
+  agencyContent: {
+    detail: (companyId: string, id: string) => ["agency-content", companyId, "detail", id] as const,
+  },
   agentCommentary: {
     list: (companyId: string, filters: object) => ["agent-commentary", companyId, "list", filters] as const,
     detail: (companyId: string, id: string | null) => ["agent-commentary", companyId, "detail", id] as const,

@@ -236,7 +236,7 @@ const APPROVED_STDIO_TEMPLATES: Record<
   }
 > = {
   "paperclip.echo-calculator-time": {
-    name: "Paperclip Echo / Calculator / Time fixture",
+    name: "SocialAgent Echo / Calculator / Time fixture",
     tools: [
       {
         name: "echo",
@@ -277,7 +277,7 @@ const APPROVED_STDIO_TEMPLATES: Record<
     ],
   },
   "paperclip.synthetic-todo-kv": {
-    name: "Paperclip Synthetic Todo / KV fixture",
+    name: "SocialAgent Synthetic Todo / KV fixture",
     tools: [
       {
         name: "list_items",
@@ -441,15 +441,15 @@ const TOOL_EXAMPLES: ToolExampleDefinition[] = [
     description:
       "Installs a deterministic local MCP fixture and grants only its read-only catalog entries.",
     applicationKey: "paperclip.examples.safe-read-only-todo-kv",
-    applicationName: "Paperclip example: Safe read-only Todo / KV",
+    applicationName: "SocialAgent example: Safe read-only Todo / KV",
     applicationDescription:
       "Deterministic MCP fixture for first-run tool governance checks.",
-    connectionName: "Paperclip example: Safe read-only Todo / KV",
+    connectionName: "SocialAgent example: Safe read-only Todo / KV",
     templateId: "paperclip.synthetic-todo-kv",
     profileKey: "paperclip.examples.safe-read-only-todo-kv.profile",
     profileName: "Example safe read-only tools",
     profileDescription:
-      "Allows only the read-only tools from the Paperclip Todo / KV example fixture.",
+      "Allows only the read-only tools from the SocialAgent Todo / KV example fixture.",
   },
 ];
 
@@ -1969,7 +1969,7 @@ export function toolAccessService(
       const integration = vercelConnectIntegrationStatus();
       if (!integration.enabled || !integration.configured || !vercelConnect) {
         throw unprocessable(
-          "Vercel Connect setup is not available on this Paperclip instance",
+          "Vercel Connect setup is not available on this SocialAgent instance",
           {
             code: "vercel_connect_unavailable",
           },
@@ -2047,7 +2047,7 @@ export function toolAccessService(
           .limit(1);
         if (connectorInUse) {
           throw conflict(
-            "App-subject Vercel connectors are dedicated to one Paperclip connection. Create or attach a separate connector in Vercel.",
+            "App-subject Vercel connectors are dedicated to one SocialAgent connection. Create or attach a separate connector in Vercel.",
             {
               code: "vercel_connect_app_connector_in_use",
             },
@@ -2108,7 +2108,7 @@ export function toolAccessService(
             mcpPreserveAccess: Boolean(retainedConnection && (retainedConnection.status === "active" || asRecord(retainedConnection.config).mcpPreserveAccess === true)),
           } : {}),
           ...(galleryEntry.slug === "posthog" ? { safeDefault: true } : {}),
-          // Telem.AI attributes each search to the Paperclip company, agent,
+          // Telem.AI attributes each search to the SocialAgent company, agent,
           // run and issue, so its catalog connection forwards those context
           // headers by default (the gateway still drops empty values). A
           // reconnect keeps the policy the operator saved on the connection.
@@ -2146,7 +2146,7 @@ export function toolAccessService(
     }
     // A pasted URL or an explicitly customer-owned curated method may arrive
     // with a client the operator preregistered in the provider's console. Record
-    // the client id now; the secret becomes an encrypted Paperclip secret below.
+    // the client id now; the secret becomes an encrypted SocialAgent secret below.
     if (input.oauthClient) {
       config.oauth = {
         clientId: input.oauthClient.clientId.trim(),
@@ -2455,7 +2455,7 @@ export function toolAccessService(
         }
         if (!applicationRow) {
           throw conflict(
-            "Paperclip could not allocate a unique connection name",
+            "SocialAgent could not allocate a unique connection name",
             {
               code: "tool_access_name_allocation_exhausted",
             },
@@ -2776,7 +2776,7 @@ export function toolAccessService(
             .where(eq(toolConnections.id, connectionRow.id));
           const endpoints = await discoverOAuthEndpoints(oauthConnection).catch(
             (discoveryError: unknown) => {
-              // "This server advertised an address Paperclip refuses to open" is a
+              // "This server advertised an address SocialAgent refuses to open" is a
               // refusal, not a failed discovery: keep it instead of collapsing it
               // into the generic sign-in-required error.
               if (isOAuthEndpointRejection(discoveryError))
@@ -3558,7 +3558,7 @@ export function toolAccessService(
       throw conflict("Archived app connections cannot be reconnected");
     if (connection.credentialSource === "vercel_connect") {
       throw conflict(
-        "Manage this connector in Vercel Connect, then run a Paperclip health check to verify it.",
+        "Manage this connector in Vercel Connect, then run a SocialAgent health check to verify it.",
         {
           code: "vercel_connect_managed_externally",
           manageUrl: vercelConnectIntegrationStatus().manageUrl,
@@ -4721,7 +4721,7 @@ export function toolAccessService(
             .sort()
             .map((key) => {
               warnings.push(
-                `Header ${key} will be stored as a Paperclip secret before activation.`,
+                `Header ${key} will be stored as a SocialAgent secret before activation.`,
               );
               return {
                 configPath: `headers.${key}`,
@@ -4744,7 +4744,7 @@ export function toolAccessService(
         }
         if (typeof server.command === "string") {
           warnings.push(
-            "Imported stdio commands stay draft-only unless mapped to an approved Paperclip template.",
+            "Imported stdio commands stay draft-only unless mapped to an approved SocialAgent template.",
           );
           return {
             name,

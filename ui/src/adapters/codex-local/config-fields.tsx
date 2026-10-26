@@ -4,6 +4,7 @@ import { MuseRunnerConnection } from "../../components/MuseRunnerConnection";
 import { GrokBotConnection } from "../../components/GrokBotConnection";
 import { DotRunnerConnection } from "../../components/DotRunnerConnection";
 import { configFieldsForSection } from "../config-sections";
+import { modelDisplayName } from "../../lib/model-display";
 import type { AdapterConfigFieldsProps } from "../types";
 import type { CreateConfigValues } from "@paperclipai/adapter-utils";
 import { buildCodexLocalConfig } from "@paperclipai/adapter-codex-local/ui";
@@ -187,12 +188,12 @@ export function CodexLocalConfigFields({
   const fastModeManualModel = isCodexLocalManualModel(currentModel);
   const fastModeSupported = isCodexLocalFastModeSupported(currentModel);
   const supportedModelsLabel =
-    CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS.join(", ");
+    [...new Set(CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS.map(modelDisplayName))].join(", ");
   const fastModeMessage = fastModeManualModel
     ? "Fast mode will be passed through for this manual model. If Codex rejects it, turn the toggle off."
     : fastModeSupported
       ? "Fast mode consumes credits/tokens much faster than standard Codex runs."
-      : `Fast mode currently only works on ${supportedModelsLabel} or manual model IDs. Paperclip will ignore this toggle until the model is switched.`;
+      : `Fast mode currently only works on ${supportedModelsLabel} or manual model IDs. SocialAgent will ignore this toggle until the model is switched.`;
 
   return configFieldsForSection(section, (
     <>
@@ -283,7 +284,7 @@ export function CodexLocalConfigFields({
               {runnerHarnessOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   <AdapterMark type={option.adapter} className="size-4" />
-                  {option.label}
+                  {option.label.replaceAll("Paperclip", "SocialAgent")}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -299,18 +300,18 @@ export function CodexLocalConfigFields({
           checked={runnerSchemaValue("dotAttachmentAccess", false) === true} onChange={value => updateRunnerSchemaValue("dotAttachmentAccess", value)} />
         <ToggleField label="Workspace files and commands" hint="Let Dot read and write its assigned workspace and publish files. Requires a local Runner. Commands are available only on Linux with bubblewrap; they cannot read your home directory or use injected credentials."
           checked={runnerSchemaValue("dotWorkspaceAccess", false) === true} onChange={value => updateRunnerSchemaValue("dotWorkspaceAccess", value)} />
-        <ToggleField label="Allow externally billed provider" hint="Dot does not report token usage or cost. Paperclip cannot enforce a provider spend ceiling; known company and agent budget limits still apply."
+        <ToggleField label="Allow externally billed provider" hint="Dot does not report token usage or cost. SocialAgent cannot enforce a provider spend ceiling; known company and agent budget limits still apply."
           checked={runnerSchemaValue("allowUnmeteredProvider", false) === true} onChange={value => updateRunnerSchemaValue("allowUnmeteredProvider", value)} />
       </>}
       {runnerManaged && isMuse && <>
         <Field configSection="adapter" label="Muse connection" hint="Pairing, receiver contact, background reply, and agent setup are verified separately.">
           <MuseRunnerConnection companyId={companyId} agentId={agentId} />
         </Field>
-        <ToggleField label="Allow externally billed provider" hint="Muse does not report usage or cost. Paperclip cannot enforce a Muse spend ceiling; known company and agent budget limits still apply."
+        <ToggleField label="Allow externally billed provider" hint="Muse does not report usage or cost. SocialAgent cannot enforce a Muse spend ceiling; known company and agent budget limits still apply."
           checked={runnerSchemaValue("allowUnmeteredProvider", false) === true} onChange={value => updateRunnerSchemaValue("allowUnmeteredProvider", value)} />
       </>}
       {runnerManaged && runnerProvider === "acpx" && runnerSchemaValue("acpxAgent", "claude") !== "grok" && (
-        <Field configSection="adapter" label="ACP agent" hint="Cursor uses Paperclip questions; per-run cost is unavailable. Pi accepts any provider/model ID. GitHub Copilot awaits qualification.">
+        <Field configSection="adapter" label="ACP agent" hint="Cursor uses SocialAgent questions; per-run cost is unavailable. Pi accepts any provider/model ID. GitHub Copilot awaits qualification.">
           <Select
             value={String(isCreate ? values!.adapterSchemaValues?.acpxAgent ?? "claude" : eff("adapterConfig", "acpxAgent", config.acpxAgent ?? "claude"))}
             onValueChange={(value) => {
@@ -421,7 +422,7 @@ export function CodexLocalConfigFields({
           </Field>
           <Field
             label="Estimated session ceiling (USD)"
-            hint="Paperclip estimate; AWS does not provide a per-session currency hard stop."
+            hint="SocialAgent estimate; AWS does not provide a per-session currency hard stop."
           >
             <DraftNumberInput
               value={Number(runnerSchemaValue("maxEstimatedSessionCostUsd", 1))}
@@ -494,7 +495,7 @@ export function CodexLocalConfigFields({
       {runnerManaged && !isExternal && runnerPermissionCapability.configurable && (runnerPermissionCapability.options.length > 1 || runnerPermissionModeUnsupported) && (
         <Field
           label="Permission mode"
-          hint={`${runnerPermissionCapability.description} The selected mode does not widen Paperclip's workspace, network, credential, or planning boundaries.`}
+          hint={`${runnerPermissionCapability.description.replaceAll("Paperclip", "SocialAgent")} The selected mode does not widen SocialAgent's workspace, network, credential, or planning boundaries.`}
         >
           <Select
             value={
@@ -527,7 +528,7 @@ export function CodexLocalConfigFields({
               <SelectValue>
                 {runnerPermissionModeUnsupported
                   ? "Unsupported saved mode — select a qualified mode"
-                  : runnerPermissionCapability.options.find((option) => option.value === runnerPermissionMode)?.label}
+                  : runnerPermissionCapability.options.find((option) => option.value === runnerPermissionMode)?.label.replaceAll("Paperclip", "SocialAgent")}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -538,14 +539,14 @@ export function CodexLocalConfigFields({
               )}
               {runnerPermissionCapability.options.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {option.label.replaceAll("Paperclip", "SocialAgent")}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {runnerPermissionModeUnsupported && runnerProvider === "codex" && (
             <p className="mt-1 text-xs text-destructive" role="alert">
-              This saved Codex mode cannot start or recover a Paperclip Runner
+              This saved Codex mode cannot start or recover a SocialAgent Runner
               run. Select Automatic (isolated) to remediate it.
             </p>
           )}
@@ -697,7 +698,7 @@ export function CodexLocalConfigFields({
           {!managedSandboxOnly && (
             <Field
               label="ACP state directory"
-              hint="Optional ACP session state directory. Defaults to Paperclip-managed organization/agent scoped storage."
+              hint="Optional ACP session state directory. Defaults to SocialAgent-managed organization/agent scoped storage."
             >
               <div className="flex items-center gap-2">
                 <DraftInput

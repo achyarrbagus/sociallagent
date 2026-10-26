@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { modelDisplayName } from "@/lib/model-display";
+
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -106,7 +108,7 @@ describe("Shared Costs surfaces", () => {
     await act(async () => { await vi.waitFor(() => expect(container.textContent).toContain("Researcher's Muse activity has no reported usage or cost")); });
     expect(scopedAgentMock).toHaveBeenCalledWith("muse-agent", "company-1");
     expect(container.textContent).toContain("Totals below show recorded organization charges only");
-    expect(container.textContent).toContain("Paperclip cannot enforce a Muse spend ceiling");
+    expect(container.textContent).toContain("SocialAgent cannot enforce a Muse spend ceiling");
     queryClient.clear();
   });
 
@@ -480,7 +482,10 @@ describe("Shared Costs surfaces", () => {
     expect(costsApiMocks.dataQuality).not.toHaveBeenCalled();
     await act(async () => card("Mixed").querySelector<HTMLElement>(".cursor-pointer")!.click());
     const breakdown = card("Mixed").querySelector(".border-l")!;
-    expect(breakdown.textContent).toContain("gpt-6-astra");
+    expect(breakdown.textContent).toContain(modelDisplayName("gpt-6-astra"));
+    expect(breakdown.textContent).toContain(modelDisplayName("gpt-6-sol"));
+    expect(breakdown.textContent).not.toContain("gpt-6-astra");
+    expect(breakdown.textContent).not.toContain("gpt-6-sol");
     expect(breakdown.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
     expect(breakdown.querySelector('[data-slot="badge"]')!.textContent).toBe("Estimated");
     // The count is for charges, not runs; it must not use apiRunCount or the

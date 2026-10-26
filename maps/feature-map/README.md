@@ -70,6 +70,7 @@ Use this index to open a recipe or copy its feature and full capability IDs.
 | Feature ID | Recipe | Capability IDs |
 | --- | --- | --- |
 | `projects` | [Projects and repositories](projects.md) | `projects/lifecycle`, `projects/task-context`, `projects/repositories`, `projects/defaults`, `projects/privacy` |
+| `agency` | [Creative agency](agency.md) | `agency/profiles`, `agency/campaigns`, `agency/team`, `agency/content`, `agency/owner-review` |
 | `goals` | [Goals and work alignment](goals.md) | `goals/hierarchy`, `goals/alignment`, `goals/navigation` |
 | `workspaces` | [Workspaces, services, and files](workspaces.md) | `workspaces/binding`, `workspaces/provisioning`, `workspaces/services`, `workspaces/files-git`, `workspaces/closure` |
 | `execution-environments` | [Execution environments](execution-environments.md) | `execution-environments/configuration`, `execution-environments/capabilities`, `execution-environments/probe`, `execution-environments/assignment`, `execution-environments/images` |

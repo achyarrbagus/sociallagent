@@ -16,6 +16,7 @@ import type { Issue, IssueDocument } from "@paperclipai/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getLastProjectId } from "../lib/recent-projects";
 import { IssueProperties } from "./IssueProperties";
+import { modelDisplayName } from "@/lib/model-display";
 import { applyOptimisticIssueFieldUpdate } from "../lib/optimistic-issue-comments";
 import { queryKeys } from "../lib/queryKeys";
 import { ApiError } from "../api/client";
@@ -2401,8 +2402,8 @@ describe("IssueProperties", () => {
       seniorProductEngineer(),
     ]);
     mockAgentsApi.adapterModels.mockResolvedValue([
-      { id: "gpt-6-astra", label: "gpt-6-astra" },
-      { id: "gpt-5.4", label: "GPT-5.4" },
+      { id: "gpt-6-sol", label: "Provider Sol" },
+      { id: "gpt-6-luna", label: "Provider Luna" },
     ]);
 
     const root = renderProperties(container, {
@@ -2421,17 +2422,29 @@ describe("IssueProperties", () => {
     await flush();
     await flush();
 
-    expect(container.textContent).toContain("Override · gpt-5.4 · high");
+    expect(container.textContent).toContain(`Override · ${modelDisplayName("gpt-5.4")} · high`);
+    expect(container.textContent).not.toContain("gpt-5.4");
+    expect(container.querySelector("[title*='Task-level model override']")?.getAttribute("title")).toContain(modelDisplayName("gpt-5.4"));
     expect(container.textContent).toContain("Model lane");
 
     // Wait for the adapter-models query to resolve so the model options render.
     let modelButton: HTMLButtonElement | undefined;
     await waitForAssertion(() => {
       modelButton = Array.from(container.querySelectorAll("button"))
-        .find((button) => button.textContent?.includes("gpt-6-astra"));
+        .find((button) => button.textContent?.includes("Bruno"));
       expect(modelButton).not.toBeUndefined();
     });
 
+    expect(container.textContent).toContain("Yuna");
+    expect(container.textContent).not.toContain("Provider Sol");
+    expect(container.textContent).not.toContain("gpt-6-sol");
+    const searchInput = container.querySelector<HTMLInputElement>('input[placeholder="Search models..."]')!;
+    expect(searchInput).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(searchInput, "Bruno");
+      searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.textContent).not.toContain("Yuna");
     await act(async () => {
       modelButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -2439,7 +2452,7 @@ describe("IssueProperties", () => {
     expect(onUpdate).toHaveBeenCalledWith({
       assigneeAdapterOverrides: {
         adapterConfig: {
-          model: "gpt-6-astra",
+          model: "gpt-6-sol",
           modelReasoningEffort: "high",
         },
       },

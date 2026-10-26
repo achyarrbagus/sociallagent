@@ -15,6 +15,7 @@ const EXPECTED_BUNDLED_KEYS = [
 
 const EXPECTED_OPTIONAL_KEYS = [
   "paperclipai/optional/communications/speko-company-phone-agent",
+  "paperclipai/optional/content/agency-studio",
   "paperclipai/optional/content/content-machine",
 ];
 
@@ -102,6 +103,15 @@ describe("shipped teams catalog", () => {
       "product-design/ux-designer": { role: "designer", reportsTo: null, skills: ["wireframe", "design-critique", "task-planning"] },
       "speko-company-phone-agent/speko-company-phone-agent": { role: "general", reportsTo: null, skills: undefined },
       "content-machine/content-lead": { role: "content-strategist", reportsTo: null, skills: ["content-calendar"] },
+      "agency-studio/account-manager": { role: "pm", reportsTo: null, skills: undefined },
+      "agency-studio/creative-strategist": { role: "general", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/content-strategist": { role: "general", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/seo-specialist": { role: "researcher", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/marketing-strategist": { role: "cmo", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/copywriter": { role: "general", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/designer": { role: "designer", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/analyst": { role: "researcher", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/publisher": { role: "general", reportsTo: "account-manager", skills: undefined },
     };
     const observed: Record<string, unknown> = {};
     for (const team of catalogTeams) {

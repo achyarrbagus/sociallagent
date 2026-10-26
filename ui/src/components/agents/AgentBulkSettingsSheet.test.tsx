@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { modelDisplayName } from "@/lib/model-display";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -50,7 +51,7 @@ async function chooseModel(id: string, manual = false) {
     });
   }
   const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')]
-    .find(el => manual ? el.textContent?.includes("Use manual model") : el.textContent?.trim() === id);
+    .find(el => manual ? el.textContent?.includes("Use manual model") : el.textContent?.trim() === modelDisplayName(id));
   expect(option).toBeDefined();
   await act(async () => option!.click());
 }
@@ -72,10 +73,31 @@ describe("bulk model editing", () => {
     api.update.mockResolvedValue({ ...hermes, adapterConfig: { model: "provider/custom-model" } });
     await render([hermes]);
     await chooseModel("provider/custom-model", true);
+    expect(document.body.textContent).toContain(modelDisplayName("provider/custom-model"));
+    expect(document.body.textContent).toContain(modelDisplayName("old-model"));
+    expect(document.body.textContent).not.toContain("provider/custom-model");
+    expect(document.body.textContent).not.toContain("old-model");
     await vi.waitFor(() => expect(button("Update 1 agent").disabled).toBe(false));
     await act(async () => button("Update 1 agent").click());
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledWith(["Hermes"], true));
     expect(api.update).toHaveBeenCalledWith("Hermes", expect.objectContaining({ model: "provider/custom-model", harness: "hermes_local" }), "company-1");
+  });
+
+  it("masks catalog choices and previews while saving the original model ID", async () => {
+    const codex = agent("Codex", "codex_local");
+    const id = "gpt-6-astra";
+    api.models.mockResolvedValue([{ id, label: "GPT-6 Astra" }]);
+    api.update.mockResolvedValue({ ...codex, adapterConfig: { model: id } });
+    await render([codex]);
+    await chooseModel(id);
+    expect(document.body.textContent).toContain(modelDisplayName(id));
+    expect(document.body.textContent).not.toContain(id);
+    expect(document.body.textContent).not.toContain("GPT-6 Astra");
+    expect(document.body.textContent).not.toContain("old-model");
+    await act(async () => button("Update 1 agent").click());
+    await vi.waitFor(() => expect(api.update).toHaveBeenCalledWith("Codex", expect.objectContaining({
+      model: id, expected: { model: "old-model", aiConnection: null },
+    }), "company-1"));
   });
 
   it("does not offer manual entry for a restricted connection catalog", async () => {

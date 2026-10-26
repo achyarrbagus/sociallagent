@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import type { FinanceEvent } from "@paperclipai/shared";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +46,7 @@ export function FinanceTimelineCard({
                   <div className="text-sm font-medium">
                     {providerDisplayName(row.biller)}
                     {row.provider ? ` -> ${providerDisplayName(row.provider)}` : ""}
-                    {row.model ? <span className="ml-1 font-mono text-xs text-muted-foreground">{row.model}</span> : null}
+                    {row.model ? <span className="ml-1 font-mono text-xs text-muted-foreground">{modelDisplayName(row.model)}</span> : null}
                   </div>
                   {(row.description || row.externalInvoiceId || row.region || row.pricingTier) && (
                     <div className="space-y-1 text-xs text-muted-foreground">

@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { isLockedIssueStub } from "@/components/LockedIssueChip";
 import { IssuePullRequestLinks } from "../IssuePullRequestLinks";
 import { useIssueWorkProducts } from "../../hooks/useIssueWorkProducts";
@@ -777,13 +778,13 @@ export function IssueProperties({
     const models = sortAdapterModels(assigneeAdapterModels ?? []);
     const options = models.map((model) => ({
       id: model.id,
-      label: model.label,
-      searchText: `${model.id} ${extractProviderIdWithFallback(model.id)}`,
+      label: modelDisplayName(model.id),
+      searchText: `${model.id} ${model.label} ${extractProviderIdWithFallback(model.id)}`,
     }));
     if (assigneeOverrideModel && !options.some((option) => option.id === assigneeOverrideModel)) {
       options.unshift({
         id: assigneeOverrideModel,
-        label: assigneeOverrideModel,
+        label: modelDisplayName(assigneeOverrideModel),
         searchText: assigneeOverrideModel,
       });
     }
@@ -847,7 +848,7 @@ export function IssueProperties({
   const assigneeOptionsTrigger = (() => {
     if (assigneeOverrideLane === "custom") {
       const details = [
-        assigneeOverrideModel,
+        assigneeOverrideModel ? modelDisplayName(assigneeOverrideModel) : "",
         assigneeOverrideThinkingEffort,
         assigneeOverrideChrome ? "Chrome" : "",
       ].filter(Boolean);

@@ -242,7 +242,7 @@ export function SidebarAccountMenu({
               ) : null}
               <MenuAction
                 label="Documentation"
-                description="Open Paperclip docs in a new tab."
+                description="Open upstream Paperclip documentation in a new tab."
                 icon={BookOpen}
                 href={DOCS_URL}
                 external

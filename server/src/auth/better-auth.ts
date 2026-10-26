@@ -258,6 +258,7 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
   });
 
   const authConfig = {
+    appName: "SocialAgent",
     baseURL: baseUrl,
     secret,
     trustedOrigins,

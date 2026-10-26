@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { modelDisplayName } from "@/lib/model-display";
 import type { ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -151,7 +152,7 @@ function makeBuiltInAgentState(overrides: Partial<BuiltInAgentState> = {}): Buil
       displayName: "Briefs Agent",
       featureKeys: ["Briefs"],
       shortPurpose: "Generates briefs.",
-      defaultInstructions: "You are Paperclip's built-in Briefs agent.",
+      defaultInstructions: "You are SocialAgent's built-in Briefs agent.",
       defaultRole: "engineer",
     },
     status: "ready",
@@ -456,7 +457,9 @@ describe("Agents", () => {
     await flushReact();
 
     expect(container.textContent).toContain("codex_local");
-    expect(container.textContent).toContain("gpt-5.4");
+    expect(container.textContent).toContain(modelDisplayName("gpt-5.4"));
+    expect(container.textContent).not.toContain("gpt-5.4");
+    expect(container.querySelector('[title="gpt-5.4"]')).toBeNull();
 
     // The heartbeat cell must render on a single line so full dates like
     // "Apr 30, 2026" never wrap (PAP-85 defect #2).
@@ -503,7 +506,9 @@ describe("Agents", () => {
     });
     await flushReact();
     expect(container.querySelector('[data-testid="org-chart-viewport"]')).toBeNull();
-    expect(container.textContent).toContain("gpt-5.4");
+    expect(container.textContent).toContain(modelDisplayName("gpt-5.4"));
+    expect(container.textContent).not.toContain("gpt-5.4");
+    expect(container.querySelector('[title="gpt-5.4"]')).toBeNull();
   });
 
   it("gives mobile agent names the full row width after the leading status indicator", async () => {
@@ -522,7 +527,7 @@ describe("Agents", () => {
     mockAgentsApi.list.mockResolvedValue([
       makeAgent({
         id: "agent-mobile",
-        name: "Paperclip Engineer With A Much Longer Display Name",
+        name: "SocialAgent Engineer With A Much Longer Display Name",
         title: "Software Engineer With A Much Longer Specialty Title",
         urlKey: "paperclip-engineer-long",
       }),
@@ -535,21 +540,21 @@ describe("Agents", () => {
     await flushReact();
     await flushReact();
 
-    const row = findAgentRow(container, "Paperclip Engineer With A Much Longer Display Name");
+    const row = findAgentRow(container, "SocialAgent Engineer With A Much Longer Display Name");
     expect(row).not.toBeNull();
     expect(row?.querySelector(".sm\\:hidden")).toBeNull();
     expect(row?.querySelector(".hidden.sm\\:flex")).not.toBeNull();
 
     expect(row?.classList.contains("text-foreground/55")).toBe(false);
     expect(row?.classList.contains("sm:text-foreground/55")).toBe(false);
-    const name = row?.querySelector("span[title='Paperclip Engineer With A Much Longer Display Name']");
+    const name = row?.querySelector("span[title='SocialAgent Engineer With A Much Longer Display Name']");
     const subtitle = Array.from(row?.querySelectorAll("p") ?? []).find((node) =>
       node.textContent?.includes("Software Engineer With A Much Longer Specialty Title"),
     );
     expect(name?.classList.contains("truncate")).toBe(true);
     expect(subtitle).toBeDefined();
     expect(subtitle?.classList.contains("truncate")).toBe(true);
-    const actions = row?.querySelector('button[aria-label="Open actions for Paperclip Engineer With A Much Longer Display Name"]');
+    const actions = row?.querySelector('button[aria-label="Open actions for SocialAgent Engineer With A Much Longer Display Name"]');
     expect(actions).toBeNull();
     expect(row?.textContent).not.toContain("Assign Task");
     expect(row?.textContent).not.toContain("Run Heartbeat");
@@ -609,7 +614,7 @@ describe("Agents", () => {
     await flushReact();
 
     expect(container.textContent).toContain("Dev Laptop");
-    expect(container.textContent).toContain("Paperclip host");
+    expect(container.textContent).toContain("SocialAgent host");
   });
 
   it("reserves the environment column while environment metadata is loading", async () => {
@@ -897,7 +902,7 @@ describe("Agents", () => {
     expect(mockBuiltInAgentsApi.list).toHaveBeenCalledWith("company-1");
     expect(container.textContent).toContain("Briefs Agent");
     expect(container.textContent).toContain("Regular Agent");
-    expect(container.querySelector('[title="Ships with Paperclip"]')).toBeNull();
+    expect(container.querySelector('[title="Ships with SocialAgent"]')).toBeNull();
     expect(mockRouterState.navigate).toHaveBeenCalledWith("/agents/all", { replace: true });
   });
 

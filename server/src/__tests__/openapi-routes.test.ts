@@ -13,6 +13,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROUTES_DIR = path.resolve(__dirname, "../routes");
 
 const apiPrefixes: Record<string, string> = {
+  "agency-content.ts": "/api",
+  "agency.ts": "/api",
   "cases.ts": "/api",
   "case-handoffs.ts": "/api",
   "workflows.ts": "/api",
@@ -314,6 +316,22 @@ function loadSpecRoutes() {
 }
 
 describe("openapi routes", () => {
+  it("documents revision-bound owner content decisions and assigned-agent production writes", () => {
+    const spec = buildOpenApiSpec() as any;
+    const path = "/api/companies/{companyId}/content-items/{contentId}";
+    expect(spec.paths[`${path}/decisions`].post["x-paperclip-authorization"]).toMatchObject({ actor: "board", companyRole: "owner" });
+    expect(spec.paths[`${path}/revisions`].post["x-paperclip-authorization"]).toMatchObject({ actor: "board_or_agent" });
+    const schema = spec.paths[`${path}/revisions`].post.requestBody.content["application/json"].schema;
+    expect(schema.required).toContain("expectedRevisionNumber");
+    expect(schema.additionalProperties).toBe(false);
+  });
+  it("documents agency reads and owner-only writes without exposing mutation to agent API discovery", () => {
+    const spec = buildOpenApiSpec() as any;
+    const base = "/api/companies/{companyId}/agency";
+    expect(spec.paths[base].get["x-paperclip-authorization"]).toMatchObject({ actor: "board_or_agent" });
+    expect(spec.paths[`${base}/brands`].post["x-paperclip-authorization"]).toMatchObject({ actor: "board", companyRole: "owner" });
+    expect(spec.paths[`${base}/clients/{id}`].patch["x-paperclip-authorization"]).toMatchObject({ actor: "board", companyRole: "owner" });
+  });
   it("removes Pipelines discovery while retaining Cases and Routines", () => {
     const spec = buildOpenApiSpec() as any;
     const paths = Object.keys(spec.paths);
@@ -480,7 +498,7 @@ describe("openapi routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.openapi).toBe("3.0.0");
-    expect(res.body.info.title).toBe("Paperclip API");
+    expect(res.body.info.title).toBe("SocialAgent API");
     expect(res.body.paths["/api/openapi.json"].get.summary).toBe(
       "Get the generated OpenAPI document",
     );

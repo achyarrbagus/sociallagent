@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { modelDisplayCode, modelDisplayName } from "@/lib/model-display";
 import { act, useState, type ComponentProps } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
@@ -74,7 +75,7 @@ describe("composer assignee picker", () => {
     const queryClient = new QueryClient();
     flushSync(() => root!.render(<QueryClientProvider client={queryClient}><ControlledPicker /></QueryClientProvider>));
     const label = () => container!.querySelector('[data-testid="task-chat-composer-model-label"]')!.textContent;
-    expect(label()).toBe("GPT-6 Sol");
+    expect(label()).toBe(modelDisplayName("gpt-6-sol"));
     await click("Select model and effort");
     expect(label()).toBe("Select model");
     const range = document.querySelector<HTMLInputElement>('input[aria-label="Effort"]')!;
@@ -88,11 +89,11 @@ describe("composer assignee picker", () => {
     await click("Choose assignee");
     expect(label()).toBe("Select model");
     await click("Clippy");
-    expect(label()).toBe("GPT-6 Sol");
+    expect(label()).toBe(modelDisplayName("gpt-6-sol"));
     expect(container!.querySelector('[aria-label="Select model and effort"]')!.textContent).toContain("Low");
     await click("Select model and effort");
     await click("Choose exact model");
-    await click("GPT-6 Astra");
+    await click(modelDisplayName("gpt-6-astra"));
     expect(label()).toBe("Select model");
     if (mobile) await click("Close picker");
     else {
@@ -101,7 +102,7 @@ describe("composer assignee picker", () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
     }
-    expect(label()).toBe("GPT-6 Astra");
+    expect(label()).toBe(modelDisplayName("gpt-6-astra"));
     expect(container!.querySelector('[aria-label="Select model and effort"]')!.textContent).toContain("Low");
   });
 
@@ -146,14 +147,46 @@ describe("composer assignee picker", () => {
 
   it.each([
     { adapterType: "claude_local", config: {}, label: "Default" },
-    { adapterType: "claude_local", config: { model: "claude-opus-5" }, label: "Claude Opus 5" },
-    { adapterType: "claude_local", config: { env: { ANTHROPIC_MODEL: "claude-opus-5" } }, label: "Claude Opus 5" },
+    { adapterType: "claude_local", config: { model: "claude-opus-5" }, label: modelDisplayName("claude-opus-5") },
+    { adapterType: "claude_local", config: { env: { ANTHROPIC_MODEL: "claude-opus-5" } }, label: modelDisplayName("claude-opus-5") },
     { adapterType: "codex_local", config: {}, label: "Default" },
   ])("labels the $adapterType default honestly", ({ adapterType, config, label }) => {
     const defaultAgent = { ...agent, adapterType, adapterConfig: config } as Agent;
     render(vi.fn(), vi.fn(), false, { settings: null, agents: new Map([[agent.id, defaultAgent]]),
       modelOptionsOverride: [{ id: "claude-opus-5", label: "Claude Opus 5" }] });
     expect(container!.querySelector('[data-testid="task-chat-composer-model-label"]')?.textContent).toBe(label);
+  });
+
+  it("searches masked choices and submits their original model ID", async () => {
+    const onSettingsChange = vi.fn();
+    const id = "gpt-6-astra";
+    const alias = modelDisplayName(id);
+    render(vi.fn(), onSettingsChange, false, {
+      initialOpen: true, initialView: "models", initialModelSearch: alias,
+      modelOptionsOverride: [{ id, label: "GPT-6 Astra", detail: "gpt-6-astra provider label" }],
+    });
+    expect(document.body.textContent).toContain(alias);
+    expect(document.body.textContent).not.toContain(id);
+    expect(document.body.textContent).not.toContain("GPT-6 Astra");
+    await click(alias);
+    expect(onSettingsChange).toHaveBeenLastCalledWith({ model: id, effort: "high", fast: false });
+  });
+
+  it("distinguishes models with the same masked name using opaque codes", async () => {
+    const onSettingsChange = vi.fn();
+    const first = "gpt-6-sol";
+    const second = "gpt-5.6-sol";
+    render(vi.fn(), onSettingsChange, false, {
+      initialOpen: true, initialView: "models", initialModelSearch: modelDisplayCode(second),
+      modelOptionsOverride: [{ id: first, label: "GPT-6 Sol" }, { id: second, label: "GPT-5.6 Sol" }],
+    });
+    const choices = [...document.querySelectorAll<HTMLButtonElement>('button[role="option"]')];
+    expect(choices).toHaveLength(1);
+    expect(choices[0].textContent).toContain(modelDisplayName(second));
+    expect(choices[0].textContent).toContain(modelDisplayCode(second));
+    expect(document.body.textContent).not.toContain(second);
+    await act(async () => choices[0].click());
+    expect(onSettingsChange).toHaveBeenLastCalledWith(expect.objectContaining({ model: second }));
   });
 
   it("does not offer effort levels for an unknown Claude default", async () => {
@@ -189,7 +222,7 @@ describe("composer assignee picker", () => {
     });
     expect(getLastComposerEffort("company-1")).toBe("low");
     await click("Choose exact model");
-    await click("GPT-6 Astra");
+    await click(modelDisplayName("gpt-6-astra"));
     expect(onSettingsChange).toHaveBeenLastCalledWith({ model: "gpt-6-astra", effort: "high", fast: false });
     await click("Reset to agent default");
     expect(getLastComposerEffort("company-1")).toBeNull();
@@ -236,8 +269,8 @@ describe("composer assignee picker", () => {
     await click("Choose exact model");
     const options = [...document.querySelectorAll<HTMLButtonElement>('button[role="option"]')]
       .map((item) => item.textContent ?? "");
-    expect(options.some((item) => item.includes("gpt-5.5"))).toBe(true);
-    expect(options.some((item) => item.includes("gpt-6-sol"))).toBe(true);
+    expect(options.some((item) => item.includes(modelDisplayName("gpt-5.5")))).toBe(true);
+    expect(options.some((item) => item.includes(modelDisplayName("gpt-6-sol")))).toBe(true);
     expect(options.some((item) => item.includes("gpt-image"))).toBe(false);
     expect(options.some((item) => item.includes("text-embedding"))).toBe(false);
     expect(document.body.textContent).not.toContain("Loading models…");
@@ -257,7 +290,7 @@ describe("composer assignee picker", () => {
     await click("Choose exact model");
     const choices = [...document.querySelectorAll<HTMLButtonElement>('button[role="option"]')]
       .map((item) => item.textContent ?? "");
-    expect(choices.some((item) => item.includes("Private Codex"))).toBe(true);
+    expect(choices.some((item) => item.includes(modelDisplayName("private-codex")))).toBe(true);
     expect(choices.some((item) => item.includes("GPT-6 Sol"))).toBe(false);
   });
 
@@ -283,7 +316,7 @@ describe("composer assignee picker", () => {
     await click("Select model and effort");
     expect(loadModels).toHaveBeenCalledTimes(2);
     await click("Choose exact model");
-    expect(document.body.textContent).toContain("Updated Copilot Luna");
+    expect(document.body.textContent).toContain(modelDisplayName("gpt-5.6-luna"));
   });
 
   it("discovers Copilot task models with the assignee connection and environment", async () => {
@@ -303,7 +336,7 @@ describe("composer assignee picker", () => {
       acpxAgent: "copilot", agentId: agent.id, aiConnection: binding,
     });
     await click("Choose exact model");
-    expect(document.body.textContent).toContain("Copilot Luna");
+    expect(document.body.textContent).toContain(modelDisplayName("gpt-5.6-luna"));
     expect(document.body.textContent).not.toContain("Claude Sonnet");
   });
 

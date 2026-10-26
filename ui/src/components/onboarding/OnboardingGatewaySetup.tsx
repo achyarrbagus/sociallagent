@@ -19,21 +19,27 @@ export function OnboardingGatewaySetup({
   disabled?: boolean;
   onComplete: (binding: Exclude<AiConnectionBinding, { mode: "responsible_user" }>) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [source, setSource] = useState<"9router" | "custom" | null>(null);
   return <>
-    <Button type="button" variant="ghost" disabled={disabled} onClick={() => setOpen(true)}>
+    <Button type="button" variant="outline" disabled={disabled} onClick={() => setSource("9router")}>
+      Connect 9Router
+    </Button>
+    <Button type="button" variant="ghost" disabled={disabled} onClick={() => setSource("custom")}>
       Use a custom gateway
     </Button>
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={source !== null} onOpenChange={open => { if (!open) setSource(null); }}>
       <DialogContent className="max-h-(--sz-85vh) overflow-y-auto sm:max-w-2xl" onKeyDown={event => event.stopPropagation()}>
         <DialogHeader>
-          <DialogTitle>Custom gateway connection</DialogTitle>
-          <DialogDescription>Save the connection, then choose a model and test it with your agent.</DialogDescription>
+          <DialogTitle>{source === "9router" ? "9Router connection" : "Custom gateway connection"}</DialogTitle>
+          <DialogDescription>{source === "9router"
+            ? "Enter your 9Router URL and API key. Then choose a model and test it with your agent."
+            : "Save the connection, then choose a model and test it with your agent."}</DialogDescription>
         </DialogHeader>
-        <AiProviderSetup companyId={companyId} agentId={agentId} environmentId={environmentId}
+        <AiProviderSetup key={source} companyId={companyId} agentId={agentId} environmentId={environmentId}
           initialProvider="gateway" initialProtocol={adapterType === "codex_local" ? "responses" : "messages"}
-          submitLabel="Save connection" onCancel={() => setOpen(false)}
-          onComplete={binding => { setOpen(false); onComplete(binding); }} />
+          gatewayPreset={source === "9router" ? { name: "9Router", baseUrl: "https://9router.amifish.com/v1" } : undefined}
+          submitLabel="Save connection" onCancel={() => setSource(null)}
+          onComplete={binding => { setSource(null); onComplete(binding); }} />
       </DialogContent>
     </Dialog>
   </>;

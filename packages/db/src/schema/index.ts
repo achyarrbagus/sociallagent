@@ -1,5 +1,8 @@
 export { chatSlackRegistrations } from "./chat_slack_registrations.js";
 export { companies } from "./companies.js";
+export { agencyClients } from "./agency_clients.js";
+export { agencyBrands } from "./agency_brands.js";
+export { agencyContentItems, agencyContentRevisions, agencyContentDecisions, agencyContentTasks } from "./agency_content.js";
 export { companyLogos } from "./company_logos.js";
 export { companyTransferRuns } from "./company_transfer_runs.js";
 export { companyOnboardingSeeds } from "./company_onboarding_seeds.js";

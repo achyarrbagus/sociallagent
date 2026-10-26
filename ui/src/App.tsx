@@ -73,6 +73,8 @@ const Timeline = lazy(() => import("./pages/Timeline").then((module) => ({ defau
 const Companies = lazy(() => import("./pages/Companies").then((module) => ({ default: module.Companies })));
 const AgentDetail = lazy(() => import("./pages/AgentDetailPage").then((module) => ({ default: module.AgentDetailPage })));
 const Projects = lazy(() => import("./pages/Projects").then((module) => ({ default: module.Projects })));
+const Agency = lazy(() => import("./pages/Agency").then(module => ({ default: module.Agency })));
+const AgencyContent = lazy(() => import("./pages/AgencyContent").then(module => ({ default: module.AgencyContent })));
 const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((module) => ({ default: module.ProjectDetail })));
 const ProjectWorkspaceDetail = lazy(() => import("./pages/ProjectWorkspaceDetail").then((module) => ({ default: module.ProjectWorkspaceDetail })));
 const Workspaces = lazy(() => import("./pages/Workspaces").then((module) => ({ default: module.Workspaces })));
@@ -290,6 +292,9 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="agents/:agentId/:tab" element={<AgentDetail />} />
       <Route path="agents/:agentId/runs/:runId" element={<AgentDetail />} />
       <Route path="projects" element={<Projects />} />
+      <Route path="agency" element={<Agency />} />
+      <Route path="content" element={<AgencyContent />} />
+      <Route path="content/:contentId" element={<AgencyContent />} />
       <Route path="projects/:projectId" element={<ProjectDetail />} />
       <Route path="projects/:projectId/overview" element={<ProjectDetail />} />
       <Route path="projects/:projectId/issues" element={<ProjectDetail />} />
@@ -841,6 +846,9 @@ export function App() {
           <Route path="agents/:agentId/:tab" element={<UnprefixedBoardRedirect />} />
           <Route path="agents/:agentId/runs/:runId" element={<UnprefixedBoardRedirect />} />
           <Route path="projects" element={<UnprefixedBoardRedirect />} />
+          <Route path="agency" element={<UnprefixedBoardRedirect />} />
+          <Route path="content" element={<UnprefixedBoardRedirect />} />
+          <Route path="content/:contentId" element={<UnprefixedBoardRedirect />} />
           <Route path="projects/:projectId" element={<UnprefixedBoardRedirect />} />
           <Route path="projects/:projectId/overview" element={<UnprefixedBoardRedirect />} />
           <Route path="projects/:projectId/issues" element={<UnprefixedBoardRedirect />} />

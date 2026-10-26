@@ -6,6 +6,7 @@ import { eq, inArray } from "drizzle-orm";
 import { createAgentLifecycle, processAgentLifecycle } from "./agent-lifecycle.js";
 import { requestRestorePointDeletion } from "./git-restore-point-ledger.js";
 import { agentLifecycleCompanyDeletion } from "../modules/agent-lifecycle/company-deletion.js";
+import { lockAgencyContentCompany } from "./agency-content-lifecycle.js";
 import {
   companies,
   agents,
@@ -54,6 +55,7 @@ export async function deleteCompany(db: Db, id: string) {
     await processAgentLifecycle(db, agent.id);
   }
   return withAccountHomeSecretMutationLock(undefined, id, () => db.transaction(async (tx) => {
+        await lockAgencyContentCompany(tx as unknown as Db, id, true);
         // Exclude accounting writers before taking child locks. KEY SHARE must
         // remain compatible: native writers can already hold a child row while
         // saving a company-scoped result. FOR UPDATE would deadlock that save.
