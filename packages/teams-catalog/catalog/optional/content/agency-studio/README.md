@@ -2,6 +2,8 @@
 
 A reusable team for an AI creative agency managing social media brands. The human agency owner makes final content decisions; clients do not approve in the app.
 
+> New companies already receive the bundled `agency-core` team (Agency Director plus 11 specialists) from onboarding. Agency Studio is an optional, separate add-on for companies created earlier or that want a second account-led pod; it does not replace `agency-core`.
+
 ## Team
 
 - **Account Manager** — reports to the installing agency leadership.

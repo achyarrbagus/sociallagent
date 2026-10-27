@@ -16,7 +16,7 @@ Agent access: [companion](../agent-access-map/agency.md).
 
 - `profiles`: `agency/profiles` — read and maintain clients, brands, and archived history.
 - `campaigns`: `agency/campaigns` — create or associate an existing project with a brand.
-- `team`: `agency/team` — install the optional Agency Studio team with creative insight, SEO and Marketing roles.
+- `team`: `agency/team` — onboarding installs the default Agency Director and `agency-core` team; Agency Studio stays an optional add-on.
 - `content`: `agency/content` — create ideas, assign production work and preserve revisions.
 - `owner-review`: `agency/owner-review` — select ideas and decide final content revisions as the owner.
 
@@ -30,7 +30,12 @@ a campaign under the brand. Campaigns retain their existing project pages.
 
 ### `agency-team`
 
-Open the existing team catalog and select **Agency Studio**. Review the roster
+New companies get an Agency Director and the 12-agent `agency-core` team from
+onboarding (see [onboarding](./onboarding.md)); no catalog step is needed. If the
+install failed, the wizard says so; retry `agency-core` from the team catalog.
+
+To add the optional extra team to an existing company, open the existing team
+catalog and select **Agency Studio**. Review the roster
 and runtime/account configuration before installing. Assign Creative Strategist a
 brand-scoped request for content ideas; review its task document and select ideas
 to develop into production briefs. Selecting an idea does not authorize publishing.
@@ -54,7 +59,7 @@ the old draft does not follow.
 ### `agency-team`
 
 Automated: [catalog tests](../../packages/teams-catalog/src/shipped-catalog.test.ts)
-validate shipped roster, reporting lines and manifest hashes. Actual agent
+validate shipped rosters (including `agency-core`: 12 agents, hierarchy, one recurring Director task), reporting lines and manifest hashes. Actual agent
 execution and the team import UI journey remain unverified.
 
 ## Gotchas

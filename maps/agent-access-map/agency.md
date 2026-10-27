@@ -75,7 +75,13 @@ Agent access: `partial` — installation retains existing team/agent creation an
 governance rules. Installed roles receive brand-scoped assigned tasks; agents with
 REST access can read profiles, otherwise the owner supplies authorized briefs.
 
-Policy: Optional Agency Studio package; no automatic installation, scheduled jobs,
+Onboarding route: `POST /api/companies/{companyId}/onboarding/agency-team` and
+`POST /api/companies/{companyId}/onboarding-seed` install the default `agency-core`
+team under the Agency Director. Board only, requires `agents:create`; agents are
+denied. Idempotent; failures are logged as `company.agency_core_team_install_failed`.
+
+Policy: Default `agency-core` team installed only by onboarding (Director is the sole
+recurring task); optional Agency Studio package is never automatic. No other scheduled jobs,
 credentials, owner approval or publication authority. Creative ideas are documents
 for owner selection, with production handoff through ordinary tasks.
 

@@ -411,6 +411,21 @@ audience insight, hook, format, CTA, evidence and experiment proposals. Owner
 selection hands an idea to production; it does not approve publication. The team
 is installed through the normal preview/configuration/governance flow.
 
+### Default agency team and Agency Director (2026-10-26)
+
+Every company created through onboarding starts as an agency. The first agent is
+the **Agency Director**, who leads the company, and onboarding installs the bundled
+`agency-core` team under it: Account Manager (with Publishing Coordinator and
+Performance Analyst), Creative Strategist (with Content Strategist, SEO Specialist
+and Marketing Strategist) and Creative Director (with Copywriter, Scriptwriter and
+Designer), 12 agents in total. Only the Director has a recurring task (a priority
+review); specialists wake only when assigned work. The owner remains the only one
+who approves final content. Internally the Director uses the existing `ceo` role, so
+delegation and hiring rules are unchanged, but the product never labels it "CEO".
+If the team install fails, onboarding still finishes with a usable Director and the
+owner can retry from the Team Catalog. `core-exec-team` and `agency-studio` stay in
+the catalog as optional teams; existing companies are not migrated.
+
 Client approval is not required. Revision-bound owner content review is now implemented in the
 [content production flow](agency-content.md). A content calendar and automated
 provider publishing remain subsequent implementation slices described in the

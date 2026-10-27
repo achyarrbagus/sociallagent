@@ -2622,6 +2622,24 @@ precedence and dependency failures use the original built-in detector.
 - Optional Agency Studio team instructions add Creative Strategist insight for
   the owner alongside SEO, Marketing and production roles. Installation grants no
   provider or owner authority and seeds no automatic schedules.
+- Default agency team (2026-10-26): `AGENT_ROLE_LABELS.ceo` is "Agency Director";
+  the `ceo` enum value and every `role === "ceo"` authorization check are
+  unchanged, and no owner-visible text says "CEO". The bundled team
+  `paperclipai/bundled/company-defaults/agency-core` (`defaultInstall: true`, 12
+  agents, one recurring `director-review` task owned by the Director) is installed
+  by onboarding under the first agent through the catalog install option
+  `adoptManagerAgentId` (portability option `adoptAgents`): the package's manager
+  slot maps to the existing active same-company `ceo` agent instead of creating a
+  second one. Installing a team that adds another Director into a company that
+  already has one yields a preview warning, not a block. `core-exec-team` is
+  `defaultInstall: false`; `agency-studio` is unchanged and optional.
+- `POST /api/companies/:companyId/onboarding/agency-team` (board only; requires
+  `agents:create`, like catalog install) idempotently ensures the team for a given
+  Director. A failed install returns 200 with `status: "failed"` and writes
+  `company.agency_core_team_install_failed` to the activity log; onboarding still
+  completes. `POST /companies/:companyId/onboarding-seed` installs the team and
+  returns `agencyTeam`. The wizard hires the Director (role `ceo`, editable name,
+  default "Agency Director") and calls the route, including on reuse/reopen.
 - This foundation adds neither client approvals nor revision-bound publication
   approvals, a publishing scheduler or provider integration. Those are later
   slices of the [agency PRD](plans/2026-10-25-prd-rewrite-creative-agency.md).
