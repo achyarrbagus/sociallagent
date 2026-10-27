@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { activityLog, agents, routines } from "@paperclipai/db";
-import { agencyCoreTeamService } from "../services/agency-core-team.js";
+import { AGENCY_CORE_TEAM_KEY, agencyCoreTeamService } from "../services/agency-core-team.js";
 import { teamsCatalogService } from "../services/teams-catalog.js";
 import {
   describeEmbeddedPostgres,
@@ -124,6 +124,46 @@ describeEmbeddedPostgres("agencyCoreTeamService.ensureInstalled", () => {
     }
   });
 
+  it("keeps a Paperclip Runner Director's ACPX Copilot routing for the specialists", async () => {
+    const { companyId, director, actor } = await seedDirector({
+      adapterType: "paperclip_runner",
+      // Copilot has no default model, so a real Copilot Director always has one.
+      adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.1", cwd: "/rina/private/workspace" },
+    });
+
+    const result = await agencyCoreTeamService(ctx.db).ensureInstalled(companyId, director.id, actor);
+
+    expect(result.status).toBe("installed");
+    const specialists = (await ctx.db.select().from(agents).where(eq(agents.companyId, companyId)))
+      .filter((agent) => agent.id !== director.id);
+    expect(specialists).toHaveLength(11);
+    for (const agent of specialists) {
+      expect(agent).toMatchObject({
+        adapterType: "paperclip_runner",
+        adapterConfig: { provider: "acpx", acpxAgent: "copilot", model: "gpt-5.1" },
+      });
+      expect(agent.adapterConfig.cwd).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ["openclaw_gateway", { url: "wss://gateway.example.test", authToken: "secret" }],
+    ["process", { command: "/usr/local/bin/director" }],
+  ])("falls back to the safe catalog adapter for a %s Director", async (adapterType, adapterConfig) => {
+    const { companyId, director, actor } = await seedDirector({ adapterType, adapterConfig });
+
+    const result = await agencyCoreTeamService(ctx.db).ensureInstalled(companyId, director.id, actor);
+
+    expect(result.status).toBe("installed");
+    const specialists = (await ctx.db.select().from(agents).where(eq(agents.companyId, companyId)))
+      .filter((agent) => agent.id !== director.id);
+    expect(specialists).toHaveLength(11);
+    for (const agent of specialists) {
+      expect(agent.adapterType).not.toBe(adapterType);
+      expect(JSON.stringify(agent.adapterConfig)).not.toContain(Object.values(adapterConfig)[0]);
+    }
+  });
+
   it("is idempotent", async () => {
     const { companyId, director, actor } = await seedDirector();
     const svc = agencyCoreTeamService(ctx.db);
@@ -178,6 +218,37 @@ describeEmbeddedPostgres("agencyCoreTeamService.ensureInstalled", () => {
       entityId: companyId,
       details: { directorAgentId: director.id, error: "catalog unavailable" },
     });
+  });
+
+  it("reports a partial install as failed without adding agents", async () => {
+    const { companyId, director, actor } = await seedDirector();
+    const metadata = {
+      paperclip: { catalogTeam: { catalogId: "agency-core-test", catalogKey: AGENCY_CORE_TEAM_KEY } },
+    };
+    await ctx.db.insert(agents).values(["Account Manager", "Copywriter", "Scriptwriter"].map((name) => ({
+      companyId,
+      name,
+      role: "general",
+      adapterType: "claude_local",
+      reportsTo: director.id,
+      metadata,
+    })));
+    const error = "The agency team is only partially installed (3 of 11 agents). "
+      + "Remove the partial agents or add the missing ones from the Team Catalog.";
+
+    const result = await agencyCoreTeamService(ctx.db).ensureInstalledOrReportFailure(companyId, director.id, actor);
+
+    expect(result).toEqual({ status: "failed", error });
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(4);
+    const entries = await ctx.db
+      .select()
+      .from(activityLog)
+      .where(and(
+        eq(activityLog.companyId, companyId),
+        eq(activityLog.action, "company.agency_core_team_install_failed"),
+      ));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.details).toEqual({ directorAgentId: director.id, error });
   });
 
   it("rejects pending-approval director", async () => {

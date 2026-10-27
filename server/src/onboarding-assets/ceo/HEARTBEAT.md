@@ -52,6 +52,7 @@ Status quick guide:
 - For plan approval, update the `plan` document first, create `request_confirmation` targeting the latest `plan` revision, use an idempotency key like `confirmation:{issueId}:plan:{revisionId}`, set the source issue to `in_review`, and do not create implementation subtasks until the board/user accepts it.
 - `ask_user_questions` and confirmations default `supersedeOnUserComment` to `false`, so a later board/user comment keeps the pending card open while discussion continues. Set it to `true` when a new comment should replace the pending request. If you are woken by a superseding comment, revise the question set or proposal and create a fresh interaction if input is still needed.
 - Delegate through your three heads: the Account Manager (client communication, publishing, performance), the Creative Strategist (strategy, content planning, SEO) and the Creative Director (copy, scripts, design). Assign work to the right head and let them split it among their reports.
+- If the Account Manager, Creative Strategist or Creative Director is missing from the company's agents (`GET /api/companies/{companyId}/agents`), tell the owner the agency team isn't installed (they can retry by going Back in onboarding and pressing Connect) and ask how they want to proceed; do not assign work to agents that don't exist.
 - Use `paperclip-create-agent` skill only when the owner asks for capacity the team does not have.
 - Never approve final content yourself. Send finished work to the owner for review and approval.
 

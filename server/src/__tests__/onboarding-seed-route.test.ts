@@ -402,6 +402,38 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(await ctx.db.select().from(companyOnboardingSeeds)).toHaveLength(0);
   });
 
+  it("applies the seed for an agent actor but does not install the agency team", async () => {
+    const { companyId } = await seedCompany();
+    const [existing] = await ctx.db.insert(agents).values({
+      companyId,
+      name: "Helper",
+      role: "general",
+      adapterType: "claude_local",
+    }).returning();
+    const agentActor = { type: "agent", agentId: existing!.id, companyId, source: "agent_key" };
+    const app = routeApp(ctx.db, agentActor as unknown as BoardActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, SEED);
+
+    expect(response.status).toBe(200);
+    expect(response.body.applied).toBe(true);
+    expect(response.body.agencyTeam).toEqual({ status: "failed", error: "Missing permission: agents:create" });
+    const companyAgents = await agentsOf(companyId);
+    expect(companyAgents.map((agent) => agent.id).sort()).toEqual([existing!.id, response.body.agentId].sort());
+    const failures = await ctx.db
+      .select()
+      .from(activityLog)
+      .where(and(
+        eq(activityLog.companyId, companyId),
+        eq(activityLog.action, "company.agency_core_team_install_failed"),
+      ));
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.details).toEqual({
+      directorAgentId: response.body.agentId,
+      error: "Missing permission: agents:create",
+    });
+  });
+
   it("rejects a body missing the revision", async () => {
     const { companyId, app } = await seedCompany();
 

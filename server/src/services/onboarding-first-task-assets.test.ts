@@ -135,6 +135,22 @@ describe("onboarding assets", () => {
       expect(text, join(file.parentPath, file.name)).not.toMatch(/\bCEO\b|chief of staff/i);
     }
   });
+
+  // The team install can fail while onboarding still completes, so every
+  // asset that delegates to the three heads must handle their absence.
+  it("tell the Director what to do when the agency team is missing", async () => {
+    for (const path of [
+      "first-task/agency-director/AGENTS.md",
+      "first-task/skills/first-task/SKILL.md",
+      "ceo/AGENTS.md",
+      "ceo/HEARTBEAT.md",
+    ]) {
+      const text = await readFile(new URL(`../onboarding-assets/${path}`, import.meta.url), "utf8");
+      expect(text, path).toContain("tell the owner the agency team isn't installed");
+      expect(text, path).toContain("going Back in onboarding and pressing Connect");
+      expect(text, path).toContain("do not assign work to agents that don't exist");
+    }
+  });
 });
 
 describe("Agency Director persona", () => {

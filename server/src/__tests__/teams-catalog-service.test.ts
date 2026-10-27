@@ -315,17 +315,22 @@ describe("teamsCatalogService", () => {
       expect(mockCompanyPortabilityService.importBundle).not.toHaveBeenCalled();
     });
 
-    it("rejects adopt of terminated or foreign-company directors", async () => {
+    it("rejects adopt of terminated, pending-approval or foreign-company directors", async () => {
       const svc = teamsCatalogService({} as any);
       for (const agent of [
         { ...director, status: "terminated" },
         { ...director, lifecycleState: "terminating" },
+        { ...director, status: "pending_approval" },
+        { ...director, lifecycleState: "pending_approval" },
         { ...director, companyId: "company-2" },
       ]) {
         mockAgentService.getById.mockResolvedValue(agent);
         await expect(
           svc.previewCatalogTeamImport("company-1", "core-exec-team", { adoptManagerAgentId: DIRECTOR_ID }),
-        ).rejects.toMatchObject({ status: 422 });
+        ).rejects.toMatchObject({
+          status: 422,
+          message: "Adopted manager must be an active Agency Director in this company.",
+        });
       }
     });
 

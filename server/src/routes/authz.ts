@@ -43,13 +43,27 @@ export function assertBoard(req: Request) {
 export async function assertBoardCanCreateAgents(
   req: Request,
   companyId: string,
-  access: { canUser(companyId: string, userId: string | null | undefined, permissionKey: "agents:create"): Promise<boolean> },
+  access: AgentsCreateAccess,
 ) {
   assertBoard(req);
-  if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
-  if (!(await access.canUser(companyId, req.actor.userId, "agents:create"))) {
+  if (!(await boardCanCreateAgents(req, companyId, access))) {
     throw forbidden("Missing permission: agents:create");
   }
+}
+
+type AgentsCreateAccess = {
+  canUser(companyId: string, userId: string | null | undefined, permissionKey: "agents:create"): Promise<boolean>;
+};
+
+/**
+ * Non-throwing form of `assertBoardCanCreateAgents` for side effects that must
+ * not fail their request: false for any non-board actor. Callers must already
+ * have asserted company access.
+ */
+export async function boardCanCreateAgents(req: Request, companyId: string, access: AgentsCreateAccess) {
+  if (req.actor.type !== "board") return false;
+  if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return true;
+  return access.canUser(companyId, req.actor.userId, "agents:create");
 }
 
 export function hasBoardOrgAccess(req: Request) {

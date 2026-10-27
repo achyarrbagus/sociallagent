@@ -794,6 +794,9 @@ export function teamsCatalogService(db: Db) {
       || manager.companyId !== companyId
       || manager.role !== "ceo"
       || !isActiveAgent(manager)
+      // A Director still waiting for approval cannot lead a team yet.
+      || manager.status === "pending_approval"
+      || manager.lifecycleState === "pending_approval"
     ) {
       throw invalid();
     }

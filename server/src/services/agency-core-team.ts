@@ -2,20 +2,33 @@ import { sql } from "drizzle-orm";
 import { withDedicatedDbConnection, type Db } from "@paperclipai/db";
 import {
   agentHarnessType,
-  agentRunner,
+  paperclipRunnerProfileForHarness,
   type CompanyPortabilityAdapterOverride,
   type EnsureAgencyCoreTeamResult,
 } from "@paperclipai/shared";
+import { findServerAdapter } from "../adapters/index.js";
 import { conflict, unprocessable } from "../errors.js";
 import { logActivity } from "./activity-log.js";
 import { agentService } from "./agents.js";
-import { teamsCatalogService, type CatalogTeamActorContext } from "./teams-catalog.js";
+import { resolvePaperclipRunnerProviderProfile } from "./native-runtime/provider-profile.js";
+import {
+  readCatalogTeamProvenance,
+  teamsCatalogService,
+  type CatalogTeamActorContext,
+} from "./teams-catalog.js";
 
 export type { EnsureAgencyCoreTeamResult };
 
 export const AGENCY_CORE_TEAM_KEY = "paperclipai/bundled/company-defaults/agency-core";
 
 const INACTIVE_DIRECTOR_STATES = new Set(["terminated", "terminating", "cleaning_up", "rejected"]);
+
+/**
+ * Adapters a safe catalog import cannot recreate from a model alone: `process`
+ * and `http` are forbidden in safe imports, and `openclaw_gateway` needs the
+ * Director's gateway URL and auth, which are never copied.
+ */
+const NON_INHERITABLE_ADAPTER_TYPES = new Set(["process", "http", "openclaw_gateway"]);
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -54,22 +67,44 @@ export function agencyCoreTeamService(db: Db) {
 
   /**
    * Specialists run on the Director's harness, runner and model. Agents carry
-   * no runner column: a `paperclip_runner` Director is expressed as her harness
-   * plus the `paperclip` runner, so a Claude Director yields Claude
-   * specialists rather than the runner's default provider. No other adapter
-   * configuration (workspace, env, prompts) is copied.
+   * no runner column: a `paperclip_runner` Director on a harness with a legacy
+   * twin (Codex, Claude, OpenCode, Pi) is expressed as that harness plus the
+   * `paperclip` runner, so a Claude Director yields Claude specialists rather
+   * than the runner's default provider. Other runner harnesses (for example
+   * ACPX Copilot) keep `paperclip_runner` with only the routing keys. No other
+   * adapter configuration (workspace, env, prompts, credentials) is copied.
+   *
+   * Returns null when the Director's adapter cannot be recreated by a safe
+   * import; the catalog's safe default adapter then applies instead.
    */
   function specialistAdapterOverride(director: {
     adapterType: string;
     adapterConfig: Record<string, unknown> | null;
-  }): CompanyPortabilityAdapterOverride {
+  }): CompanyPortabilityAdapterOverride | null {
     const config = director.adapterConfig ?? {};
-    const model = config.model;
-    return {
-      adapterType: agentHarnessType(director.adapterType, config),
-      runner: agentRunner(director.adapterType),
-      adapterConfig: typeof model === "string" ? { model } : {},
-    };
+    const model = typeof config.model === "string" ? { model: config.model } : {};
+    if (director.adapterType === "paperclip_runner") {
+      const harness = agentHarnessType(director.adapterType, config);
+      if (paperclipRunnerProfileForHarness(harness)) {
+        return { adapterType: harness, runner: "paperclip", adapterConfig: model };
+      }
+      const routing: Record<string, unknown> = { ...model };
+      for (const key of ["provider", "acpxAgent"] as const) {
+        if (config[key] !== undefined) routing[key] = config[key];
+      }
+      try {
+        // Providers that need more than routing (managed profiles, bindings)
+        // cannot be recreated here.
+        resolvePaperclipRunnerProviderProfile(routing);
+      } catch {
+        return null;
+      }
+      return { adapterType: "paperclip_runner", runner: "paperclip", adapterConfig: routing };
+    }
+    if (NON_INHERITABLE_ADAPTER_TYPES.has(director.adapterType) || !findServerAdapter(director.adapterType)) {
+      return null;
+    }
+    return { adapterType: director.adapterType, runner: "legacy", adapterConfig: model };
   }
 
   async function logInstallFailure(
@@ -98,17 +133,33 @@ export function agencyCoreTeamService(db: Db) {
   ): Promise<EnsureAgencyCoreTeamResult> {
     const catalog = teamsCatalogService(db);
     try {
-      const installed = await catalog.listInstalledCatalogTeams(companyId);
-      if (installed.some((team) => team.catalogKey === AGENCY_CORE_TEAM_KEY)) {
+      const team = await catalog.getCatalogTeamOrThrow(AGENCY_CORE_TEAM_KEY);
+      const specialistSlugs = team.agentSlugs.filter((slug) => !team.rootAgentSlugs.includes(slug));
+      // Provenance alone is not enough: the import is not transactional, so a
+      // failed install can leave some specialists behind. Only a full team
+      // counts as installed, and a partial one is never reinstalled because
+      // the import would duplicate the agents that are already there.
+      const existingSpecialists = (await agents.list(companyId)).filter((agent) =>
+        agent.id !== director.id
+        && agent.status !== "terminated"
+        && !INACTIVE_DIRECTOR_STATES.has(agent.lifecycleState ?? "")
+        && readCatalogTeamProvenance(agent.metadata as Record<string, unknown> | null)?.catalogKey
+          === AGENCY_CORE_TEAM_KEY);
+      if (existingSpecialists.length >= specialistSlugs.length) {
         return { status: "already_installed" };
       }
-      const team = await catalog.getCatalogTeamOrThrow(AGENCY_CORE_TEAM_KEY);
+      if (existingSpecialists.length > 0) {
+        throw new Error(
+          `The agency team is only partially installed (${existingSpecialists.length} of ${specialistSlugs.length} agents). `
+            + "Remove the partial agents or add the missing ones from the Team Catalog.",
+        );
+      }
       const override = specialistAdapterOverride(director);
-      const adapterOverrides = Object.fromEntries(
-        team.agentSlugs
-          .filter((slug) => !team.rootAgentSlugs.includes(slug))
-          .map((slug) => [slug, { ...override, adapterConfig: { ...override.adapterConfig } }]),
-      );
+      const adapterOverrides = override
+        ? Object.fromEntries(
+          specialistSlugs.map((slug) => [slug, { ...override, adapterConfig: { ...override.adapterConfig } }]),
+        )
+        : undefined;
       const result = await catalog.installCatalogTeam(companyId, AGENCY_CORE_TEAM_KEY, {
         adoptManagerAgentId: director.id,
         adapterOverrides,
@@ -161,5 +212,19 @@ export function agencyCoreTeamService(db: Db) {
     }
   }
 
-  return { ensureInstalled, ensureInstalledOrReportFailure };
+  /**
+   * Records an install the caller decided not to attempt (for example, an
+   * actor without `agents:create`) as a failed onboarding install.
+   */
+  async function reportFailure(
+    companyId: string,
+    directorAgentId: string,
+    actor: CatalogTeamActorContext,
+    error: string,
+  ): Promise<EnsureAgencyCoreTeamResult> {
+    await logInstallFailure(companyId, directorAgentId, actor, error).catch(() => undefined);
+    return { status: "failed", error };
+  }
+
+  return { ensureInstalled, ensureInstalledOrReportFailure, reportFailure };
 }

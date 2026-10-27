@@ -5,7 +5,13 @@ import { validate } from "../middleware/index.js";
 import { agencyCoreTeamService, type EnsureAgencyCoreTeamResult } from "../services/agency-core-team.js";
 import { onboardingSeedService } from "../services/onboarding-seed.js";
 import { accessService } from "../services/access.js";
-import { assertBoard, assertBoardCanCreateAgents, assertCompanyAccess, getActorInfo } from "./authz.js";
+import {
+  assertBoard,
+  assertBoardCanCreateAgents,
+  assertCompanyAccess,
+  boardCanCreateAgents,
+  getActorInfo,
+} from "./authz.js";
 
 /**
  * Receiver for the onboarding seed Paperclip Cloud collects at signup and
@@ -35,7 +41,9 @@ import { assertBoard, assertBoardCanCreateAgents, assertCompanyAccess, getActorI
  * under her. That install is best-effort and never fails the push: any failure,
  * including a Director still waiting for approval, is written to the activity
  * log and reported as `agencyTeam.status: "failed"` so Cloud still records the
- * seed and the owner keeps a usable Director.
+ * seed and the owner keeps a usable Director. The team hires 11 agents, so it is
+ * installed only for a board user who passes the same `agents:create` gate as
+ * the board retry route; any other actor gets the seed without the team.
  */
 export function onboardingSeedRoutes(db: Db) {
   const router = Router();
@@ -60,9 +68,12 @@ export function onboardingSeedRoutes(db: Db) {
       const actor = getActorInfo(req);
       const result = await svc.apply(companyId, req.body, actor);
 
-      const agencyTeamResult: EnsureAgencyCoreTeamResult | null = result.agentId
-        ? await agencyTeam.ensureInstalledOrReportFailure(companyId, result.agentId, actor)
-        : null;
+      let agencyTeamResult: EnsureAgencyCoreTeamResult | null = null;
+      if (result.agentId) {
+        agencyTeamResult = await boardCanCreateAgents(req, companyId, access)
+          ? await agencyTeam.ensureInstalledOrReportFailure(companyId, result.agentId, actor)
+          : await agencyTeam.reportFailure(companyId, result.agentId, actor, "Missing permission: agents:create");
+      }
 
       res.status(200).json({
         companyId,
