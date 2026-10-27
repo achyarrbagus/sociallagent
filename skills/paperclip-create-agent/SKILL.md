@@ -18,7 +18,7 @@ You need either:
 - agent permission `can_create_agents=true` in your company
 
 If you do not have this permission, keep the current task assigned to yourself
-and identify the missing hiring authority. A Agency Director or manager title does not grant
+and identify the missing hiring authority. An Agency Director or manager title does not grant
 hiring permission. Do not reassign the task or create an escalation task to bypass
 the denial. Use the applicable approval flow when available; otherwise save a
 human-input interaction on the current task with `resolverPolicy: "human_only"`

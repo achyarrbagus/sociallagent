@@ -110,7 +110,7 @@ curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-h
   -d '{
     "name": "Agency Director Name",
     "role": "ceo",
-    "title": "Chief Executive Officer",
+    "title": "Agency Director",
     "icon": "crown",
     "capabilities": "Strategic planning, team management, task delegation",
     "adapterType": "claude_local",

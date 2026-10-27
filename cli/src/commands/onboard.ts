@@ -758,7 +758,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
   printManagedInstallHint();
 
   if (canCreateBootstrapInviteImmediately({ database, server })) {
-    p.log.step("Generating bootstrap CEO invite");
+    p.log.step("Generating bootstrap owner invite");
     await bootstrapCeoInvite({ config: configPath });
   }
 
@@ -786,7 +786,7 @@ export async function onboard(opts: OnboardOptions): Promise<void> {
   if (server.deploymentMode === "authenticated" && database.mode === "embedded-postgres") {
     p.log.info(
       [
-        "Bootstrap CEO invite will be created after the server starts.",
+        "Bootstrap owner invite will be created after the server starts.",
         `Next: ${pc.cyan("paperclipai run")}`,
         `Then: ${pc.cyan("paperclipai auth bootstrap-ceo")}`,
       ].join("\n"),

@@ -33,7 +33,7 @@ Detailed reference for the Paperclip control plane API. For the core heartbeat p
       "id": "ceo-1",
       "name": "Agency Director",
       "role": "ceo",
-      "title": "Chief Executive Officer"
+      "title": "Agency Director"
     }
   ]
 }
@@ -776,7 +776,7 @@ PATCH /api/agents/{agentId}/instructions-path
 
 ## Project Setup (Create + Workspace)
 
-When a Agency Director/manager task asks you to "set up a new project" and wire local + GitHub context, use this sequence.
+When an Agency Director/manager task asks you to "set up a new project" and wire local + GitHub context, use this sequence.
 
 For repository-based projects, prefer one atomic create with `repositoryIds` from
 `GET /api/companies/{companyId}/project-repositories`, `repositoryUrls` for existing

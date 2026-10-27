@@ -1,6 +1,6 @@
 ---
 name: Core Exec Team
-description: Default leadership and engineering team for bootstrapping a Paperclip company with a CEO, CTO, QA Engineer, starter project, and a recurring CEO heartbeat review task.
+description: Default leadership and engineering team for bootstrapping a Paperclip company with an Agency Director, CTO, QA Engineer, starter project, and a recurring Agency Director heartbeat review task.
 schema: agentcompanies/v1
 slug: core-exec-team
 category: company-defaults
@@ -33,11 +33,11 @@ The Core Exec Team is the bundled default install for a new Paperclip company. I
 
 ## Contents
 
-- `CEO` — strategy, prioritization, delegation. Uses `task-planning` and `issue-triage` to keep the inbox moving.
-- `CTO` — technical execution and engineering oversight. Reports to CEO. Uses `github-pr-workflow` for code review and merge hygiene.
+- `Agency Director` — strategy, prioritization, delegation. Uses `task-planning` and `issue-triage` to keep the inbox moving.
+- `CTO` — technical execution and engineering oversight. Reports to the Agency Director. Uses `github-pr-workflow` for code review and merge hygiene.
 - `QA` — verifies fixes and captures evidence. Reports to CTO. Uses `qa-acceptance` for structured acceptance reports.
 - `first-project` — starter project under the CTO for converting the company goal into the first implementation task.
-- `first-heartbeat` — recurring CEO heartbeat to review priorities and confirm the next useful task.
+- `first-heartbeat` — recurring Agency Director heartbeat to review priorities and confirm the next useful task.
 
 ## Migration notes
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "packageName": "@paperclipai/teams-catalog",
   "packageVersion": "0.1.0",
-  "generatedAt": "2026-10-27T04:22:31.992Z",
+  "generatedAt": "2026-10-27T08:00:05.951Z",
   "teams": [
     {
       "id": "paperclipai:bundled:company-defaults:agency-core",
@@ -174,7 +174,7 @@
       "category": "company-defaults",
       "slug": "core-exec-team",
       "name": "Core Exec Team",
-      "description": "Default leadership and engineering team for bootstrapping a Paperclip company with a CEO, CTO, QA Engineer, starter project, and a recurring CEO heartbeat review task.",
+      "description": "Default leadership and engineering team for bootstrapping a Paperclip company with an Agency Director, CTO, QA Engineer, starter project, and a recurring Agency Director heartbeat review task.",
       "path": "catalog/bundled/company-defaults/core-exec-team",
       "entrypoint": "TEAM.md",
       "schema": "agentcompanies/v1",
@@ -259,14 +259,14 @@
         {
           "path": "TEAM.md",
           "kind": "team",
-          "sizeBytes": 2015,
-          "sha256": "6a92f1601a0738dc74aa892ce3107d6f01e803d7446b60e9f3b3821d1f3e43c6"
+          "sizeBytes": 2080,
+          "sha256": "183a4df1e0c34511ecb848f6ff730897c80315e4d92f9c7508ad38ab6c634006"
         },
         {
           "path": "agents/ceo/AGENTS.md",
           "kind": "agent",
-          "sizeBytes": 263,
-          "sha256": "75848c6f794646a93e23bc73b80d31ef0eb8b83c105423eb98ea29e7685d2fd0"
+          "sizeBytes": 279,
+          "sha256": "8597d9a52f5d678654049df0c5fab5e6488df8e8e4e93f431c543c27b1df62b5"
         },
         {
           "path": "agents/cto/AGENTS.md",
@@ -283,8 +283,8 @@
         {
           "path": "projects/first-project/PROJECT.md",
           "kind": "project",
-          "sizeBytes": 364,
-          "sha256": "1f457ae956da52ff83adc1cf63a3fb84337a4afb25bd43f0d123902d75e871cc"
+          "sizeBytes": 376,
+          "sha256": "786ee426cc734c559eda20392cfc42c154b6abf4d28dc012d9808233756a5f76"
         },
         {
           "path": "projects/first-project/tasks/first-heartbeat/TASK.md",
@@ -295,7 +295,7 @@
       ],
       "trustLevel": "markdown_only",
       "compatibility": "compatible",
-      "contentHash": "sha256:959ffa71577b45b4e002abe8069d705266a3150af4528f5d33e77ccf4f85d388"
+      "contentHash": "sha256:d83e025b7dbcbf2335fc8398a4f0019a9748756cd546a19bc45679d5bba40226"
     },
     {
       "id": "paperclipai:bundled:product:product-design",
@@ -494,8 +494,8 @@
         {
           "path": "TEAM.md",
           "kind": "team",
-          "sizeBytes": 2583,
-          "sha256": "7204eeef78a48714dd3f82b82e171a4039adc6325e91a6bdf51a442105ee33b0"
+          "sizeBytes": 2598,
+          "sha256": "b8a55f8ac7a5b21e48af444441ec76e6e3edfb852fb07f0398049d197eca1999"
         },
         {
           "path": ".paperclip.yaml",
@@ -536,7 +536,7 @@
       ],
       "trustLevel": "assets",
       "compatibility": "compatible",
-      "contentHash": "sha256:b9076b17a551b704a97df2e0204cefb83edfda4d36e909889071bb02d251e5ea"
+      "contentHash": "sha256:f8d778231467078ae95193aa2280e2c019aa9e2471ac86eab108b506af2b69fb"
     },
     {
       "id": "paperclipai:optional:communications:speko-company-phone-agent",

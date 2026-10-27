@@ -78,7 +78,7 @@ PATCH /api/agents/{agentId}/instructions-path
 
 ## Company Import / Export
 
-Use the company-scoped routes when a Agency Director agent needs to inspect or move package content.
+Use the company-scoped routes when an Agency Director agent needs to inspect or move package content.
 
 - Agency Director-safe imports:
   - `POST /api/companies/{companyId}/imports/preview`
