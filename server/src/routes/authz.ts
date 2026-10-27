@@ -35,6 +35,23 @@ export function assertBoard(req: Request) {
   }
 }
 
+/**
+ * Board half of the `agents:create` gate shared by catalog team installs:
+ * local implicit and instance admins pass, other board users need the grant.
+ * Callers must already have asserted company access and a board actor.
+ */
+export async function assertBoardCanCreateAgents(
+  req: Request,
+  companyId: string,
+  access: { canUser(companyId: string, userId: string | null | undefined, permissionKey: "agents:create"): Promise<boolean> },
+) {
+  assertBoard(req);
+  if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
+  if (!(await access.canUser(companyId, req.actor.userId, "agents:create"))) {
+    throw forbidden("Missing permission: agents:create");
+  }
+}
+
 export function hasBoardOrgAccess(req: Request) {
   if (req.actor.type !== "board") {
     return false;

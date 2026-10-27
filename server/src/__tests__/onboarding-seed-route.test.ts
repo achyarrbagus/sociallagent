@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   activityLog,
   agents,
+  companyMemberships,
   companyOnboardingSeeds,
   companySkills,
   goals,
@@ -13,6 +14,7 @@ import {
 } from "@paperclipai/db";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
 import { logActivity } from "../services/activity-log.js";
+import { teamsCatalogService } from "../services/teams-catalog.js";
 import {
   describeEmbeddedPostgres,
   resetCompanyIssueFixtures,
@@ -28,6 +30,13 @@ import {
 vi.mock("../services/activity-log.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/activity-log.js")>();
   return { ...actual, logActivity: vi.fn(actual.logActivity) };
+});
+
+// Wrapped the same way: the real agency-core team installs everywhere except
+// the one test that opts into a failing install.
+vi.mock("../services/teams-catalog.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/teams-catalog.js")>();
+  return { ...actual, teamsCatalogService: vi.fn(actual.teamsCatalogService) };
 });
 
 const SEED = {
@@ -260,6 +269,36 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(response.body.agentId).toBeNull();
     expect(response.body.issueId).toBeNull();
     expect(response.body.agencyTeam).toBeNull();
+  });
+
+  it("reports and logs a failed team install without failing the seed", async () => {
+    const { companyId, app } = await seedCompany();
+    const actual = await vi.importActual<typeof import("../services/teams-catalog.js")>("../services/teams-catalog.js");
+    vi.mocked(teamsCatalogService).mockImplementationOnce((db) => ({
+      ...actual.teamsCatalogService(db),
+      installCatalogTeam: async () => {
+        throw new Error("catalog unavailable");
+      },
+    }));
+
+    const response = await post(app, companyId, SEED);
+
+    expect(response.status).toBe(200);
+    expect(response.body.applied).toBe(true);
+    expect(response.body.agencyTeam).toEqual({ status: "failed", error: "catalog unavailable" });
+    expect(await agentsOf(companyId)).toHaveLength(1);
+    const entries = await ctx.db
+      .select()
+      .from(activityLog)
+      .where(and(
+        eq(activityLog.companyId, companyId),
+        eq(activityLog.action, "company.agency_core_team_install_failed"),
+      ));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.details).toEqual({
+      directorAgentId: response.body.agentId,
+      error: "catalog unavailable",
+    });
   });
 
   it("accepts a revision-only seed and records it", async () => {
@@ -546,6 +585,36 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding/agency-team"
     const response = await post(app, companyId, { agentId: director.id });
 
     expect(response.status).toBe(403);
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("refuses a board member without agents:create", async () => {
+    const { companyId, director } = await seedDirector();
+    // An active member with no permission grants: company access passes, the
+    // `agents:create` gate shared with catalog team installs does not.
+    const userId = `user-${randomUUID()}`;
+    await ctx.db.insert(companyMemberships).values({
+      companyId,
+      principalType: "user",
+      principalId: userId,
+      status: "active",
+      membershipRole: "operator",
+      updatedAt: new Date(),
+    });
+    const memberActor: BoardActor = {
+      type: "board",
+      source: "session",
+      userId,
+      companyIds: [companyId],
+      memberships: [{ companyId, membershipRole: "operator", status: "active" }],
+      isInstanceAdmin: false,
+    };
+    const app = routeApp(ctx.db, memberActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: director.id });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("Missing permission: agents:create");
     expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
   });
 

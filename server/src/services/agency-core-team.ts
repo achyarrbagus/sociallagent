@@ -72,6 +72,25 @@ export function agencyCoreTeamService(db: Db) {
     };
   }
 
+  async function logInstallFailure(
+    companyId: string,
+    directorAgentId: string,
+    actor: CatalogTeamActorContext,
+    error: string,
+  ) {
+    await logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId ?? null,
+      runId: actor.runId ?? null,
+      action: "company.agency_core_team_install_failed",
+      entityType: "company",
+      entityId: companyId,
+      details: { directorAgentId, error },
+    });
+  }
+
   async function install(
     companyId: string,
     director: Awaited<ReturnType<typeof loadDirector>>,
@@ -101,17 +120,7 @@ export function agencyCoreTeamService(db: Db) {
       return { status: "installed", agentIds, warnings: result.warnings };
     } catch (error) {
       const message = formatError(error);
-      await logActivity(db, {
-        companyId,
-        actorType: actor.actorType,
-        actorId: actor.actorId,
-        agentId: actor.agentId ?? null,
-        runId: actor.runId ?? null,
-        action: "company.agency_core_team_install_failed",
-        entityType: "company",
-        entityId: companyId,
-        details: { directorAgentId: director.id, error: message },
-      });
+      await logInstallFailure(companyId, director.id, actor, message);
       return { status: "failed", error: message };
     }
   }
@@ -132,5 +141,25 @@ export function agencyCoreTeamService(db: Db) {
     }));
   }
 
-  return { ensureInstalled };
+  /**
+   * Onboarding variant that never throws: a rejected Director (pending
+   * approval, wrong company or role) is a failed install like any other, so it
+   * is logged once and returned as `failed` instead of failing the caller.
+   */
+  async function ensureInstalledOrReportFailure(
+    companyId: string,
+    directorAgentId: string,
+    actor: CatalogTeamActorContext,
+  ): Promise<EnsureAgencyCoreTeamResult> {
+    try {
+      // Install-time failures are already logged and returned as `failed`.
+      return await ensureInstalled(companyId, directorAgentId, actor);
+    } catch (error) {
+      const message = formatError(error);
+      await logInstallFailure(companyId, directorAgentId, actor, message).catch(() => undefined);
+      return { status: "failed", error: message };
+    }
+  }
+
+  return { ensureInstalled, ensureInstalledOrReportFailure };
 }

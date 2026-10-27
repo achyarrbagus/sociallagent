@@ -189,6 +189,46 @@ describeEmbeddedPostgres("agencyCoreTeamService.ensureInstalled", () => {
     expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
   });
 
+  it("reports and logs a rejected Director once in the onboarding variant", async () => {
+    const { companyId, director, actor } = await seedDirector({ status: "pending_approval" });
+
+    const result = await agencyCoreTeamService(ctx.db).ensureInstalledOrReportFailure(companyId, director.id, actor);
+
+    expect(result).toEqual({ status: "failed", error: "Agency Director is waiting for approval." });
+    const entries = await ctx.db
+      .select()
+      .from(activityLog)
+      .where(and(
+        eq(activityLog.companyId, companyId),
+        eq(activityLog.action, "company.agency_core_team_install_failed"),
+      ));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.details).toEqual({ directorAgentId: director.id, error: "Agency Director is waiting for approval." });
+  });
+
+  it("logs an install failure once in the onboarding variant", async () => {
+    const { companyId, director, actor } = await seedDirector();
+    const actual = await vi.importActual<typeof import("../services/teams-catalog.js")>("../services/teams-catalog.js");
+    vi.mocked(teamsCatalogService).mockImplementationOnce((db) => ({
+      ...actual.teamsCatalogService(db),
+      installCatalogTeam: async () => {
+        throw new Error("catalog unavailable");
+      },
+    }));
+
+    const result = await agencyCoreTeamService(ctx.db).ensureInstalledOrReportFailure(companyId, director.id, actor);
+
+    expect(result).toEqual({ status: "failed", error: "catalog unavailable" });
+    const entries = await ctx.db
+      .select()
+      .from(activityLog)
+      .where(and(
+        eq(activityLog.companyId, companyId),
+        eq(activityLog.action, "company.agency_core_team_install_failed"),
+      ));
+    expect(entries).toHaveLength(1);
+  });
+
   it("rejects a missing, foreign or non-director agent", async () => {
     const { companyId, director, actor } = await seedDirector();
     const other = await seedDirector();

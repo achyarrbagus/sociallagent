@@ -14,7 +14,7 @@ import {
   teamsCatalogService,
 } from "../services/teams-catalog.js";
 import { forbidden } from "../errors.js";
-import { assertAuthenticated, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { assertAuthenticated, assertBoardCanCreateAgents, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 export function teamsCatalogRoutes(db: Db) {
   const router = Router();
@@ -37,11 +37,7 @@ export function teamsCatalogRoutes(db: Db) {
     assertCompanyAccess(req, companyId);
 
     if (req.actor.type === "board") {
-      if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) return;
-      const allowed = await access.canUser(companyId, req.actor.userId, "agents:create");
-      if (!allowed) {
-        throw forbidden("Missing permission: agents:create");
-      }
+      await assertBoardCanCreateAgents(req, companyId, access);
       return;
     }
 

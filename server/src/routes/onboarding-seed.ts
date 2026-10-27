@@ -4,7 +4,8 @@ import { applyOnboardingSeedSchema, ensureAgencyTeamSchema } from "@paperclipai/
 import { validate } from "../middleware/index.js";
 import { agencyCoreTeamService, type EnsureAgencyCoreTeamResult } from "../services/agency-core-team.js";
 import { onboardingSeedService } from "../services/onboarding-seed.js";
-import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
+import { accessService } from "../services/access.js";
+import { assertBoard, assertBoardCanCreateAgents, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 /**
  * Receiver for the onboarding seed Paperclip Cloud collects at signup and
@@ -31,14 +32,16 @@ import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
  * lost after the response is a half that is lost for good.
  *
  * Once the seed has committed a Director, the default agency team is installed
- * under her. That install is best-effort and never fails the push: whatever it
- * throws is reported as `agencyTeam.status: "failed"` so Cloud still records
- * the seed and the owner keeps a usable Director.
+ * under her. That install is best-effort and never fails the push: any failure,
+ * including a Director still waiting for approval, is written to the activity
+ * log and reported as `agencyTeam.status: "failed"` so Cloud still records the
+ * seed and the owner keeps a usable Director.
  */
 export function onboardingSeedRoutes(db: Db) {
   const router = Router();
   const svc = onboardingSeedService(db);
   const agencyTeam = agencyCoreTeamService(db);
+  const access = accessService(db);
 
   router.post(
     "/companies/:companyId/onboarding-seed",
@@ -57,14 +60,9 @@ export function onboardingSeedRoutes(db: Db) {
       const actor = getActorInfo(req);
       const result = await svc.apply(companyId, req.body, actor);
 
-      let agencyTeamResult: EnsureAgencyCoreTeamResult | null = null;
-      if (result.agentId) {
-        try {
-          agencyTeamResult = await agencyTeam.ensureInstalled(companyId, result.agentId, actor);
-        } catch (error) {
-          agencyTeamResult = { status: "failed", error: error instanceof Error ? error.message : String(error) };
-        }
-      }
+      const agencyTeamResult: EnsureAgencyCoreTeamResult | null = result.agentId
+        ? await agencyTeam.ensureInstalledOrReportFailure(companyId, result.agentId, actor)
+        : null;
 
       res.status(200).json({
         companyId,
@@ -89,6 +87,8 @@ export function onboardingSeedRoutes(db: Db) {
       const companyId = req.params.companyId as string;
       assertBoard(req);
       assertCompanyAccess(req, companyId);
+      // Same gate as a catalog team install: the team hires 11 agents.
+      await assertBoardCanCreateAgents(req, companyId, access);
       const result = await agencyTeam.ensureInstalled(companyId, req.body.agentId, getActorInfo(req));
       res.status(200).json(result);
     },
