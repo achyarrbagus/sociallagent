@@ -587,8 +587,11 @@ function OnboardingWizardInner({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Why the agency team could not be installed under the Director, shown on
-  // Review. Not an `error`: the Director is hired and onboarding goes on.
-  const [agencyTeamError, setAgencyTeamError] = useState<string | null>(null);
+  // Review. Not an `error`: the Director is hired and onboarding goes on. Kept
+  // in the draft so a run restored on Review still says it.
+  const [agencyTeamError, setAgencyTeamError] = useState<string | null>(
+    typeof saved?.agencyTeamError === "string" ? saved.agencyTeamError : null,
+  );
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
 
@@ -968,7 +971,7 @@ function OnboardingWizardInner({
       // The mode, never the key: this blob is localStorage.
       credentialMode, credentialModeChoice,
       createdCompanyId, createdCompanyPrefix, createdAgentId, setupAgentId,
-      createdCompanyGoalId, createdProjectId, createdIssueRef,
+      createdCompanyGoalId, createdProjectId, createdIssueRef, agencyTeamError,
     };
     onboardingDraftStorage.write(JSON.stringify(state));
   }, [
@@ -976,7 +979,7 @@ function OnboardingWizardInner({
     agentName, agentAppearance, agentRole, adapterType, runner, cwd, model, command, args, url,
     credentialMode, credentialModeChoice,
     createdCompanyId, createdCompanyPrefix, createdAgentId, setupAgentId,
-    createdCompanyGoalId, createdProjectId, createdIssueRef,
+    createdCompanyGoalId, createdProjectId, createdIssueRef, agencyTeamError,
   ]);
 
   const getCapabilities = useAdapterCapabilities();
@@ -2338,6 +2341,33 @@ function OnboardingWizardInner({
   }
 
 
+  /**
+   * Install the agency team under the Director, recording why it failed for
+   * Review. The Director is usable on its own, so a failed install never
+   * blocks onboarding: Review says what went wrong, and the server logs it.
+   * The install is idempotent, so every path that reaches Review with a
+   * Director calls it — reopening the wizard and pressing Connect again is
+   * the owner's retry. Returns whether the attempt is still current.
+   */
+  async function installAgencyTeam(companyId: string, agentId: string, isCurrent: () => boolean): Promise<boolean> {
+    if (!isCurrent()) return false;
+    let teamError: string | null = null;
+    try {
+      const team = await ensureAgencyTeam(companyId, agentId);
+      if (team.status === "failed") teamError = team.error;
+    } catch (teamErr) {
+      teamError = teamErr instanceof Error ? teamErr.message : "Unknown error";
+    }
+    if (!isCurrent()) return false;
+    if (teamError === null) {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.agents.list(companyId)
+      });
+    }
+    setAgencyTeamError(teamError);
+    return true;
+  }
+
   // Step 4 → 5 ("Give it a heartbeat"): hire the lead agent + seed its
   // instructions, then advance to Review. Guarded so revisiting step 4
   // doesn't hire a second agent.
@@ -2353,7 +2383,20 @@ function OnboardingWizardInner({
       return;
     }
     if (createdAgentId) {
-      setStep(5);
+      // Already hired (Back from Review, or a restored run). Re-ensure the
+      // team on the way back to Review; this is the retry after a failure.
+      if (hiringAgentRef.current !== null) return;
+      const retryAttempt = ++connectAttemptRef.current;
+      const retryIsCurrent = () => connectAttemptRef.current === retryAttempt && stillTheSameCompany(createdCompanyId);
+      hiringAgentRef.current = retryAttempt;
+      setLoading(true);
+      setError(null);
+      try {
+        if (await installAgencyTeam(createdCompanyId, createdAgentId, retryIsCurrent)) setStep(5);
+      } finally {
+        if (hiringAgentRef.current === retryAttempt) hiringAgentRef.current = null;
+        if (retryIsCurrent()) setLoading(false);
+      }
       return;
     }
     if (!runnerDiscoveryReady || hiringAgentRef.current !== null) return;
@@ -2521,6 +2564,7 @@ function OnboardingWizardInner({
         queryClient.invalidateQueries({
           queryKey: queryKeys.agents.list(createdCompanyId)
         });
+        if (!(await installAgencyTeam(createdCompanyId, existing.id, isCurrent))) return;
         setStep(5);
         return;
       }
@@ -2567,24 +2611,7 @@ function OnboardingWizardInner({
       // `onboardingFirstAgent` marker above (the Agency Director persona). The
       // wizard no longer composes or overwrites it.
 
-      // Install the agency team under the Director. The Director is usable on
-      // its own, so a failed install never blocks onboarding: Review says what
-      // went wrong and where to retry, and the server logs it.
-      if (!isCurrent()) return;
-      let teamError: string | null = null;
-      try {
-        const team = await ensureAgencyTeam(createdCompanyId, agent.id);
-        if (team.status === "failed") teamError = team.error;
-      } catch (teamErr) {
-        teamError = teamErr instanceof Error ? teamErr.message : "Unknown error";
-      }
-      if (!isCurrent()) return;
-      if (teamError === null) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.agents.list(createdCompanyId)
-        });
-      }
-      setAgencyTeamError(teamError);
+      if (!(await installAgencyTeam(createdCompanyId, agent.id, isCurrent))) return;
       setCreatedAgentId(agent.id);
       // Advance to the Review step — the lead is now online. The user drives
       // strategy + hiring from the planning chat after "Get started".
@@ -3495,7 +3522,8 @@ function OnboardingWizardInner({
                   customer to audit work they watched happen. */}
               {/* The one exception: a Director whose agency team failed to
                   install. It is a note, not an error — the Director is hired
-                  and "Get started" still works — so it says where to retry.
+                  and "Get started" still works — so it says where to install
+                  it. Back and Connect again also retries the install.
                   The Team Catalog has no board route yet, so it is named
                   rather than linked. */}
               {step === 5 && agencyTeamError !== null && (

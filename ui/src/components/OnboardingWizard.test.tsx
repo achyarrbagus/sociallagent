@@ -928,6 +928,46 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         await act(async () => root.unmount());
       });
 
+      it("installs the team under an adopted same-name Director, then reaches Review", async () => {
+        mockAgentsApi.list.mockResolvedValue([
+          { id: "existing-director", name: "Ada", adapterType: "claude_local", adapterConfig: {} },
+        ]);
+        mockEnsureAgencyTeam.mockRejectedValue(new ApiError("Agent is not the Agency Director", 422, null));
+        const { root } = await hireThroughConnect();
+
+        expect(mockAgentsApi.hire).not.toHaveBeenCalled();
+        expect(mockEnsureAgencyTeam).toHaveBeenCalledWith("company-new", "existing-director");
+        expect(onReview()).toBe(true);
+        expect(document.body.textContent).toContain(
+          "the agency team could not be installed: Agent is not the Agency Director. You can install",
+        );
+
+        await act(async () => root.unmount());
+      });
+
+      it("retries the team install when the hired Director connects again from Review", async () => {
+        mockEnsureAgencyTeam.mockResolvedValueOnce({ status: "failed", error: "catalog unavailable" });
+        const { root } = await hireThroughConnect();
+        expect(document.body.textContent).toContain("could not be installed: catalog unavailable.");
+
+        const press = async (match: (text: string) => boolean) => {
+          const button = [...document.querySelectorAll("button")].find((b) => match(b.textContent?.trim() ?? ""))!;
+          await act(async () => { button.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+          await flushReact();
+        };
+        await press((t) => t === "Back");
+        await pickFirstSource(press);
+        await press(isArcPrimary);
+
+        expect(mockAgentsApi.hire).toHaveBeenCalledTimes(1);
+        expect(mockEnsureAgencyTeam).toHaveBeenCalledTimes(2);
+        expect(mockEnsureAgencyTeam).toHaveBeenLastCalledWith("company-new", "agent-1");
+        expect(onReview()).toBe(true);
+        expect(document.body.textContent).not.toContain("could not be installed");
+
+        await act(async () => root.unmount());
+      });
+
       it("still reaches Review with a notice when the team install reports a failure", async () => {
         mockEnsureAgencyTeam.mockResolvedValue({ status: "failed", error: "catalog unavailable" });
         const { root } = await hireThroughConnect();
@@ -1579,6 +1619,21 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         expect(persisted).toMatchObject(draft);
         expect(mockAgentsApi.hire).not.toHaveBeenCalled();
         expect(mockAgentsApi.testEnvironment).not.toHaveBeenCalled();
+      } finally { await act(async () => root.unmount()); }
+    });
+
+    it("still shows the team install notice on a restored Review", async () => {
+      window.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ ...savedReview(), agencyTeamError: "catalog unavailable" }));
+      mockRouterState.pathname = "/SC/onboarding";
+      mockDialog.onboardingOpen = false;
+      const companies = [{ id: "c1", name: "Saved Co", issuePrefix: "SC" }];
+      mockCompany.companies = companies;
+      mockCompaniesApi.list.mockResolvedValue(companies);
+      const { root, queryClient } = render();
+      await renderWizardView(root, queryClient);
+      for (let tick = 0; tick < 8; tick++) await flushReact();
+      try {
+        expect(document.body.textContent).toContain("the agency team could not be installed: catalog unavailable.");
       } finally { await act(async () => root.unmount()); }
     });
 
