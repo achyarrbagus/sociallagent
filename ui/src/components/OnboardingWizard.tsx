@@ -77,6 +77,7 @@ import { useCompanyListQuery } from "../api/companies-query";
 import { goalsApi } from "../api/goals";
 import { agentsApi } from "../api/agents";
 import { approvalsApi } from "../api/approvals";
+import { ensureAgencyTeam } from "../api/onboarding-agency-team";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { environmentsApi } from "../api/environments";
@@ -585,6 +586,9 @@ function OnboardingWizardInner({
   useEffect(() => { lastStep.current = step; }, [step]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Why the agency team could not be installed under the Director, shown on
+  // Review. Not an `error`: the Director is hired and onboarding goes on.
+  const [agencyTeamError, setAgencyTeamError] = useState<string | null>(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [modelSearch, setModelSearch] = useState("");
 
@@ -592,25 +596,16 @@ function OnboardingWizardInner({
   const [companyName, setCompanyName] = useState((saved?.companyName as string) ?? "");
 
   // Step 2
-  // The name is not defaulted: a pre-filled "Chief of staff" is a choice made
+  // The name is not defaulted: a pre-filled "Agency Director" is a choice made
   // on the customer's behalf that they then have to notice and undo. It is the
   // step's only question, and its CTA gates on it.
   const [agentName, setAgentName] = useState((saved?.agentName as string) ?? "");
   const [agentAppearance, setAgentAppearance] = useState(() => agentAppearanceSchema.safeParse(saved?.agentAppearance).data ?? randomAgentAppearance());
-  // Defaults to `general` rather than empty. The arc stopped asking for a role
-  // — a customer naming their first agent is describing what it does, not
-  // filing it — but the hire still needs one, and the guard below returns
-  // silently when it is missing. An unset role there would mean Connect
-  // appearing to work and hiring nobody.
-  const [agentRole, setAgentRole] = useState<AgentRole>(
-    // `||`, not `??`: the empty string was this field's default before the arc
-    // stopped asking for a role, so every draft saved by an earlier build holds
-    // `agentRole: ""`. `??` passes that straight through, and an empty role
-    // reaches the silent return in the hire — the exact failure the default
-    // exists to prevent, arriving through a restored draft instead of a fresh
-    // one.
-    (saved?.agentRole as AgentRole) || DEFAULT_AGENT_ROLE,
-  );
+  // The first agent is always the Agency Director, so its role is fixed rather
+  // than state: there is no role picker, and a draft or setup agent saved by an
+  // earlier build (`agentRole: ""` or `"general"`) must not carry its old role
+  // into the hire — the agency team is only installed under a `ceo` Director.
+  const agentRole: AgentRole = DEFAULT_AGENT_ROLE;
   const [adapterType, setAdapterType] = useState<AdapterType>(() =>
     restoreOnboardingAdapterType(saved?.adapterType, saved?.runnerProvider, saved?.onboardingCopilot),
   );
@@ -1355,7 +1350,6 @@ function OnboardingWizardInner({
         if (restoring && agent.adapterConfig) {
           setRestoredSetup(agent);
           setAgentName(agent.name);
-          setAgentRole(agent.role);
           setAgentAppearance(resolveAgentAppearance(agent.appearance, agent.id));
           const config = agent.adapterConfig;
           if (agent.metadata?.setupAdapterPending === true) {
@@ -1844,10 +1838,10 @@ function OnboardingWizardInner({
     setError(null);
     setCompanyName("");
     // Back to the mount defaults: an empty name (the step's only question, and
-    // what its CTA gates on) and the neutral role every onboarding hire uses.
+    // what its CTA gates on). The role is fixed to the Director's.
     setAgentName("");
     setAgentAppearance(randomAgentAppearance());
-    setAgentRole(DEFAULT_AGENT_ROLE);
+    setAgencyTeamError(null);
     setAdapterType("claude_local");
     setRunner("auto");
     setModel("");
@@ -2501,10 +2495,7 @@ function OnboardingWizardInner({
         }
       }
 
-      // `agentRole` always holds a value now (see its default), so this is a
-      // type narrowing rather than a gate — but it stays, because a future
-      // path that clears the role must not reach a hire that silently no-ops.
-      if (!agentRole || !isCurrent()) return;
+      if (!isCurrent()) return;
 
       const hireName = agentName.trim() || AGENT_ROLE_LABELS[agentRole];
 
@@ -2552,7 +2543,7 @@ function OnboardingWizardInner({
         ...(["codex_local", "claude_local", "opencode_local", "pi_local"].includes(adapterType) && runner !== "auto" ? { runner } : {}),
         ...(shouldApplyStoredClaudeLogin ? { applyStoredClaudeLogin: true } : {}),
         // The server owns what the first agent is told now: this marker seeds
-        // the chief-of-staff persona over the agent's entry instruction file.
+        // the Agency Director persona over the agent's entry instruction file.
         // The wizard no longer composes or overwrites it.
         onboardingFirstAgent: true,
         ...(restoredSetup?.companyId === createdCompanyId && restoredSetup.defaultEnvironmentId ? { defaultEnvironmentId: resolvedLoginEnvironmentId } : {}),
@@ -2573,10 +2564,27 @@ function OnboardingWizardInner({
         queryKey: queryKeys.agents.list(createdCompanyId)
       });
       // The agent's instruction file is seeded server-side from the
-      // `onboardingFirstAgent` marker above (the chief-of-staff persona). The
+      // `onboardingFirstAgent` marker above (the Agency Director persona). The
       // wizard no longer composes or overwrites it.
 
+      // Install the agency team under the Director. The Director is usable on
+      // its own, so a failed install never blocks onboarding: Review says what
+      // went wrong and where to retry, and the server logs it.
       if (!isCurrent()) return;
+      let teamError: string | null = null;
+      try {
+        const team = await ensureAgencyTeam(createdCompanyId, agent.id);
+        if (team.status === "failed") teamError = team.error;
+      } catch (teamErr) {
+        teamError = teamErr instanceof Error ? teamErr.message : "Unknown error";
+      }
+      if (!isCurrent()) return;
+      if (teamError === null) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.agents.list(createdCompanyId)
+        });
+      }
+      setAgencyTeamError(teamError);
       setCreatedAgentId(agent.id);
       // Advance to the Review step — the lead is now online. The user drives
       // strategy + hiring from the planning chat after "Get started".
@@ -2980,9 +2988,9 @@ function OnboardingWizardInner({
               {/* Step 3: the name, and only the name. The role picker went with
                   the question it was asking — a customer naming their first
                   agent is describing what it does, and the placeholder carries
-                  the range of answers that fit. Hiring uses the neutral
-                  `general` role; a specific one can be set later, where there
-                  is context to choose it in. */}
+                  the range of answers that fit. The first agent is always the
+                  Agency Director (`ceo` internally), which the agency team is
+                  installed under once it is hired. */}
               {step === 3 && (
                 <motion.div key="step-3" {...stepContentMotion} exit={stepHandoff ? stepContentMotion.exit : undefined} className="mx-auto flex w-full flex-col gap-9">
                   <div className="flex flex-col gap-2">
@@ -2999,7 +3007,7 @@ function OnboardingWizardInner({
                     <Input
                       id="onboarding-agent-name"
                       className="h-(--sz-44px) rounded-lg border-transparent bg-muted shadow-none dark:bg-muted"
-                      placeholder="e.g. Chief of staff"
+                      placeholder="e.g. Agency Director"
                       value={agentName}
                       onChange={(e) => setAgentName(e.target.value)}
                       onKeyDown={(e) => {
@@ -3485,6 +3493,16 @@ function OnboardingWizardInner({
                   ready, and the pill above has just woken to show it — a
                   checklist restating those in three rows only asked the
                   customer to audit work they watched happen. */}
+              {/* The one exception: a Director whose agency team failed to
+                  install. It is a note, not an error — the Director is hired
+                  and "Get started" still works — so it says where to retry.
+                  The Team Catalog has no board route yet, so it is named
+                  rather than linked. */}
+              {step === 5 && agencyTeamError !== null && (
+                <p role="status" className="mt-3 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+                  Your Agency Director is ready, but the agency team could not be installed: {agencyTeamError.replace(/\.$/, "")}. You can install Agency Core from the Team Catalog.
+                </p>
+              )}
 
               {/* Error */}
               {visibleError && (

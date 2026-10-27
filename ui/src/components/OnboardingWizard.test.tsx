@@ -165,7 +165,17 @@ const mockInstanceSettingsApi = vi.hoisted(() => ({
 }));
 const mockApprovalsApi = vi.hoisted(() => ({
   create: vi.fn(),
+  approve: vi.fn(async () => ({})),
 }));
+// The agency team is installed under the Director right after the hire. A
+// resolved install is the default; failure tests override it.
+const mockEnsureAgencyTeam = vi.hoisted(() =>
+  vi.fn(async (): Promise<import("@paperclipai/shared").EnsureAgencyCoreTeamResult> => ({
+    status: "installed",
+    agentIds: [],
+    warnings: [],
+  })),
+);
 const mockSecretsApi = vi.hoisted(() => ({
   list: vi.fn(),
   removeUserSecretDefinition: vi.fn(),
@@ -207,6 +217,7 @@ vi.mock("../api/companies", () => ({ companiesApi: mockCompaniesApi }));
 vi.mock("../api/goals", () => ({ goalsApi: mockGoalsApi }));
 vi.mock("../api/agents", () => ({ agentsApi: mockAgentsApi }));
 vi.mock("../api/approvals", () => ({ approvalsApi: mockApprovalsApi }));
+vi.mock("../api/onboarding-agency-team", () => ({ ensureAgencyTeam: mockEnsureAgencyTeam }));
 vi.mock("../api/secrets", () => ({ secretsApi: mockSecretsApi }));
 vi.mock("../api/issues", () => ({ issuesApi: mockIssuesApi }));
 vi.mock("../api/projects", () => ({ projectsApi: mockProjectsApi }));
@@ -426,6 +437,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     mockAgentsApi.list.mockReset().mockResolvedValue([]);
     mockAgentsApi.create.mockReset().mockImplementation(async (_company, input) => ({ ...input, id: input.setupId, pauseReason: "setup" }));
     mockAgentsApi.hire.mockResolvedValue({ agent: { id: "agent-1" }, approval: null });
+    mockEnsureAgencyTeam.mockReset().mockResolvedValue({ status: "installed", agentIds: [], warnings: [] });
     mockCompaniesApi.create.mockResolvedValue({
       id: "created",
       name: "Created Co",
@@ -811,9 +823,134 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       // The mock is declared with no parameters, so index the call rather than
       // destructuring a zero-length tuple type.
       const hireArgs = mockAgentsApi.hire.mock.calls.at(-1) as unknown[];
-      expect((hireArgs[1] as { role: string }).role).toBe("general");
+      expect((hireArgs[1] as { role: string }).role).toBe("ceo");
 
       await act(async () => root.unmount());
+    });
+
+    describe("the Agency Director and its team", () => {
+      /**
+       * Walk a fresh run from the company step through Connect, leaving the
+       * wizard wherever the hire and team install put it.
+       */
+      async function hireThroughConnect(draft: Record<string, unknown> = {}) {
+        window.localStorage.setItem(
+          ONBOARDING_STORAGE_KEY,
+          JSON.stringify({ step: 1, companyName: "Initech", ...draft }),
+        );
+        mockCompaniesApi.create.mockResolvedValue({ id: "company-new", issuePrefix: "INI" });
+        mockAdapterRegistry.list = [{ type: "claude_local" }, { type: "codex_local" }];
+        const { root, queryClient } = render();
+        await renderWizardView(root, queryClient);
+        await flushReact();
+        const clickText = async (match: (t: string) => boolean) => {
+          const el = [...document.body.querySelectorAll("button")].find((b) =>
+            match(b.getAttribute("aria-label")?.startsWith("Use ") ? b.getAttribute("aria-label")! : b.textContent?.trim() ?? ""),
+          )!;
+          await act(async () => {
+            el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          });
+          await flushReact();
+        };
+        await clickText((t) => t.startsWith("Continue"));
+        const agentField = document.body.querySelector("#onboarding-agent-name") as HTMLInputElement;
+        await act(async () => {
+          setControlledValue(agentField, "Ada");
+        });
+        await flushReact();
+        await clickText((t) => isArcPrimary(t));
+        await pickFirstSource(clickText);
+        await clickText((t) => isArcPrimary(t));
+        await flushReact();
+        return { root, queryClient };
+      }
+
+      const onReview = () =>
+        [...document.querySelectorAll("button")].some((button) => button.textContent?.trim() === "Get started");
+
+      it("asks only for a name, suggesting the Agency Director, with no role picker", async () => {
+        window.localStorage.setItem(ONBOARDING_STORAGE_KEY, JSON.stringify({ step: 1, companyName: "Initech" }));
+        mockCompaniesApi.create.mockResolvedValue({ id: "company-new", issuePrefix: "INI" });
+        const { root, queryClient } = render();
+        await renderWizardView(root, queryClient);
+        await flushReact();
+        const cont = [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim().startsWith("Continue"))!;
+        await act(async () => {
+          cont.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        });
+        await flushReact();
+
+        const agentField = document.body.querySelector("#onboarding-agent-name") as HTMLInputElement;
+        expect(agentField.placeholder).toBe("e.g. Agency Director");
+        expect(document.body.querySelector('[role="combobox"]')).toBeNull();
+        expect(document.body.textContent).not.toMatch(/\bRole\b/);
+        expect(document.body.textContent).not.toContain("CEO");
+
+        await act(async () => root.unmount());
+      });
+
+      it("hires a restored draft that saved the old general role as the Director", async () => {
+        const { root } = await hireThroughConnect({ agentRole: "general" });
+        const hireArgs = mockAgentsApi.hire.mock.calls.at(-1) as unknown[];
+        expect((hireArgs[1] as { role: string }).role).toBe("ceo");
+        await act(async () => root.unmount());
+      });
+
+      it("installs the agency team under the hired Director after its approval, then reaches Review", async () => {
+        mockAgentsApi.hire.mockResolvedValue({ agent: { id: "director-1" }, approval: { id: "approval-1" } } as never);
+        const { root } = await hireThroughConnect();
+
+        expect(mockApprovalsApi.approve).toHaveBeenCalledWith("approval-1", expect.any(String));
+        expect(mockEnsureAgencyTeam).toHaveBeenCalledWith("company-new", "director-1");
+        expect(mockApprovalsApi.approve.mock.invocationCallOrder[0]).toBeLessThan(
+          mockEnsureAgencyTeam.mock.invocationCallOrder[0],
+        );
+        expect(onReview()).toBe(true);
+        expect(document.body.textContent).not.toContain("could not be installed");
+
+        await act(async () => root.unmount());
+      });
+
+      it("refreshes the agent list once the team is installed", async () => {
+        let resolveInstall: (v: import("@paperclipai/shared").EnsureAgencyCoreTeamResult) => void = () => {};
+        mockEnsureAgencyTeam.mockReturnValue(new Promise((resolve) => { resolveInstall = resolve; }));
+        const { root, queryClient } = await hireThroughConnect();
+        expect(onReview()).toBe(false);
+        const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+        await act(async () => {
+          resolveInstall({ status: "already_installed" });
+        });
+        await flushReact();
+        expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.agents.list("company-new") });
+        expect(onReview()).toBe(true);
+        expect(document.body.textContent).not.toContain("could not be installed");
+
+        await act(async () => root.unmount());
+      });
+
+      it("still reaches Review with a notice when the team install reports a failure", async () => {
+        mockEnsureAgencyTeam.mockResolvedValue({ status: "failed", error: "catalog unavailable" });
+        const { root } = await hireThroughConnect();
+
+        expect(onReview()).toBe(true);
+        expect(document.body.textContent).toContain(
+          "Your Agency Director is ready, but the agency team could not be installed: catalog unavailable. You can install Agency Core from the Team Catalog.",
+        );
+
+        await act(async () => root.unmount());
+      });
+
+      it("still reaches Review with a notice when the team install request throws", async () => {
+        mockEnsureAgencyTeam.mockRejectedValue(new ApiError("Missing permission: agents:create", 403, null));
+        const { root } = await hireThroughConnect();
+
+        expect(onReview()).toBe(true);
+        expect(document.body.textContent).toContain(
+          "Your Agency Director is ready, but the agency team could not be installed: Missing permission: agents:create. You can install Agency Core from the Team Catalog.",
+        );
+
+        await act(async () => root.unmount());
+      });
     });
 
     it("hires one agent when Connect fires twice in one breath", async () => {
@@ -1567,7 +1704,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
 
     // The draft is restored once companies settle: step 3 (Create your first
     // agent) with the saved agent name in the input, not the defaults
-    // (step 0, "Chief of staff").
+    // (step 0, "Agency Director").
     expect(document.body.textContent).toContain("Create your first agent");
     const nameInput = document.body.querySelector(
       "#onboarding-agent-name",

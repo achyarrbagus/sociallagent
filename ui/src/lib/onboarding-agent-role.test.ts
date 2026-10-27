@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { AGENT_ROLE_LABELS } from "@paperclipai/shared";
-import { DEFAULT_AGENT_NAME, nextAgentNameForRole } from "./onboarding-agent-role";
+import { DEFAULT_AGENT_NAME, DEFAULT_AGENT_ROLE, nextAgentNameForRole } from "./onboarding-agent-role";
+
+describe("onboarding first-agent defaults", () => {
+  it("hires the Agency Director, filed under the ceo role", () => {
+    expect(DEFAULT_AGENT_ROLE).toBe("ceo");
+    expect(DEFAULT_AGENT_NAME).toBe("Agency Director");
+  });
+});
 
 describe("nextAgentNameForRole", () => {
   it("fills the name from the role when the field is empty", () => {
@@ -11,6 +18,12 @@ describe("nextAgentNameForRole", () => {
 
   it("replaces the default name the wizard supplied", () => {
     expect(nextAgentNameForRole({ currentName: DEFAULT_AGENT_NAME, nextRole: "designer" })).toBe(
+      AGENT_ROLE_LABELS.designer,
+    );
+  });
+
+  it("replaces the previous default a restored run may still hold", () => {
+    expect(nextAgentNameForRole({ currentName: "Chief of staff", nextRole: "designer" })).toBe(
       AGENT_ROLE_LABELS.designer,
     );
   });
