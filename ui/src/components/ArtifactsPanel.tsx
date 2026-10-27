@@ -328,7 +328,7 @@ function DocumentViewer({
           <div className="flex items-center gap-2">
             <XCircle className="h-4 w-4 text-orange-500" />
             <p className="text-(length:--text-compact) font-medium text-orange-700 dark:text-orange-400">
-              Changes requested — CEO is revising
+              Changes requested — the Agency Director is revising
             </p>
           </div>
         </div>

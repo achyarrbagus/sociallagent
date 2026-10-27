@@ -21,8 +21,8 @@ import avatarDesigner from "./assets/avatar-designer.svg";
 
 export const COMPANY = { id: "company-acmehats", name: "acmehats", issuePrefix: "ACM" };
 export const DESIGNER = "Brand and Presentation Designer";
-export const CEO = "CEO";
-export const AVATARS: Record<string, string> = { [DESIGNER]: avatarDesigner, [CEO]: avatarCeo };
+export const AGENCY_DIRECTOR = "Agency Director";
+export const AVATARS: Record<string, string> = { [DESIGNER]: avatarDesigner, [AGENCY_DIRECTOR]: avatarCeo };
 
 export const TASKS = {
   "ACM-1": "SocialAgent onboarding",
@@ -123,7 +123,7 @@ const T3 = { task: "ACM-3" } as const;
 const docCritique = taskDocument("doc-critique", "Interface Craft critique and implemented changes", "interface-craft-critique", 1, docs.DOC_CRITIQUE, { ...T3, at: "2026-09-28T11:07:00" });
 const docGuideVerification = taskDocument("doc-guide-verification", "Interface Craft deck guide and verification", "interface-craft-deck-guide", 3, docs.DOC_GUIDE_VERIFICATION, { ...T3, at: "2026-09-28T11:06:00" });
 const docSuppliedSource = taskDocument("doc-supplied-source", "Interface Craft — supplied source", "interface-craft-source", 1, docs.DOC_SUPPLIED_SOURCE, { ...T3, at: "2026-09-28T10:58:00" });
-const docRevisionBrief = taskDocument("doc-revision-brief", "Approved consolidated deck revision brief", "approved-revision-brief", 1, docs.DOC_REVISION_BRIEF, { ...T3, at: "2026-09-26T15:32:00", author: CEO });
+const docRevisionBrief = taskDocument("doc-revision-brief", "Approved consolidated deck revision brief", "approved-revision-brief", 1, docs.DOC_REVISION_BRIEF, { ...T3, at: "2026-09-26T15:32:00", author: AGENCY_DIRECTOR });
 const docRevisionNotes = taskDocument("doc-revision-notes", "Consolidated revision notes", "consolidated-revision-notes", 2, docs.DOC_REVISION_NOTES, { ...T3, at: "2026-09-26T16:48:00" });
 const docDraftVerification = taskDocument("doc-draft-verification", "First-draft deck guide and verification", "first-draft-deck-guide", 2, docs.DOC_FIRST_DRAFT_VERIFICATION, { ...T3, at: "2026-09-25T13:26:00" });
 const docVisualStrategy = taskDocument("doc-visual-strategy", "Visual direction strategy", "visual-direction-strategy", 1, docs.DOC_VISUAL_STRATEGY, { ...T3, at: "2026-09-25T11:42:00" });
@@ -176,13 +176,13 @@ export const THREAD_WORK_PRODUCTS: LabArtifact[] = [docCritique, docGuideVerific
 // ACM-1 — Paperclip onboarding (7)
 // ---------------------------------------------------------------------------
 
-const T1 = { task: "ACM-1", author: CEO } as const;
+const T1 = { task: "ACM-1", author: AGENCY_DIRECTOR } as const;
 const ACM1: LabArtifact[] = [
-  taskDocument("a1-ceo-review", "Interface Craft pass — CEO review", "interface-craft-ceo-review", 1, docs.DOC_CEO_REVIEW, { ...T1, at: "2026-09-28T11:18:00" }),
+  taskDocument("a1-ceo-review", "Interface Craft pass — Agency Director review", "interface-craft-ceo-review", 1, docs.DOC_DIRECTOR_REVIEW, { ...T1, at: "2026-09-28T11:18:00" }),
   artifact("a1-packet", "pdf", "Founder review packet", { ...T1, at: "2026-09-28T11:16:00", filename: "founder-review-packet.pdf", byteSize: 148480, summary: "Deck, strategy and open decisions in one file", pageCount: 18, review: "needs_review" }),
   artifact("a1-storefront", "link", "Storefront preview", { ...T1, at: "2026-09-27T16:05:00", url: "https://preview.acmehats.example/storefront", summary: "Homepage and cap configurator, first pass", thumbnailUrl: storefrontPreview, aspect: 16 / 9 }),
   taskDocument("a1-founder-questions", "Founder questions and decisions", "founder-questions", 4, docs.DOC_FOUNDER_QUESTIONS, { ...T1, at: "2026-09-27T09:30:00" }),
-  taskDocument("a1-first-draft-review", "First draft — CEO review", "first-draft-ceo-review", 1, docs.DOC_FIRST_DRAFT_REVIEW, { ...T1, at: "2026-09-25T14:02:00" }),
+  taskDocument("a1-first-draft-review", "First draft — Agency Director review", "first-draft-ceo-review", 1, docs.DOC_FIRST_DRAFT_REVIEW, { ...T1, at: "2026-09-25T14:02:00" }),
   artifact("a1-logo", "image", "Supplied logo lockup", { ...T1, at: "2026-09-24T10:12:00", filename: "acmehats-logo-supplied.png", byteSize: 96461, summary: "As supplied by the founder; raster only", thumbnailUrl: logoLockup, aspect: 2 }),
   taskDocument("a1-onboarding-plan", "acmehats onboarding plan", "onboarding-plan", 2, docs.DOC_ONBOARDING_PLAN, { ...T1, at: "2026-09-24T09:48:00" }),
 ];

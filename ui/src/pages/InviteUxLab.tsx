@@ -780,7 +780,7 @@ export function InviteUxLab() {
           <StatusCard
             icon={<ShieldCheck className="h-4 w-4" />}
             title="Bootstrap complete"
-            body="Result screen for bootstrap CEO invites after setup has been accepted successfully."
+            body="Result screen for bootstrap Agency Director invites after setup has been accepted successfully."
             tone="success"
           />
           <StatusCard

@@ -4933,7 +4933,7 @@ export function agentRoutes(
         return;
       }
       if (actorAgent.role !== "ceo") {
-        res.status(403).json({ error: "Only CEO can manage permissions" });
+        res.status(403).json({ error: "Only the Agency Director can manage permissions" });
         return;
       }
     } else {

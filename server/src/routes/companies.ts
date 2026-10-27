@@ -373,7 +373,7 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       throw forbidden("Agent key cannot access another company");
     }
     if (actorAgent.role !== "ceo") {
-      throw forbidden(`Only CEO agents can manage ${capability}`);
+      throw forbidden(`Only Agency Director agents can manage ${capability}`);
     }
   }
 
