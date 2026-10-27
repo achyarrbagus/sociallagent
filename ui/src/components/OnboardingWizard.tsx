@@ -589,6 +589,8 @@ function OnboardingWizardInner({
   // Why the agency team could not be installed under the Director, shown on
   // Review. Not an `error`: the Director is hired and onboarding goes on. Kept
   // in the draft so a run restored on Review still says it.
+  // True while the agency team installs, so Connect says what it is waiting on.
+  const [installingAgencyTeam, setInstallingAgencyTeam] = useState(false);
   const [agencyTeamError, setAgencyTeamError] = useState<string | null>(
     typeof saved?.agencyTeamError === "string" ? saved.agencyTeamError : null,
   );
@@ -1437,7 +1439,7 @@ function OnboardingWizardInner({
   */
   const connectCollapsed =
     connectPhase !== "idle" && connectPhase !== "unwindRow" && sourceSelected;
-  const connectProgress = sourceSelected && !setupPrepared && !createdAgentId && !setupError ? "Creating your agent…" : adapterEnvLoading ? "Testing connection…" : loading ? "Connecting…" : null;
+  const connectProgress = installingAgencyTeam ? "Setting up your team…" : sourceSelected && !setupPrepared && !createdAgentId && !setupError ? "Creating your agent…" : adapterEnvLoading ? "Testing connection…" : loading ? "Connecting…" : null;
   const hasSavedSubscription = Boolean(savedSubscription || savedKeys.storedLogin.data ||
     (credentialMode !== "api" && managedBindingForStep()));
   const connectHasCard = credentialMode === "api" || connectStepNeedsLogin || connectStepHasNoSandbox || Boolean(connectProgress);
@@ -2352,11 +2354,14 @@ function OnboardingWizardInner({
   async function installAgencyTeam(companyId: string, agentId: string, isCurrent: () => boolean): Promise<boolean> {
     if (!isCurrent()) return false;
     let teamError: string | null = null;
+    setInstallingAgencyTeam(true);
     try {
       const team = await ensureAgencyTeam(companyId, agentId);
       if (team.status === "failed") teamError = team.error;
     } catch (teamErr) {
       teamError = teamErr instanceof Error ? teamErr.message : "Unknown error";
+    } finally {
+      setInstallingAgencyTeam(false);
     }
     if (!isCurrent()) return false;
     if (teamError === null) {
@@ -3522,13 +3527,11 @@ function OnboardingWizardInner({
                   customer to audit work they watched happen. */}
               {/* The one exception: a Director whose agency team failed to
                   install. It is a note, not an error — the Director is hired
-                  and "Get started" still works — so it says where to install
-                  it. Back and Connect again also retries the install.
-                  The Team Catalog has no board route yet, so it is named
-                  rather than linked. */}
+                  and "Get started" still works — so it says how to retry:
+                  Back and Connect again re-runs the idempotent install. */}
               {step === 5 && agencyTeamError !== null && (
                 <p role="status" className="mt-3 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                  Your Agency Director is ready, but the agency team could not be installed: {agencyTeamError.replace(/\.$/, "")}. You can install Agency Core from the Team Catalog.
+                  Your Agency Director is ready, but the agency team could not be installed: {agencyTeamError.replace(/\.$/, "")}. Go Back and press Connect to try again.
                 </p>
               )}
 

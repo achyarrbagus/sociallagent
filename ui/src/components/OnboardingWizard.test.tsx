@@ -928,6 +928,24 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         await act(async () => root.unmount());
       });
 
+      it("says it is setting up the team while the install runs", async () => {
+        let resolveInstall: (v: import("@paperclipai/shared").EnsureAgencyCoreTeamResult) => void = () => {};
+        mockEnsureAgencyTeam.mockReturnValue(new Promise((resolve) => { resolveInstall = resolve; }));
+        const { root } = await hireThroughConnect();
+
+        const labels = [...document.body.querySelectorAll("button")].map((b) => b.textContent?.trim());
+        expect(labels).toContain("Setting up your team…");
+        expect(labels).not.toContain("Connecting…");
+
+        await act(async () => {
+          resolveInstall({ status: "already_installed" });
+        });
+        await flushReact();
+        expect(document.body.textContent).not.toContain("Setting up your team…");
+
+        await act(async () => root.unmount());
+      });
+
       it("installs the team under an adopted same-name Director, then reaches Review", async () => {
         mockAgentsApi.list.mockResolvedValue([
           { id: "existing-director", name: "Ada", adapterType: "claude_local", adapterConfig: {} },
@@ -939,7 +957,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         expect(mockEnsureAgencyTeam).toHaveBeenCalledWith("company-new", "existing-director");
         expect(onReview()).toBe(true);
         expect(document.body.textContent).toContain(
-          "the agency team could not be installed: Agent is not the Agency Director. You can install",
+          "the agency team could not be installed: Agent is not the Agency Director. Go Back and press Connect",
         );
 
         await act(async () => root.unmount());
@@ -974,7 +992,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
 
         expect(onReview()).toBe(true);
         expect(document.body.textContent).toContain(
-          "Your Agency Director is ready, but the agency team could not be installed: catalog unavailable. You can install Agency Core from the Team Catalog.",
+          "Your Agency Director is ready, but the agency team could not be installed: catalog unavailable. Go Back and press Connect to try again.",
         );
 
         await act(async () => root.unmount());
@@ -986,7 +1004,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
 
         expect(onReview()).toBe(true);
         expect(document.body.textContent).toContain(
-          "Your Agency Director is ready, but the agency team could not be installed: Missing permission: agents:create. You can install Agency Core from the Team Catalog.",
+          "Your Agency Director is ready, but the agency team could not be installed: Missing permission: agents:create. Go Back and press Connect to try again.",
         );
 
         await act(async () => root.unmount());
