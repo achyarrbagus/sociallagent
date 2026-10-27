@@ -418,12 +418,17 @@ the **Agency Director**, who leads the company, and onboarding installs the bund
 `agency-core` team under it: Account Manager (with Publishing Coordinator and
 Performance Analyst), Creative Strategist (with Content Strategist, SEO Specialist
 and Marketing Strategist) and Creative Director (with Copywriter, Scriptwriter and
-Designer), 12 agents in total. Only the Director has a recurring task (a priority
+Creative Designer), 12 agents in total. Only the Director has a recurring task (a priority
 review); specialists wake only when assigned work. The owner remains the only one
 who approves final content. Internally the Director uses the existing `ceo` role, so
 delegation and hiring rules are unchanged, but the product never labels it "CEO".
-If the team install fails, onboarding still finishes with a usable Director and the
-owner can retry from the Team Catalog. `core-exec-team` and `agency-studio` stay in
+If the team install fails, onboarding still finishes with a usable Director; the
+failure is shown to the owner and written to the activity log, and the owner retries
+by going Back and pressing Connect in onboarding. Only a board user who may create
+agents (`agents:create`) triggers the install; a seed pushed by any other actor
+leaves the Director without a team and reports why. A partially installed team is
+reported as a failure rather than reinstalled, so the owner removes the partial
+agents or adds the missing ones from the Team Catalog. `core-exec-team` and `agency-studio` stay in
 the catalog as optional teams; existing companies are not migrated.
 
 Client approval is not required. Revision-bound owner content review is now implemented in the

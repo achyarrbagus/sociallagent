@@ -75,10 +75,14 @@ Agent access: `partial` — installation retains existing team/agent creation an
 governance rules. Installed roles receive brand-scoped assigned tasks; agents with
 REST access can read profiles, otherwise the owner supplies authorized briefs.
 
-Onboarding route: `POST /api/companies/{companyId}/onboarding/agency-team` and
-`POST /api/companies/{companyId}/onboarding-seed` install the default `agency-core`
-team under the Agency Director. Board only, requires `agents:create`; agents are
-denied. Idempotent; failures are logged as `company.agency_core_team_install_failed`.
+Onboarding routes: `POST /api/companies/{companyId}/onboarding/agency-team` installs
+the default `agency-core` team under the Agency Director. Board only, requires
+`agents:create`; agents are denied. `POST /api/companies/{companyId}/onboarding-seed`
+is the onboarding seed receiver (company access); it installs the team as a side
+effect only for a board user who passes the same `agents:create` gate, and for any
+other actor applies the seed without the team and reports `agencyTeam.status:
+"failed"`. Both are idempotent, a partial team is reported as failed rather than
+reinstalled, and failures are logged as `company.agency_core_team_install_failed`.
 
 Policy: Default `agency-core` team installed only by onboarding (Director is the sole
 recurring task); optional Agency Studio package is never automatic. No other scheduled jobs,
