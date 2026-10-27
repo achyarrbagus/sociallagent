@@ -90,9 +90,9 @@ curl -sS -X PATCH "$PAPERCLIP_API_URL/api/companies/{companyId}" \
   -d '{"requireBoardApprovalForNewAgents": true}'
 ```
 
-### Step 2: Create the CEO Agent
+### Step 2: Create the Agency Director Agent
 
-The CEO is the first agent. Use the agent-hire endpoint:
+The Agency Director is the first agent. Use the agent-hire endpoint:
 
 ```bash
 # Discover available adapters
@@ -108,7 +108,7 @@ curl -sS "$PAPERCLIP_API_URL/llms/agent-icons.txt"
 curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-hires" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "CEO Name",
+    "name": "Agency Director Name",
     "role": "ceo",
     "title": "Chief Executive Officer",
     "icon": "crown",
@@ -127,23 +127,23 @@ curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-h
 ```
 
 Guide the user through:
-- CEO name and icon (show available icons)
-- Working directory (where the CEO will operate)
+- Agency Director name and icon (show available icons)
+- Working directory (where the Agency Director will operate)
 - Adapter type (default: `claude_local`)
 - Budget
 
-Generate the CEO's system prompt using the Agent System Prompt Template (Section D below).
+Generate the Agency Director's system prompt using the Agent System Prompt Template (Section D below).
 
-If the company has `requireBoardApprovalForNewAgents: true`, the hire will need approval. Check if an approval was created and auto-approve it for the CEO (since the user just asked to create it):
+If the company has `requireBoardApprovalForNewAgents: true`, the hire will need approval. Check if an approval was created and auto-approve it for the Agency Director (since the user just asked to create it):
 
 ```bash
 # Check pending approvals
 curl -sS "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/approvals?status=pending"
 
-# Approve the CEO hire
+# Approve the Agency Director hire
 curl -sS -X POST "$PAPERCLIP_API_URL/api/approvals/{approvalId}/approve" \
   -H "Content-Type: application/json" \
-  -d '{"decisionNote": "CEO hire approved by board during onboarding"}'
+  -d '{"decisionNote": "Agency Director hire approved by board during onboarding"}'
 ```
 
 ### Step 3: Create the Board Operations Issue
@@ -169,7 +169,7 @@ curl -sS -X PUT "$PAPERCLIP_API_URL/api/issues/{boardIssueId}/documents/decision
   -d '{
     "title": "Decision Log",
     "format": "markdown",
-    "body": "# Decision Log — {Company Name}\n\n## {today date}\n- Created company {name} with mission: {description}\n- Hired CEO agent \"{ceo name}\"\n"
+    "body": "# Decision Log — {Company Name}\n\n## {today date}\n- Created company {name} with mission: {description}\n- Hired Agency Director agent \"{ceo name}\"\n"
   }'
 ```
 
@@ -177,7 +177,7 @@ Also write this to a local file at `./artifacts/decision-log.md` so the user can
 
 ### Step 4: Launch the Company
 
-Start the CEO's first heartbeat:
+Start the Agency Director's first heartbeat:
 
 ```bash
 curl -sS -X POST "$PAPERCLIP_API_URL/api/agents/{ceoId}/heartbeat/invoke" \
@@ -288,7 +288,7 @@ curl -sS -X POST "$PAPERCLIP_API_URL/api/companies/$PAPERCLIP_COMPANY_ID/agent-h
 
 When a new agent is hired, update existing agents' Collaboration & Escalation sections:
 
-1. **Org-based (deterministic):** Identify agents in the same reporting chain (same `reportsTo` or the CEO). These always need to know about the new hire.
+1. **Org-based (deterministic):** Identify agents in the same reporting chain (same `reportsTo` or the Agency Director). These always need to know about the new hire.
 
 2. **Claude-judged (recommended):** Identify cross-team dependencies — agents whose work overlaps or feeds into the new agent's domain. Include your reasoning.
 

@@ -4,7 +4,7 @@ Reference material for niche workflows that are pointed to from `SKILL.md`. Load
 
 ---
 
-## Project Setup (CEO/Manager)
+## Project Setup (Agency Director/Manager)
 
 When asked to set up a new project with workspace config (local folder and/or GitHub repo):
 
@@ -19,7 +19,7 @@ Workspace rules:
 
 ---
 
-## OpenClaw Invite (CEO)
+## OpenClaw Invite (Agency Director)
 
 Use this when asked to invite a new OpenClaw employee.
 
@@ -33,7 +33,7 @@ POST /api/companies/{companyId}/openclaw/invite-prompt
 Access control:
 
 - Board users with invite permission can call it.
-- Agent callers: only the company CEO agent can call it.
+- Agent callers: only the company Agency Director agent (role `ceo`) can call it.
 
 2. Build the copy-ready OpenClaw prompt for the board:
 
@@ -78,18 +78,18 @@ PATCH /api/agents/{agentId}/instructions-path
 
 ## Company Import / Export
 
-Use the company-scoped routes when a CEO agent needs to inspect or move package content.
+Use the company-scoped routes when a Agency Director agent needs to inspect or move package content.
 
-- CEO-safe imports:
+- Agency Director-safe imports:
   - `POST /api/companies/{companyId}/imports/preview`
   - `POST /api/companies/{companyId}/imports/apply`
-- Allowed callers: board users and the CEO agent of that same company.
+- Allowed callers: board users and the Agency Director agent (role `ceo`) of that same company.
 - Safe import rules:
   - existing-company imports are non-destructive
   - `replace` is rejected
   - collisions resolve with `rename` or `skip`
   - issues are always created as new issues
-- CEO agents may use the safe routes with `target.mode = "new_company"` to create a new company directly. Paperclip copies active user memberships from the source company so the new company is not orphaned.
+- Agency Director agents may use the safe routes with `target.mode = "new_company"` to create a new company directly. Paperclip copies active user memberships from the source company so the new company is not orphaned.
 
 For export, preview first and keep tasks explicit:
 

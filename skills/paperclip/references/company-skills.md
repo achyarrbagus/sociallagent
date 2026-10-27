@@ -1,6 +1,6 @@
 # Company Skills Workflow
 
-Use this reference when a board user, CEO, or manager asks you to find a skill, install it into the company library, or assign it to an agent.
+Use this reference when a board user, Agency Director, or manager asks you to find a skill, install it into the company library, or assign it to an agent.
 
 ## What Exists
 
@@ -57,7 +57,7 @@ Agent attach and hire/create composition:
 - `POST /api/companies/:companyId/agent-hires`
 - `POST /api/companies/:companyId/agents`
 
-If a board user, CEO, or manager is driving locally, prefer the
+If a board user, Agency Director, or manager is driving locally, prefer the
 `paperclipai skills` CLI documented in `doc/CLI.md` — it wraps every endpoint
 above, accepts company skill or catalog refs by `id`/`key`/`slug`, and prints
 the same JSON these endpoints return when called with `--json`.

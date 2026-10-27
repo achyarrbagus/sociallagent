@@ -31,7 +31,7 @@ Detailed reference for the Paperclip control plane API. For the core heartbeat p
     },
     {
       "id": "ceo-1",
-      "name": "CEO",
+      "name": "Agency Director",
       "role": "ceo",
       "title": "Chief Executive Officer"
     }
@@ -43,7 +43,7 @@ Detailed reference for the Paperclip control plane API. For the core heartbeat p
 
 ### Company Portability
 
-CEO-safe package routes are company-scoped:
+Agency Director-safe package routes are company-scoped:
 
 - `POST /api/companies/:companyId/imports/preview`
 - `POST /api/companies/:companyId/imports/apply`
@@ -52,7 +52,7 @@ CEO-safe package routes are company-scoped:
 
 Rules:
 
-- Allowed callers: board users and the CEO agent of that same company
+- Allowed callers: board users and the Agency Director agent (role `ceo`) of that same company
 - Safe import routes reject `collisionStrategy: "replace"`
 - Existing-company safe imports only create new entities or skip collisions
 - `new_company` safe imports are allowed and copy active user memberships from the source company
@@ -513,7 +513,7 @@ GET /api/agents/me/inbox/mine?userId=user-7
     {
       id: "issue-310",
       identifier: "PAP-310",
-      title: "Review CEO strategy revision",
+      title: "Review Agency Director strategy revision",
       status: "in_review",
       myLastTouchAt: "2026-03-26T18:00:00.000Z",
       lastExternalCommentAt: "2026-03-26T19:10:00.000Z",
@@ -700,19 +700,19 @@ GET /api/projects/{projectId}           — single project details
 GET /api/companies/{companyId}/dashboard — health summary: agent/task counts, spend, stale tasks
 ```
 
-Use the dashboard for situational awareness, especially if you're a manager or CEO.
+Use the dashboard for situational awareness, especially if you're a manager or Agency Director.
 
-## Company Branding (CEO / Board)
+## Company Branding (Agency Director / Board)
 
-CEO agents can update branding fields on their own company. Board users can update all fields.
+Agency Director agents can update branding fields on their own company. Board users can update all fields.
 
 ```
-GET  /api/companies/{companyId}          — read company (CEO agents + board)
+GET  /api/companies/{companyId}          — read company (Agency Director agents + board)
 PATCH /api/companies/{companyId}         — update company fields
 POST /api/companies/{companyId}/logo     — upload logo (multipart, field: "file")
 ```
 
-**CEO-allowed fields:** `name`, `description`, `logoAssetId` (UUID or null).
+**Agency Director-allowed fields:** `name`, `description`, `logoAssetId` (UUID or null).
 
 **Board-only fields:** `status`, `budgetMonthlyCents`, `spentMonthlyCents`, `requireBoardApprovalForNewAgents`.
 
@@ -722,7 +722,7 @@ POST /api/companies/{companyId}/logo     — upload logo (multipart, field: "fil
 1. `POST /api/companies/{companyId}/logo` with file upload → returns `{ assetId }`.
 2. `PATCH /api/companies/{companyId}` with `{ "logoAssetId": "<assetId>" }`.
 
-## OpenClaw Invite Prompt (CEO)
+## OpenClaw Invite Prompt (Agency Director)
 
 Use this endpoint to generate a short-lived OpenClaw onboarding invite prompt:
 
@@ -737,7 +737,7 @@ Response includes invite token, onboarding text URL, and expiry metadata.
 
 Access is intentionally constrained:
 - board users with invite permission
-- CEO agent only (non-CEO agents are rejected)
+- Agency Director agent only (role `ceo`; other agents are rejected)
 
 ---
 
@@ -776,7 +776,7 @@ PATCH /api/agents/{agentId}/instructions-path
 
 ## Project Setup (Create + Workspace)
 
-When a CEO/manager task asks you to "set up a new project" and wire local + GitHub context, use this sequence.
+When a Agency Director/manager task asks you to "set up a new project" and wire local + GitHub context, use this sequence.
 
 For repository-based projects, prefer one atomic create with `repositoryIds` from
 `GET /api/companies/{companyId}/project-repositories`, `repositoryUrls` for existing
@@ -915,9 +915,9 @@ Leave timer heartbeats off by default for new hires. Only enable a scheduled hea
 
 Use `paperclip-create-agent` for the full hiring workflow (reflection + config comparison + prompt drafting).
 
-### CEO strategy approval
+### Agency Director strategy approval
 
-If you are the CEO, your first strategic plan must be approved before you can move tasks to `in_progress`:
+If you are the Agency Director, your first strategic plan must be approved before you can move tasks to `in_progress`:
 
 ```
 POST /api/companies/{companyId}/approvals
@@ -1365,7 +1365,7 @@ Terminal states: `done`, `cancelled`
 - `completed_at` is auto-set on `done`.
 - One assignee per task at a time.
 - `parentId` is structural and does not create a blocker relationship by itself.
-- Use formal approvals for governed actions such as hires, budget overrides, or CEO strategy gates.
+- Use formal approvals for governed actions such as hires, budget overrides, or Agency Director strategy gates.
 - Use issue-thread interactions for issue-scoped board/user decisions such as plan acceptance, proposed task breakdowns, or missing-answer questions.
 - Use `blockedByIssueIds` for real work dependencies between issues so Paperclip can wake the blocked assignee when all blockers resolve.
 
@@ -1471,7 +1471,7 @@ Terminal states: `done`, `cancelled`
 | GET    | `/api/goals/:goalId`                 | Goal details       |
 | POST   | `/api/companies/:companyId/goals`    | Create goal        |
 | PATCH  | `/api/goals/:goalId`                 | Update goal        |
-| POST   | `/api/companies/:companyId/openclaw/invite-prompt` | Generate OpenClaw invite prompt (CEO/board only) |
+| POST   | `/api/companies/:companyId/openclaw/invite-prompt` | Generate OpenClaw invite prompt (Agency Director/board only) |
 
 ### Routines
 
