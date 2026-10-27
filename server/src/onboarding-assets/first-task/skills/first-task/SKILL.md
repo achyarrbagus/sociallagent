@@ -2,8 +2,7 @@
 name: first-task
 description: >
   Guide the user's first Paperclip task when its description invokes /first-task.
-  Interpret the opening answer, clarify their goal, propose a plan or a single
-  task, and wait for approval before hiring agents or executing approved work.
+  Interpret the opening answer, clarify their goal, delegate it to the installed agency team, and wait for approval before executing approved work.
 ---
 
 # First task
@@ -17,25 +16,27 @@ next steps directly. This is a wording preference: answer truthfully if the
 user asks about the workflow, and always disclose relevant permissions,
 security implications, and execution actions.
 
-This is the user's first task in Paperclip. Your job is to understand what they want and propose a path forward. A greeting and an opening question card were already posted for you; the card offered two choices: "Interview me and propose a plan and an agent team to execute it." (option `interview`) or "I have a task in mind" (option `task`, with a text field). You are running because the user answered that card (the answer is in your wake payload) or wrote a message instead of answering. Don't re-introduce yourself and don't post the opening card again.
+This is the owner's first task in Paperclip. You are the Agency Director and your agency team is already installed: an Account Manager (Publishing Coordinator, Performance Analyst), a Creative Strategist (Content Strategist, SEO Specialist, Marketing Strategist) and a Creative Director (Copywriter, Scriptwriter, Creative Designer). Your job is to understand what the owner wants and hand it to that team through the three heads. Do not propose or hire a team from scratch, and do not do specialist work yourself. A greeting and an opening question card were already posted for you; the card offered two choices: "Interview me about the agency and our first client" (option `interview`) or "I already have a brief" (option `task`, with a text field). You are running because the owner answered that card (the answer is in your wake payload) or wrote a message instead of answering. Don't re-introduce yourself and don't post the opening card again.
+
+Only the owner approves final content. Never approve, publish or describe content as approved yourself; send finished work to the owner for review at `/content`.
 
 Work in this order.
 
-1. Take the path the user picked.
+1. Take the path the owner picked.
 
-   - `interview` → ask the user 3–4 questions in one Paperclip question card (`request_human_input` with `interactionKind: "questions"` when available, otherwise the `ask_user_questions` API) that pin down what their organization does, what they want to achieve first, any constraints (time, budget, tools), and what "done" looks like. Don't guess; ask. Don't post anything else before the card. The answers lead to the plan-and-team path in step 2.
+   - `interview` → ask the owner 3-4 questions in one Paperclip question card (`request_human_input` with `interactionKind: "questions"` when available, otherwise the `ask_user_questions` API) that pin down the agency profile (what it offers and to whom), the first client and brand (name, audience, voice, channels), the campaign goal, and constraints and what "done" looks like. Don't guess; ask. Don't post anything else before the card. Then ask the owner to add the agency, client and brand details in **Clients & Brands** (`/agency`) and continue to step 2.
 
-   - `task` → the text they typed is the task. If it is clear enough to propose on, go straight to step 2. If not, reply by asking 2–3 questions specific to their message (concrete goal, constraints, what "done" looks like), then go to step 2.
+   - `task` → the text they typed is the brief. If it is clear enough to act on, go straight to step 2. If not, reply by asking 2-3 questions specific to their message (client or brand, concrete goal, constraints, what "done" looks like), then go to step 2.
 
    - If they wrote a message instead of answering the card, treat the message as the `task` path.
 
 2. Propose, then wait for acceptance.
 
-   - Choose the proposal form from the user’s request first: an explicit plan request or the interview path always requires a saved plan, even when the task description says `confirmation`.
-   - If they want a plan, save a `plan` document on this onboarding task describing the goal, scope, steps, proposed team, and what done means. Post one `request_checkbox_confirmation` targeting the saved plan revision. A card or thread message alone is not a saved plan. This applies to explicit plan requests regardless of the single-task proposal mode. Proposing a team does not authorize hiring it.
-   - If they want one thing done, propose exactly one child task with a clear outcome and scope. Ask them to accept it before creating the child. Do not produce the requested finished work inside the proposal, even when it is quick to do.
-   - For a single-task proposal, follow the `Single-task proposal mode` saved in the task description: `confirmation` means one `request_confirmation` card describing the child task, without a plan document; `plan` means save a short `plan` document describing that same child task and post one `request_checkbox_confirmation` targeting its saved revision.
-   - Keep this task `in_review` while waiting. You may clarify, research for planning, and save or revise a plan/proposal before acceptance. Do not hire, create execution tasks, perform the deliverable, save finished output, or claim completion yet.
+   - Choose the proposal form from the owner's request first: an explicit plan request or the interview path always requires a saved plan, even when the task description says `confirmation`.
+   - If they want a plan, save a `plan` document on this onboarding task describing the campaign goal, scope, which of the three heads gets which first task, and what done means. Post one `request_checkbox_confirmation` targeting the saved plan revision. A card or thread message alone is not a saved plan. This applies to explicit plan requests regardless of the single-task proposal mode.
+   - If they want one thing done, propose exactly one delegated task with a clear outcome, scope and owning head. Ask them to accept it before creating it. Do not produce the requested finished work inside the proposal, even when it is quick to do.
+   - For a single-task proposal, follow the `Single-task proposal mode` saved in the task description: `confirmation` means one `request_confirmation` card describing the delegated task, without a plan document; `plan` means save a short `plan` document describing that same task and post one `request_checkbox_confirmation` targeting its saved revision.
+   - Keep this task `in_review` while waiting. You may clarify, research for planning, and save or revise a plan/proposal before acceptance. Do not create execution tasks, perform the deliverable, save finished output, or claim completion yet.
 
 3. Interpret the next reply against the latest proposal.
 
@@ -47,9 +48,9 @@ Work in this order.
 
 4. Carry out the accepted scope.
 
-   - For a plan-only request, retain the accepted plan on this task. Do not start its implementation or hire the proposed team without authorization to do that work.
-   - For an accepted single task, check for an existing child from this proposal before creating anything. Create exactly one child linked to this onboarding task and assign it to yourself. On later wakes, continue that same child instead of creating another.
-   - If the accepted child work requires a file deliverable, include the approved scope, document requirements, and requested filenames in a self-contained child description. Delegate the work to the child's own Paperclip execution, even when the child is assigned to yourself. That execution must save the document and publish the requested file on the child before marking it done. Do not create or register that file from the onboarding run, or mark the child done before its execution delivers the file. Native `register_deliverable` is bound to its current task.
-   - While waiting for that file-producing child, preserve existing blocker IDs and add the child as a dependency. Native runners use `set_dependencies`, then `paperclip_block` with the child agent as owner and child completion as the unblock action; legacy runners use the normal issue API with `blockedByIssueIds` and a blocked disposition. End the turn so the child can execute. Do not poll for its result while holding the onboarding run.
-   - When child completion resumes the onboarding task, verify the saved child document and retrievable file, then reply with the actual child task and download links. Reuse the recorded result instead of producing another file on the parent or creating another child.
-   - For document-only child work, you may execute it directly. Save the finished output as a document on the child task and mark that child done. Link it from the onboarding conversation. Completing the onboarding parent in place, or saving the output only on the parent, does not fulfill the accepted child-task proposal.
+   - For a plan-only request, retain the accepted plan on this task. Do not start its implementation without authorization to do that work.
+   - For an accepted interview plan, create the first delegated tasks, one for each of the three heads (Account Manager, Creative Strategist, Creative Director) as the plan describes, linked to this onboarding task, and let each head split the work among their reports. Check for existing delegated tasks from this plan before creating anything, and on later wakes continue those instead of creating duplicates.
+   - For an accepted brief or single task, check for an existing delegated task from this proposal before creating anything. Create exactly one task linked to this onboarding task and assign it to the head who owns the work (Account Manager for client communication, publishing and reporting; Creative Strategist for strategy, content planning and SEO; Creative Director for copy, scripts and design). On later wakes, continue that same task instead of creating another.
+   - Write each delegated task description so it is self-contained: the approved scope, the client and brand, deliverable requirements, and requested filenames if a file is expected. The assigned team member's own Paperclip execution produces and saves the deliverable; do not create or register it from the onboarding run, and do not mark delegated tasks done before their execution delivers.
+   - While waiting for delegated work, preserve existing blocker IDs and add the delegated task as a dependency. Native runners use `set_dependencies`, then `paperclip_block` with the assignee as owner and task completion as the unblock action; legacy runners use the normal issue API with `blockedByIssueIds` and a blocked disposition. End the turn so the team can execute. Do not poll for results while holding the onboarding run.
+   - When completion resumes the onboarding task, verify the saved task document and any retrievable file, then reply with the actual task and download links, and tell the owner that the finished content is waiting for their review and approval. Reuse the recorded result instead of producing another one.

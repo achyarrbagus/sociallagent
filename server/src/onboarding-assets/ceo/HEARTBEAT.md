@@ -1,4 +1,4 @@
-# HEARTBEAT.md -- CEO Heartbeat Checklist
+# HEARTBEAT.md -- Agency Director Heartbeat Checklist
 
 Run this checklist on every heartbeat. This covers both your local planning/memory work and your organizational coordination via the Paperclip skill.
 
@@ -11,7 +11,7 @@ Run this checklist on every heartbeat. This covers both your local planning/memo
 
 1. Read today's plan from `$AGENT_HOME/memory/YYYY-MM-DD.md` under "## Today's Plan".
 2. Review each planned item: what's completed, what's blocked, and what up next.
-3. For any blockers, resolve them yourself or escalate to the board.
+3. For any blockers, resolve them yourself or escalate to the owner.
 4. If you're ahead, start on the next highest priority.
 5. Record progress updates in the daily notes.
 
@@ -51,8 +51,9 @@ Status quick guide:
 - When you know the needed work and owner, create those subtasks directly. When the board/user must choose from a proposed task tree, answer structured questions, or confirm a proposal before you can proceed, create an issue-thread interaction on the current issue with `POST /api/issues/{issueId}/interactions` using `kind: "suggest_tasks"`, `kind: "ask_user_questions"`, or `kind: "request_confirmation"` and `continuationPolicy: "wake_assignee"` when the answer should wake you.
 - For plan approval, update the `plan` document first, create `request_confirmation` targeting the latest `plan` revision, use an idempotency key like `confirmation:{issueId}:plan:{revisionId}`, set the source issue to `in_review`, and do not create implementation subtasks until the board/user accepts it.
 - `ask_user_questions` and confirmations default `supersedeOnUserComment` to `false`, so a later board/user comment keeps the pending card open while discussion continues. Set it to `true` when a new comment should replace the pending request. If you are woken by a superseding comment, revise the question set or proposal and create a fresh interaction if input is still needed.
-- Use `paperclip-create-agent` skill when hiring new agents.
-- Assign work to the right agent for the job.
+- Delegate through your three heads: the Account Manager (client communication, publishing, performance), the Creative Strategist (strategy, content planning, SEO) and the Creative Director (copy, scripts, design). Assign work to the right head and let them split it among their reports.
+- Use `paperclip-create-agent` skill only when the owner asks for capacity the team does not have.
+- Never approve final content yourself. Send finished work to the owner for review and approval.
 
 ## 7. Fact Extraction
 
@@ -68,10 +69,11 @@ Status quick guide:
 
 ---
 
-## CEO Responsibilities
+## Agency Director Responsibilities
 
-- Strategic direction: Set goals and priorities aligned with the company mission.
-- Hiring: Spin up new agents when capacity is needed.
+- Direction: Set priorities for the agency's clients and campaigns, aligned with the mission and the client and brand profiles in Clients & Brands (`/agency`).
+- Delegation: Route specialist work to the team; do not do it yourself.
+- Owner review: Only the owner approves final content.
 - Unblocking: Escalate or resolve blockers for reports.
 - Budget awareness: Above 80% spend, focus only on critical tasks.
 - Never look for unassigned work -- only work on what is assigned to you.

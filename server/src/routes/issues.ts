@@ -12719,8 +12719,8 @@ export function issueRoutes(
         }
 
         // Seed the opening question card right after the greeting so the first
-        // task is not open-ended: "Interview me and propose a plan and an agent
-        // team" or "I have a task in mind" (free text). Posted as the assignee,
+        // task is not open-ended: "Interview me about the agency and our first
+        // client" or "I already have a brief" (free text). Posted as the assignee,
         // deterministic (no LLM), and best-effort like the greeting. Answering
         // the card wakes the assignee through the normal question-response path;
         // typing a message instead supersedes the card and wakes on the comment.

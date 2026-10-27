@@ -129,21 +129,21 @@ export async function buildOnboardingFirstTaskBrief(options: {
   return brief.replace("{{proposalMode}}", options.usePlanProposal ? "plan" : "confirmation").trim();
 }
 
-// Layer B — the chief-of-staff persona seeded over the first agent's entry
+// Layer B — the Agency Director persona seeded over the first agent's entry
 // instruction file at hire time.
-export async function renderChiefOfStaffPersona(
+export async function renderAgencyDirectorPersona(
   placeholders: OnboardingFirstTaskPlaceholders,
 ): Promise<string> {
-  const template = await loadFirstTaskAsset("chief-of-staff/AGENTS.md");
+  const template = await loadFirstTaskAsset("agency-director/AGENTS.md");
   return fillFirstTaskPlaceholders(template, placeholders);
 }
 
-// The instruction bundle for the onboarding first agent: the chief-of-staff
+// The instruction bundle for the onboarding first agent: the Agency Director
 // persona as the entry AGENTS.md. Runtime coordination is supplied separately
 // by the harness.
 export async function buildOnboardingFirstAgentInstructionsBundle(
   placeholders: OnboardingFirstTaskPlaceholders,
 ): Promise<{ files: Record<string, string>; entryFile: string }> {
-  const persona = await renderChiefOfStaffPersona(placeholders);
+  const persona = await renderAgencyDirectorPersona(placeholders);
   return { files: { "AGENTS.md": persona }, entryFile: "AGENTS.md" };
 }

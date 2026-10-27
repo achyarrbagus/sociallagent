@@ -93,6 +93,19 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     return ctx.db.select().from(projects).where(and(eq(projects.companyId, companyId), eq(projects.name, "Onboarding")));
   }
 
+  it("defaults the lead's title to Agency Director when the seed role is empty", async () => {
+    const { companyId, app } = await seedCompany();
+
+    const response = await post(app, companyId, { ...SEED, agent: { name: "Ada" } });
+
+    expect(response.status).toBe(200);
+    const companyAgents = await directorsOf(companyId);
+    expect(companyAgents).toHaveLength(1);
+    expect(companyAgents[0]?.name).toBe("Ada");
+    expect(companyAgents[0]?.title).toBe("Agency Director");
+    expect(companyAgents[0]?.role).toBe("ceo");
+  });
+
   // Ordering, not eventual consistency: every assertion below reads the
   // database immediately after the 200 comes back, with no waiting and no
   // polling. A lazy receiver that applied the seed in the background would

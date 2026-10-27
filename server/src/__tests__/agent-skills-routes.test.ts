@@ -1180,7 +1180,7 @@ describe("agent skill routes", () => {
     });
   });
 
-  it("seeds the chief-of-staff persona for the onboarding first agent", async () => {
+  it("seeds the Agency Director persona for the onboarding first agent", async () => {
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
       .post("/api/companies/company-1/agents")
       .send({
@@ -1198,7 +1198,7 @@ describe("agent skill routes", () => {
       expect(mockAgentInstructionsService.materializeManagedBundle).toHaveBeenCalledWith(
         expect.objectContaining({ id: createdAgentId, role: "general" }),
         expect.objectContaining({
-          "AGENTS.md": expect.stringContaining("You are Ada, chief of staff for"),
+          "AGENTS.md": expect.stringContaining("You are Ada, the Agency Director for"),
         }),
         { entryFile: "AGENTS.md", replaceExisting: false },
       );
@@ -1206,7 +1206,7 @@ describe("agent skill routes", () => {
     // The generic default persona must NOT be what was seeded over the entry file.
     const seededCalls = mockAgentInstructionsService.materializeManagedBundle.mock.calls;
     const entrySeed = seededCalls.at(-1)?.[1] as Record<string, string> | undefined;
-    expect(entrySeed?.["AGENTS.md"]).toContain("chief of staff");
+    expect(entrySeed?.["AGENTS.md"]).toContain("Agency Director");
     // The normal onboarding flow has beta skill version selection disabled.
     expect(mockAgentService.create.mock.calls[0][1].adapterConfig.paperclipSkillSync.desiredSkills)
       .toContain("paperclipai/paperclip/first-task");
@@ -1288,7 +1288,7 @@ describe("agent skill routes", () => {
     expect(desiredSkills).not.toContain("paperclipai/paperclip/first-task");
   });
 
-  it("does not trust an agent-supplied onboarding marker to select chief-of-staff defaults", async () => {
+  it("does not trust an agent-supplied onboarding marker to select Agency Director defaults", async () => {
     mockAgentService.getById.mockResolvedValue(makeAgent("claude_local"));
     const res = await request(await createApp(createDb(), {
       type: "agent", agentId: "11111111-1111-4111-8111-111111111111", companyId: "company-1",
@@ -1300,7 +1300,7 @@ describe("agent skill routes", () => {
     expect(mockAgentService.create.mock.calls[0][1].adapterConfig.paperclipSkillSync).toBeUndefined();
     await vi.waitFor(() => expect(mockAgentInstructionsService.materializeManagedBundle).toHaveBeenCalled());
     expect(mockAgentInstructionsService.materializeManagedBundle.mock.calls[0][1]["AGENTS.md"])
-      .not.toContain("chief of staff");
+      .not.toContain("Agency Director");
   });
 
   it("creates nothing for rejected Biff payloads and exactly one approval-gated hire after correction", async () => {

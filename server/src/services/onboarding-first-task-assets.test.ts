@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   ONBOARDING_FIRST_TASK_OPENING_INTERVIEW_OPTION_ID,
   ONBOARDING_FIRST_TASK_OPENING_QUESTION_ID,
@@ -8,17 +10,17 @@ import {
   buildOnboardingFirstTaskOpeningQuestion,
   buildOnboardingFirstAgentInstructionsBundle,
   fillFirstTaskPlaceholders,
-  renderChiefOfStaffPersona,
+  renderAgencyDirectorPersona,
   renderOnboardingFirstTaskGreeting,
 } from "./onboarding-first-task-assets.js";
 
 describe("fillFirstTaskPlaceholders", () => {
   it("fills the name and organization when present", () => {
     const out = fillFirstTaskPlaceholders(
-      "I'm {{agentName}}, chief of staff for {{organizationName}}.",
+      "I'm {{agentName}}, the Agency Director for {{organizationName}}.",
       { agentName: "Ada", organizationName: "Acme" },
     );
-    expect(out).toBe("I'm Ada, chief of staff for Acme.");
+    expect(out).toBe("I'm Ada, the Agency Director for Acme.");
   });
 
   it("drops the name and its trailing separator when no name is set", () => {
@@ -59,11 +61,12 @@ describe("buildOnboardingFirstTaskOpeningQuestion", () => {
       ONBOARDING_FIRST_TASK_OPENING_INTERVIEW_OPTION_ID,
       ONBOARDING_FIRST_TASK_OPENING_TASK_OPTION_ID,
     ]);
-    expect(question.options[0].label).toBe(
-      "Interview me and propose a plan and an agent team to execute it.",
+    expect(question.options[0].label).toBe("Interview me about the agency and our first client");
+    expect(question.options[0].description).toBe(
+      "I'll learn about your agency, your first client and brand, then plan the team's first work.",
     );
     expect(question.options[0].freeText).toBeUndefined();
-    expect(question.options[1].label).toBe("I have a task in mind");
+    expect(question.options[1].label).toBe("I already have a brief");
     expect(question.options[1].freeText).toBe(true);
   });
 });
@@ -94,43 +97,56 @@ describe("first-task proposal mode policy", () => {
     expect(skill).toContain("explicit plan requests regardless of the single-task proposal mode");
   });
 
-  it("hands accepted file-producing child work to its own execution before reporting results", async () => {
+  it("delegates accepted work to the installed team's own execution before reporting results", async () => {
     const skill = await readFile(new URL("../onboarding-assets/first-task/skills/first-task/SKILL.md", import.meta.url), "utf8");
-    expect(skill).toContain("If the accepted child work requires a file deliverable");
-    expect(skill).toContain("self-contained child description");
-    expect(skill).toContain("requested filenames");
-    expect(skill).toContain("child's own Paperclip execution");
-    expect(skill).toContain("even when the child is assigned to yourself");
-    expect(skill).toContain("Do not create or register that file from the onboarding run");
-    expect(skill).toContain("`register_deliverable` is bound to its current task");
+    expect(skill).toContain("self-contained");
+    expect(skill).toContain("own Paperclip execution produces and saves the deliverable");
+    expect(skill).toContain("do not create or register it from the onboarding run");
     expect(skill).toContain("preserve existing blocker IDs");
     expect(skill).toContain("`set_dependencies`");
     expect(skill).toContain("`paperclip_block`");
     expect(skill).toContain("`blockedByIssueIds`");
-    expect(skill).toContain("End the turn so the child can execute");
-    expect(skill).toContain("Do not poll for its result");
-    expect(skill).toContain("verify the saved child document and retrievable file");
-    expect(skill).toContain("actual child task and download links");
+    expect(skill).toContain("End the turn so the team can execute");
+    expect(skill).toContain("Do not poll for results");
+    expect(skill).toContain("verify the saved task document and any retrievable file");
+    expect(skill).toContain("waiting for their review and approval");
   });
 
-  it("keeps plan-only authorization and document-only child execution distinct from file handoff", async () => {
+  it("delegates to the three heads without proposing or hiring a team", async () => {
     const skill = await readFile(new URL("../onboarding-assets/first-task/skills/first-task/SKILL.md", import.meta.url), "utf8");
-    expect(skill).toContain("For a plan-only request, retain the accepted plan on this task");
-    expect(skill).toContain("Do not start its implementation or hire the proposed team without authorization");
-    expect(skill).toContain("Create exactly one child linked to this onboarding task");
-    expect(skill).toContain("For document-only child work, you may execute it directly");
-    expect(skill).toContain("Save the finished output as a document on the child task and mark that child done");
-    expect(skill).toContain("On later wakes, continue that same child instead of creating another");
+    expect(skill).toContain("Do not propose or hire a team from scratch");
+    expect(skill).toContain("Clients & Brands");
+    expect(skill).toContain("Only the owner approves final content");
+    expect(skill).toContain("Do not start its implementation without authorization");
+    expect(skill).toContain("create the first delegated tasks, one for each of the three heads");
+    expect(skill).toContain("Create exactly one task linked to this onboarding task");
+    expect(skill).toContain("continue that same task instead of creating another");
   });
 });
 
-describe("chief-of-staff persona", () => {
+describe("onboarding assets", () => {
+  it("never mention the CEO or a chief of staff", async () => {
+    const root = fileURLToPath(new URL("../onboarding-assets/", import.meta.url));
+    const entries = await readdir(root, { recursive: true, withFileTypes: true });
+    const files = entries.filter((entry) => entry.isFile());
+    expect(files.length).toBeGreaterThan(0);
+    for (const file of files) {
+      const text = await readFile(join(file.parentPath, file.name), "utf8");
+      expect(text, join(file.parentPath, file.name)).not.toMatch(/\bCEO\b|chief of staff/i);
+    }
+  });
+});
+
+describe("Agency Director persona", () => {
   it("renders the persona with placeholders filled", async () => {
-    const persona = await renderChiefOfStaffPersona({
+    const persona = await renderAgencyDirectorPersona({
       agentName: "Ada",
       organizationName: "Acme",
     });
-    expect(persona).toContain("You are Ada, chief of staff for Acme.");
+    expect(persona).toContain("You are Ada, the Agency Director for Acme.");
+    expect(persona).toContain("/agency");
+    expect(persona).toContain("Only the owner approves final content");
+    expect(persona).not.toMatch(/\bCEO\b|chief of staff/i);
     expect(persona).not.toContain("{{agentName}}");
     expect(persona).not.toContain("{{organizationName}}");
   });
@@ -142,7 +158,7 @@ describe("chief-of-staff persona", () => {
     });
     expect(bundle.entryFile).toBe("AGENTS.md");
     expect(bundle.files).toEqual({
-      "AGENTS.md": await renderChiefOfStaffPersona({ agentName: "Ada", organizationName: "Acme" }),
+      "AGENTS.md": await renderAgencyDirectorPersona({ agentName: "Ada", organizationName: "Acme" }),
     });
   });
 });
