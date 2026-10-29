@@ -41,6 +41,8 @@ With the managed gateway configured, SocialAgent runs as a SaaS: only an instanc
 
 - **Tenants:** Settings → **Tenants** (instance admins) lists every company with members, agents, SocialAgent AI spend this month against its budget, and status (Active, Budget used up, Suspended). The admin can set a company's own monthly budget (kept when the default changes; "Use default" clears it) and suspend or resume a company. Suspension pauses the company (`pauseReason: manual`), so its agents stop and nothing new runs. Company users cannot change company status or budget (`PATCH /companies/:id` returns `403 company_managed`). Endpoints: `GET /api/instance/tenants`, `PUT /api/instance/tenants/:companyId/budget`, `POST /api/instance/tenants/:companyId/suspend|resume`.
 
+- **Self-serve sign-up:** in SaaS mode a user who signs up without an invite can create their own agency (`POST /api/companies`), up to `SOCIALAGENT_MAX_COMPANIES_PER_USER` owned companies (default 1). `GET /api/cli-auth/me` reports `canCreateCompany`, so the app opens onboarding instead of "No organization access". The new company gets the admin's default budget; a budget in the request is ignored. Without the managed gateway only instance admins create companies.
+
 Admin endpoints: `GET`/`PUT /api/instance/settings/ai-models`, `GET`/`PUT /api/instance/settings/connectors`, `POST /api/instance/ai-models/adopt`, `GET /api/instance/ai-models/catalog` (fetched server-side with the operator key) and `GET /api/instance/ai-models/agents`.
 
 Company imports and team catalog installs put their new agents on SocialAgent AI with the model for each agent's role. Built-in, plugin and remote agents keep their own setup.

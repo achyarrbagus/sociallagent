@@ -1,5 +1,6 @@
 import type { Request } from "express";
-import type { Db } from "@paperclipai/db";
+import { companyMemberships, type Db } from "@paperclipai/db";
+import { and, count, eq } from "drizzle-orm";
 import { getAppDefinitionForApplicationKey } from "@paperclipai/shared";
 import { connectorPolicyService, CUSTOM_CONNECTOR_SLUG } from "../services/connector-policy.js";
 import { forbidden } from "../errors.js";
@@ -64,4 +65,21 @@ export async function assertConnectorAllowed(db: Db, req: Request, slug: string)
   if (!aiModelsLockedFor(req)) return;
   const allowed = await connectorPolicyService(db).getAllowed();
   if (!allowed.has(slug)) throw forbidden(CONNECTOR_NOT_ALLOWED_MESSAGE, { code: "connector_not_allowed", slug });
+}
+
+/**
+ * SaaS self-serve: a signed-up user may create their own agency, up to
+ * SOCIALAGENT_MAX_COMPANIES_PER_USER companies they own (default 1). Without
+ * the managed gateway only instance admins create companies.
+ */
+export async function canSelfServeCreateCompany(db: Db, userId: string | null | undefined) {
+  if (!userId || readManagedGatewayConfig() === null) return false;
+  const limit = Math.max(0, Number.parseInt(process.env.SOCIALAGENT_MAX_COMPANIES_PER_USER ?? "1", 10) || 0);
+  const [owned] = await db.select({ value: count() }).from(companyMemberships).where(and(
+    eq(companyMemberships.principalType, "user"),
+    eq(companyMemberships.principalId, userId),
+    eq(companyMemberships.membershipRole, "owner"),
+    eq(companyMemberships.status, "active"),
+  ));
+  return Number(owned?.value ?? 0) < limit;
 }

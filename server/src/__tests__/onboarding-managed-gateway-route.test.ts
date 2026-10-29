@@ -7,6 +7,8 @@ import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { managedAiAdminRoutes } from "../routes/managed-ai-admin.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
 import { costRoutes } from "../routes/costs.js";
+import { randomUUID } from "node:crypto";
+import { companyMemberships } from "@paperclipai/db";
 import { companyRoutes } from "../routes/companies.js";
 import { managedAiCostUsd, managedRunPricing } from "../services/managed-ai-pricing.js";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
@@ -445,5 +447,29 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
 
     const resumed = await request(adminApp).post(`/api/instance/tenants/${companyId}/resume`).send({});
     expect(resumed.body).toMatchObject({ status: "active", pauseReason: null });
+  });
+
+  it("lets a new sign-up create one agency of their own in SaaS mode", async () => {
+    enable();
+    const userId = `user-${randomUUID()}`;
+    const newcomer: BoardActor = { type: "board", source: "session", userId, companyIds: [], memberships: [], isInstanceAdmin: false };
+    const app = routeApp(ctx.db, newcomer, (db) => companyRoutes(db, {} as never));
+
+    const created = await request(app).post("/api/").send({ name: `Self-serve ${userId}`, budgetMonthlyCents: 999999 });
+    expect(created.status, JSON.stringify(created.body)).toBe(201);
+    const [membership] = await ctx.db.select().from(companyMemberships).where(eq(companyMemberships.companyId, created.body.id));
+    expect(membership).toMatchObject({ principalId: userId, membershipRole: "owner", status: "active" });
+    // The admin's default budget applies, not the one in the request.
+    const [policy] = (await ctx.db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, created.body.id)))
+      .filter((row) => row.scopeType === "company" && row.windowKind === "calendar_month_utc");
+    expect(policy).toMatchObject({ amount: 2000 });
+
+    const second = await request(app).post("/api/").send({ name: `Second ${userId}` });
+    expect(second.status).toBe(403);
+
+    vi.stubEnv("SOCIALAGENT_9ROUTER_API_KEY", "");
+    const other: BoardActor = { ...newcomer, userId: `user-${randomUUID()}` };
+    const lockedOut = await request(routeApp(ctx.db, other, (db) => companyRoutes(db, {} as never))).post("/api/").send({ name: "No SaaS" });
+    expect(lockedOut.status).toBe(403);
   });
 });

@@ -134,7 +134,9 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
     (isAuthenticatedMode && sessionQuery.isLoading) ||
     (isAuthenticatedMode && !isBootstrapPending && !!sessionQuery.data && boardAccessQuery.isLoading);
   const hasBoardAccess = allowMembershipRequest || !isAuthenticatedMode
-    || !!boardAccessQuery.data?.isInstanceAdmin || (boardAccessQuery.data?.companyIds.length ?? 0) > 0;
+    || !!boardAccessQuery.data?.isInstanceAdmin || (boardAccessQuery.data?.companyIds.length ?? 0) > 0
+    // SaaS self-serve: a new sign-up enters the app and onboarding creates their agency.
+    || !!boardAccessQuery.data?.canCreateCompany;
   const canAccessBoard = !isLoading && !blockingError && !isBootstrapPending
     && (!isAuthenticatedMode || !!sessionQuery.data) && hasBoardAccess;
   useEffect(() => {

@@ -244,6 +244,8 @@ export type CurrentBoardAccess = {
   }>;
   source: string;
   keyId: string | null;
+  /** SaaS self-serve: the user may create their own agency. */
+  canCreateCompany?: boolean;
 };
 
 function buildInviteListQuery(options: {

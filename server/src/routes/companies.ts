@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { aiModelsLockedFor } from "./managed-ai-lock.js";
+import { aiModelsLockedFor, canSelfServeCreateCompany } from "./managed-ai-lock.js";
+import { managedGatewayService, readManagedGatewayConfig } from "../services/managed-gateway.js";
 import express, { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { and, count as countFn, eq } from "drizzle-orm";
@@ -1204,9 +1205,13 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
     next();
   }, validate(createCompanySchema), async (req, res) => {
     assertBoard(req);
-    if (!(req.actor.source === "local_implicit" || req.actor.isInstanceAdmin)) {
+    const isAdmin = req.actor.source === "local_implicit" || req.actor.isInstanceAdmin;
+    const selfServe = !isAdmin && await canSelfServeCreateCompany(db, req.actor.userId);
+    if (!isAdmin && !selfServe) {
       throw forbidden("Instance admin required");
     }
+    // A self-serve agency gets the admin's SocialAgent AI budget, not its own.
+    if (selfServe) delete (req.body as Record<string, unknown>).budgetMonthlyCents;
     const ownerPrincipalId = req.actor.userId ?? "local-board";
     const company = await svc.create({
       ...req.body,
@@ -1239,6 +1244,9 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
         },
         req.actor.userId ?? "board",
       );
+    }
+    if (readManagedGatewayConfig()) {
+      await managedGatewayService(db).applyCompanyBudgets([company.id], { onlyMissing: true, actorUserId: req.actor.userId ?? null });
     }
     res.status(201).json(company);
   });

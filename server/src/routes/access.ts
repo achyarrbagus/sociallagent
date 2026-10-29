@@ -1,4 +1,5 @@
 import { createAgentLifecycle } from "../services/agent-lifecycle.js";
+import { canSelfServeCreateCompany } from "./managed-ai-lock.js";
 import {
   createHash,
   generateKeyPairSync,
@@ -2894,6 +2895,9 @@ export function accessRoutes(
       memberships: accessSnapshot.memberships,
       source: req.actor.source ?? "none",
       keyId: req.actor.source === "board_key" ? req.actor.keyId ?? null : null,
+      // SaaS self-serve: a signed-up user without an agency may create one.
+      canCreateCompany: accessSnapshot.isInstanceAdmin || req.actor.source === "local_implicit"
+        || await canSelfServeCreateCompany(db, req.actor.userId),
     });
   });
 
