@@ -1,4 +1,6 @@
 import { prepareRuntimeSettingsPatch } from "../services/agent-runtime-settings.js";
+import { aiModelsLockedFor, AI_MODELS_MANAGED_MESSAGE, coerceManagedAgentPatch } from "./managed-ai-lock.js";
+import { managedGatewayService } from "../services/managed-gateway.js";
 import { completeSetupTokenAiConnection } from "../services/setup-token-ai-connection.js";
 import { cancellationRequestId } from "../services/native-runtime/native-cancellation-request.js";
 import { agentHarnessType, isEnvironmentDriverSupportedForAdapter, normalizeClaudeRunnerOptions, type AgentConfigurationWarning, type AgentRunnerChoice } from "@paperclipai/shared";
@@ -585,6 +587,47 @@ export function agentRoutes(
 
   const router = Router();
   const svc = agentService(db, { cancelWorkForScope: scope => heartbeat.cancelBudgetScopeWork(scope) });
+  const managedGateway = managedGatewayService(db);
+
+  /**
+   * SaaS lock for new agents: with admin-managed models, a non-admin caller's
+   * adapter, model, runner and AI connection are replaced by the managed
+   * adapter, the admin's model for the agent's role and the company's shared
+   * 9Router connection. Other adapter settings survive only on the same harness.
+   */
+  async function applyManagedHireDefaults(req: Request, companyId: string) {
+    if (!aiModelsLockedFor(req)) return;
+    const body = req.body as Record<string, unknown>;
+    const userId = req.actor.type === "board" ? req.actor.userId ?? null : null;
+    const defaults = await managedGateway.hireDefaults(companyId, body.role ?? "general", userId);
+    const requested = asRecord(body.adapterConfig) ?? {};
+    const { model: _model, ...kept } = body.adapterType === defaults.adapterType ? requested : {};
+    body.adapterType = defaults.adapterType;
+    body.adapterConfig = { ...kept, ...(defaults.model ? { model: defaults.model } : {}) };
+    body.runtimeConfig = { ...(asRecord(body.runtimeConfig) ?? {}), aiConnection: defaults.binding };
+    delete body.runner;
+    delete body.inheritRuntimeFrom;
+    delete body.applyStoredClaudeLogin;
+    delete body.storedSessionId;
+  }
+
+  function assertManagedConfigUnchanged(
+    req: Request,
+    existing: { adapterType: string; adapterConfig: unknown; runtimeConfig: unknown },
+    next: { adapterType?: unknown; adapterConfig?: unknown; runtimeConfig?: unknown },
+  ) {
+    if (!aiModelsLockedFor(req)) return;
+    const deny = () => { throw forbidden(AI_MODELS_MANAGED_MESSAGE, { code: "ai_models_managed" }); };
+    if (next.adapterType !== undefined && next.adapterType !== existing.adapterType) deny();
+    const currentModel = asRecord(existing.adapterConfig)?.model;
+    const nextConfig = asRecord(next.adapterConfig);
+    if (nextConfig && hasOwn(nextConfig, "model") && nextConfig.model !== currentModel) deny();
+    const currentBinding = asRecord(existing.runtimeConfig)?.aiConnection;
+    const nextRuntime = asRecord(next.runtimeConfig);
+    if (nextRuntime && hasOwn(nextRuntime, "aiConnection")
+      && JSON.stringify(nextRuntime.aiConnection ?? null) !== JSON.stringify(currentBinding ?? null)) deny();
+  }
+
   const svcLifecycle = createAgentLifecycle(db, { cancelWorkForScope: scope => heartbeat.cancelBudgetScopeWork(scope) });
   const access = accessService(db);
   const approvalsSvc = approvalService(db);
@@ -4204,6 +4247,11 @@ export function agentRoutes(
     if (!rollbackConfig) {
       throw unprocessable("Invalid revision snapshot");
     }
+    assertManagedConfigUnchanged(req, existing, {
+      adapterType: rollbackConfig.adapterType,
+      adapterConfig: { model: asRecord(rollbackConfig.adapterConfig)?.model },
+      runtimeConfig: { aiConnection: asRecord(rollbackConfig.runtimeConfig)?.aiConnection },
+    });
     assertProviderTraceSettingTransition(
       req,
       rollbackConfig.runtimeConfig,
@@ -4336,6 +4384,7 @@ export function agentRoutes(
   const handleAgentHire = async (req: Request, res: Response) => {
     const companyId = req.params.companyId as string;
     await assertCanCreateAgentsForCompany(req, companyId);
+    await applyManagedHireDefaults(req, companyId);
     const sourceIssueIds = parseSourceIssueIds(req.body);
     const {
       desiredSkills: requestedDesiredSkills,
@@ -4720,6 +4769,7 @@ export function agentRoutes(
   router.post("/companies/:companyId/agents", validate(createAgentSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
     await assertCanCreateAgentsForCompany(req, companyId);
+    await applyManagedHireDefaults(req, companyId);
 
     const company = await db
       .select()
@@ -5399,6 +5449,9 @@ export function agentRoutes(
     const patchData = runtimeSettings
       ? prepareRuntimeSettingsPatch(existing, req.body)
       : { ...(req.body as Record<string, unknown>) };
+    // Admin-managed models: a non-admin patch keeps the agent's adapter,
+    // model and AI connection as they are; every other field still applies.
+    if (aiModelsLockedFor(req)) coerceManagedAgentPatch(existing, patchData);
     const runner = patchData.runner as AgentRunnerChoice | undefined;
     delete patchData.runner;
     const requestedStatus = patchData.status;

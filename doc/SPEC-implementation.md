@@ -2640,6 +2640,21 @@ precedence and dependency failures use the original built-in detector.
   completes. `POST /companies/:companyId/onboarding-seed` installs the team and
   returns `agencyTeam`. The wizard hires the Director (role `ceo`, editable name,
   default "Agency Director") and calls the route, including on reuse/reopen.
+- Instance-managed 9Router: when the server has `SOCIALAGENT_9ROUTER_API_KEY`,
+  `GET /api/companies/:companyId/onboarding/managed-gateway` reports it enabled
+  and `POST` on the same path creates or reuses one company-shared AI connection
+  per gateway protocol (Messages for Claude, Responses for Codex), installed for
+  all agents. The wizard binds the Director to it without asking for a key, and
+  the agency-core install copies a shared Director binding to specialists on
+  the same harness. Personal and delegated bindings are never copied.
+- SaaS lock: with the managed gateway configured, only an instance admin sets
+  adapters, models and AI connections. `instance_settings.ai_models` holds a
+  default model and per-role models per adapter, edited at
+  `GET`/`PUT /api/instance/settings/ai-models` (instance admin). Non-admin hires
+  are forced onto the managed adapter, role model and shared connection;
+  non-admin agent patches keep adapter, model and connection; AI connection
+  mutations return 403 `ai_models_managed`. Saving the policy re-applies role
+  models to every agent on a managed connection.
 - This foundation adds neither client approvals nor revision-bound publication
   approvals, a publishing scheduler or provider integration. Those are later
   slices of the [agency PRD](plans/2026-10-25-prd-rewrite-creative-agency.md).

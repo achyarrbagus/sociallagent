@@ -1,0 +1,53 @@
+import { Router } from "express";
+import { companies, type Db } from "@paperclipai/db";
+import { managedAiModelPolicySchema } from "@paperclipai/shared";
+import { validate } from "../middleware/validate.js";
+import { logActivity } from "../services/activity-log.js";
+import { managedGatewayService } from "../services/managed-gateway.js";
+import { assertInstanceAdmin, getActorInfo } from "./authz.js";
+
+/**
+ * Instance-admin control of the managed 9Router gateway: the model each agent
+ * role runs, the gateway's model list and every agent's current model. The
+ * key itself stays in the server environment and is never returned.
+ */
+export function managedAiAdminRoutes(db: Db, options: { managedGateway?: ReturnType<typeof managedGatewayService> } = {}) {
+  const router = Router();
+  const managedGateway = options.managedGateway ?? managedGatewayService(db);
+
+  router.get("/instance/settings/ai-models", async (req, res) => {
+    assertInstanceAdmin(req);
+    res.json(await managedGateway.adminSettings());
+  });
+
+  router.put("/instance/settings/ai-models", validate(managedAiModelPolicySchema), async (req, res) => {
+    assertInstanceAdmin(req);
+    const result = await managedGateway.updatePolicy(req.body);
+    const actor = getActorInfo(req);
+    const companyRows = await db.select({ id: companies.id }).from(companies);
+    await Promise.all(companyRows.map(({ id }) => logActivity(db, {
+      companyId: id,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "instance.settings.ai_models_updated",
+      entityType: "instance_settings",
+      entityId: "ai-models",
+      details: { policy: result.settings.policy, updatedAgents: result.updatedAgents },
+    })));
+    res.json(result);
+  });
+
+  router.get("/instance/ai-models/catalog", async (req, res) => {
+    assertInstanceAdmin(req);
+    res.json(await managedGateway.catalog());
+  });
+
+  router.get("/instance/ai-models/agents", async (req, res) => {
+    assertInstanceAdmin(req);
+    res.json(await managedGateway.agentsOverview());
+  });
+
+  return router;
+}

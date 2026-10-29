@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { AiConnectionBinding } from "../ai-connections.js";
+import { AGENT_ROLES, type AgentRole } from "../constants.js";
 
 /**
  * The onboarding seed Paperclip Cloud pushes into a stack at activation
@@ -50,3 +52,89 @@ export type EnsureAgencyCoreTeamResult =
   | { status: "installed"; agentIds: string[]; warnings: string[] }
   | { status: "already_installed" }
   | { status: "failed"; error: string };
+
+/** Adapters the instance-managed 9Router gateway can serve during onboarding. */
+export const managedGatewayAdapterTypeSchema = z.enum(["claude_local", "codex_local"]);
+export type ManagedGatewayAdapterType = z.infer<typeof managedGatewayAdapterTypeSchema>;
+
+/** Body for connecting a company to the instance-managed 9Router gateway. */
+export const ensureManagedGatewaySchema = z.object({
+  adapterType: managedGatewayAdapterTypeSchema,
+}).strict();
+
+export type EnsureManagedGateway = z.infer<typeof ensureManagedGatewaySchema>;
+
+/**
+ * Whether the operator configured a 9Router gateway for every company. When
+ * enabled, onboarding connects the first agent to it instead of asking the
+ * owner for a credential. Never carries the key or the endpoint.
+ */
+export interface ManagedGatewayStatus {
+  enabled: boolean;
+  name: string;
+  defaultAdapterType: ManagedGatewayAdapterType;
+  /**
+   * True for an instance admin. When the gateway is enabled, everyone else
+   * sees agent adapters, models and AI connections read-only.
+   */
+  canManage: boolean;
+}
+
+/** The shared company connection onboarding binds its agents to. */
+export interface EnsureManagedGatewayResult {
+  binding: Extract<AiConnectionBinding, { mode: "shared" }>;
+  /** The operator's default model for this adapter, when one is configured. */
+  model: string | null;
+}
+
+const managedModelIdSchema = z.string().trim().min(1).max(256);
+
+/** Admin-chosen models for one adapter: a default plus optional per-role overrides. */
+export const managedAdapterModelPolicySchema = z.object({
+  defaultModel: managedModelIdSchema.nullable().default(null),
+  roles: z.partialRecord(z.enum(AGENT_ROLES), managedModelIdSchema).default({}),
+}).strict();
+
+/**
+ * Instance-wide model policy for the managed 9Router gateway. Only an
+ * instance admin reads or writes it; every agent on the managed connection
+ * runs the model for its role.
+ */
+export const managedAiModelPolicySchema = z.object({
+  claude_local: managedAdapterModelPolicySchema.default({ defaultModel: null, roles: {} }),
+  codex_local: managedAdapterModelPolicySchema.default({ defaultModel: null, roles: {} }),
+}).strict();
+
+export type ManagedAdapterModelPolicy = z.infer<typeof managedAdapterModelPolicySchema>;
+export type ManagedAiModelPolicy = z.infer<typeof managedAiModelPolicySchema>;
+
+/** Admin view of the managed gateway. The key is never included. */
+export interface ManagedAiAdminSettings {
+  enabled: boolean;
+  baseUrl: string | null;
+  adapterType: ManagedGatewayAdapterType;
+  policy: ManagedAiModelPolicy;
+  /** The model each role runs today, after defaults and environment fallbacks. */
+  effective: Record<AgentRole, string | null>;
+}
+
+export interface ManagedAiModelOption {
+  id: string;
+  label: string;
+}
+
+export interface ManagedAiAgentRow {
+  companyId: string;
+  companyName: string;
+  agentId: string;
+  agentName: string;
+  role: string;
+  adapterType: string;
+  model: string | null;
+  managed: boolean;
+}
+
+export interface UpdateManagedAiModelsResult {
+  settings: ManagedAiAdminSettings;
+  updatedAgents: number;
+}

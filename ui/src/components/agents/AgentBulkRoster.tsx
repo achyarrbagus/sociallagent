@@ -1,4 +1,5 @@
 import { modelDisplayName } from "@/lib/model-display";
+import { useManagedAiLock } from "../../hooks/useManagedAiLock";
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Filter, Pencil, X } from "lucide-react";
@@ -26,7 +27,9 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent 
   const selectable = visible.filter(a => !bulkAgentDisabledReason(a));
   const selectedAgents = agents.filter(a => selected.includes(a.id) && !bulkAgentDisabledReason(a));
   const harnesses = [...new Set(agents.map(bulkAgentHarness))].sort((a, b) => getAdapterLabel(a).localeCompare(getAdapterLabel(b)));
-  const groups = [...new Set(selectedAgents.map(bulkAgentHarness))];
+  // Admin-managed models: company users cannot bulk-change connections or models.
+  const { locked: aiModelsLocked } = useManagedAiLock(companyId);
+  const groups = aiModelsLocked ? [] : [...new Set(selectedAgents.map(bulkAgentHarness))];
   const all = selectable.length > 0 && selectable.every(a => selected.includes(a.id));
   const some = selectable.some(a => selected.includes(a.id));
   const hidden = selectedAgents.filter(a => !visible.includes(a)).length;

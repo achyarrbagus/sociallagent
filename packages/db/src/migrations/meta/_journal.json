@@ -2647,6 +2647,13 @@
       "when": 1792907838841,
       "tag": "0379_glamorous_sleeper",
       "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1793248700953,
+      "tag": "0380_rich_praxagora",
+      "breakpoints": true
     }
   ]
 }

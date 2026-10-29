@@ -41,6 +41,9 @@ use **Connect 9Router**. The shortcut fills an editable local gateway URL;
 model selection and the existing agent connection test follow saving. See
 [9Router setup](../../doc/9router.md). This uses the existing managed gateway
 connection permissions and does not start a 9Router server.
+When the operator sets `SOCIALAGENT_9ROUTER_API_KEY`, the step skips the key
+entirely: it connects the company's shared 9Router connection, preselects the
+model, and the owner only presses **Connect**.
 
 ### `cli-setup`
 

@@ -176,6 +176,13 @@ const mockEnsureAgencyTeam = vi.hoisted(() =>
     warnings: [],
   })),
 );
+// The instance-managed 9Router gateway is off unless a test turns it on.
+const mockManagedGateway = vi.hoisted(() => ({
+  getManagedGatewayStatus: vi.fn(async (): Promise<import("@paperclipai/shared").ManagedGatewayStatus> => ({
+    enabled: false, name: "9Router", defaultAdapterType: "claude_local", canManage: false,
+  })),
+  ensureManagedGateway: vi.fn(),
+}));
 const mockSecretsApi = vi.hoisted(() => ({
   list: vi.fn(),
   removeUserSecretDefinition: vi.fn(),
@@ -218,6 +225,7 @@ vi.mock("../api/goals", () => ({ goalsApi: mockGoalsApi }));
 vi.mock("../api/agents", () => ({ agentsApi: mockAgentsApi }));
 vi.mock("../api/approvals", () => ({ approvalsApi: mockApprovalsApi }));
 vi.mock("../api/onboarding-agency-team", () => ({ ensureAgencyTeam: mockEnsureAgencyTeam }));
+vi.mock("../api/onboarding-managed-gateway", () => mockManagedGateway);
 vi.mock("../api/secrets", () => ({ secretsApi: mockSecretsApi }));
 vi.mock("../api/issues", () => ({ issuesApi: mockIssuesApi }));
 vi.mock("../api/projects", () => ({ projectsApi: mockProjectsApi }));
@@ -438,6 +446,8 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
     mockAgentsApi.create.mockReset().mockImplementation(async (_company, input) => ({ ...input, id: input.setupId, pauseReason: "setup" }));
     mockAgentsApi.hire.mockResolvedValue({ agent: { id: "agent-1" }, approval: null });
     mockEnsureAgencyTeam.mockReset().mockResolvedValue({ status: "installed", agentIds: [], warnings: [] });
+    mockManagedGateway.getManagedGatewayStatus.mockReset().mockResolvedValue({ enabled: false, name: "9Router", defaultAdapterType: "claude_local", canManage: false });
+    mockManagedGateway.ensureManagedGateway.mockReset();
     mockCompaniesApi.create.mockResolvedValue({
       id: "created",
       name: "Created Co",
@@ -2444,6 +2454,44 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
           runtimeConfig: expect.objectContaining({ aiConnection: binding }), adapterConfig: expect.objectContaining({ model: "gpt-5.4-mini" }),
         }));
         expect(JSON.stringify(mockAgentsApi.hire.mock.calls)).not.toContain("example-gateway-key");
+      } finally {
+        await act(async () => handles.root.unmount());
+        managedApi.list.mockResolvedValue({ currentUserId: "user-1", connections: [] });
+      }
+    }, 15_000);
+
+    it("connects the instance-managed 9Router gateway without asking for a credential", async () => {
+      const binding = { provider: "openai", method: "api_key", mode: "shared", connectionId: "router-connection", grantId: "router-grant" } as const;
+      const gatewayAccounts: import("@paperclipai/shared").AiConnectionList = {
+        currentUserId: "user-1", canManageConnections: true, connections: [{
+          id: "router-connection", grantId: "router-grant", companyId: "company-new",
+          name: "9Router (Codex)", provider: "openai", method: "api_key", ownership: "shared",
+          ownerUserId: null, isDefault: true, status: "connected",
+          routing: { kind: "gateway", protocol: "responses", auth: "bearer", baseUrl: "https://9router.example.test/v1", models: [{ id: "gpt-5.4-mini" }, { id: "gpt-5.5" }] },
+        }] as never,
+      };
+      managedApi.list.mockImplementation(async () => structuredClone(gatewayAccounts) as never);
+      mockManagedGateway.getManagedGatewayStatus.mockResolvedValue({ enabled: true, name: "9Router", defaultAdapterType: "codex_local", canManage: false });
+      mockManagedGateway.ensureManagedGateway.mockResolvedValue({ binding, model: "gpt-5.5" });
+      mockAdapterBuild.buildAdapterConfig.mockImplementation(values => ({ provider: "codex", model: values?.model }));
+      const handles = await openStep4({ adapterType: "codex_local", runner: "paperclip", credentialMode: "api" });
+      try {
+        await vi.waitFor(() => expect(document.body.textContent).toContain("SocialAgent AI is ready. No API key needed."));
+        expect(mockManagedGateway.ensureManagedGateway).toHaveBeenCalledExactlyOnceWith("company-new", "codex_local");
+        expect(document.querySelector('input[aria-label="API key"]')).toBeNull();
+        expect([...document.body.querySelectorAll("button")].some(entry => entry.textContent?.trim() === "Connect 9Router")).toBe(false);
+        await vi.waitFor(() => expect(document.body.textContent).toContain("gpt-5.5 · set by your administrator"));
+        expect(document.querySelector('select[aria-label="Model"]')).toBeNull();
+        const connect = [...document.body.querySelectorAll("button")].find(entry => entry.textContent?.trim() === "Connect")!;
+        await vi.waitFor(() => expect(connect.disabled).toBe(false));
+        await act(async () => connect.click());
+        await flushReact();
+        expect(mockAgentsApi.testEnvironment).toHaveBeenCalledExactlyOnceWith("company-new", "codex_local", expect.objectContaining({
+          aiConnection: binding, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }),
+        }));
+        expect(mockAgentsApi.hire).toHaveBeenCalledExactlyOnceWith("company-new", expect.objectContaining({
+          runtimeConfig: expect.objectContaining({ aiConnection: binding }), adapterConfig: expect.objectContaining({ model: "gpt-5.5" }),
+        }));
       } finally {
         await act(async () => handles.root.unmount());
         managedApi.list.mockResolvedValue({ currentUserId: "user-1", connections: [] });

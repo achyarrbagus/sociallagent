@@ -1,4 +1,6 @@
 import { COPILOT_MODEL_DISCOVERY_QUERY_OPTIONS } from "@/lib/copilot-task-model-catalog";
+import { useManagedAiLock } from "../../hooks/useManagedAiLock";
+import { ManagedNewAgent } from "./ManagedNewAgent";
 import { ExternalAgentInviteDialog } from "./ExternalAgentInviteDialog";
 import { useConnectionModels } from "../ai-connections/useConnectionModels";
 import { AgentCharacter } from "../AgentCharacter";
@@ -84,12 +86,14 @@ export function NewAgentSetup() {
   const { selectedCompanyId } = useCompany();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { locked: aiModelsLocked, status: managedAi } = useManagedAiLock(selectedCompanyId);
   if (!selectedCompanyId)
     return (
       <p className="text-sm text-muted-foreground">
         Select an organization to create an agent.
       </p>
     );
+  if (aiModelsLocked) return <ManagedNewAgent companyId={selectedCompanyId} adapterType={managedAi?.defaultAdapterType ?? "claude_local"} />;
   if (params.get("adapterType") === "muse" || params.get("runnerProvider") === "muse") return <ExternalAgentInviteDialog companyId={selectedCompanyId} initialPreset="muse" initialMuseName={params.get("name") ?? ""} onClose={() => navigate("/agents/all")} onBack={() => navigate("/agents/all")} />;
   return (
     <Setup

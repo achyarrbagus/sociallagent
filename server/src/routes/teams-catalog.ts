@@ -14,6 +14,8 @@ import {
   teamsCatalogService,
 } from "../services/teams-catalog.js";
 import { forbidden } from "../errors.js";
+import { managedGatewayService } from "../services/managed-gateway.js";
+import { aiModelsLockedFor } from "./managed-ai-lock.js";
 import { assertAuthenticated, assertBoardCanCreateAgents, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 export function teamsCatalogRoutes(db: Db) {
@@ -109,10 +111,20 @@ export function teamsCatalogRoutes(db: Db) {
       const companyId = req.params.companyId as string;
       const catalogRef = firstQueryString(req.query.ref) ?? (req.params.catalogId as string);
       await assertCanInstallCatalogTeam(req, companyId);
+      // Admin-managed models: a non-admin cannot choose adapters for the team.
+      const { adapterOverrides, ...body } = req.body;
       const result = await svc.installCatalogTeam(companyId, catalogRef, {
-        ...req.body,
+        ...body,
+        ...(aiModelsLockedFor(req) ? {} : { adapterOverrides }),
         actor: getActorInfo(req),
       });
+      const managedGateway = managedGatewayService(db);
+      if (managedGateway.enabled()) {
+        const agentIds = result.portabilityImport.agents
+          .filter((agent) => agent.action === "created" && agent.id)
+          .map((agent) => agent.id as string);
+        result.warnings.push(...await managedGateway.applyToAgents(companyId, agentIds));
+      }
       res.status(201).json(result);
     },
   );

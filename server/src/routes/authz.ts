@@ -95,6 +95,11 @@ export function assertBoardOrAgent(req: Request) {
   throw forbidden("Board or agent access required");
 }
 
+/** True for the instance operator (local trusted board or an instance admin). */
+export function isInstanceAdminRequest(req: Request) {
+  return req.actor.type === "board" && (req.actor.source === "local_implicit" || Boolean(req.actor.isInstanceAdmin));
+}
+
 export function assertInstanceAdmin(req: Request) {
   assertBoard(req);
   if (req.actor.source === "local_implicit" || req.actor.isInstanceAdmin) {

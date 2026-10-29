@@ -646,6 +646,20 @@ export {
   ensureAgencyTeamSchema,
   type EnsureAgencyTeam,
   type EnsureAgencyCoreTeamResult,
+  managedGatewayAdapterTypeSchema,
+  type ManagedGatewayAdapterType,
+  ensureManagedGatewaySchema,
+  type EnsureManagedGateway,
+  type ManagedGatewayStatus,
+  type EnsureManagedGatewayResult,
+  managedAdapterModelPolicySchema,
+  managedAiModelPolicySchema,
+  type ManagedAdapterModelPolicy,
+  type ManagedAiModelPolicy,
+  type ManagedAiAdminSettings,
+  type ManagedAiModelOption,
+  type ManagedAiAgentRow,
+  type UpdateManagedAiModelsResult,
 } from "./onboarding-seed.js";
 
 export {

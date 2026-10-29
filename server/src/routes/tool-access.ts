@@ -1,4 +1,5 @@
 import { isCrossSiteOAuthCallbackNavigation, oauthCallbackInterstitialHtml } from "../lib/oauth-browser-return.js";
+import { assertCanManageAiModels } from "./managed-ai-lock.js";
 import { aiConnectionRouterPluginKey } from "@paperclipai/shared";
 import { aiConnectionRouterService } from "../services/ai-connection-router.js";
 import { composioAppSetupSchema, composioAppsRefreshSchema, composioAppsSyncSchema, composioAppAccountSchema } from "@paperclipai/shared";
@@ -1819,6 +1820,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
     assertBoard(req);
     const connection = await getAccessibleResource(req, res, svc.getConnection(req.params.connectionId as string), "Tool connection not found");
     if (!connection) return;
+    if (connection.connectionPurpose === "ai") assertCanManageAiModels(req);
     const { grants } = await svc.listConnectionGrants(connection.id, connection.companyId);
     const grantToRevoke = grants.find((grant) => grant.id === req.params.grantId);
     const canRevokeOwnGrant = Boolean(
@@ -2145,6 +2147,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
   router.patch("/tool-connections/:connectionId", validate(updateToolConnectionSchema), async (req, res) => {
     const existing = await getAccessibleResource(req, res, svc.getConnection(req.params.connectionId as string), "Tool connection not found");
     if (!existing) return;
+    if (existing.connectionPurpose === "ai") assertCanManageAiModels(req);
     await assertToolConnectionConfigureAccess(req, existing);
     if (aiConnectionRouterPluginKey(existing)) throw badRequest("Update this connection pool through its pool settings.");
     const connection = await svc.updateConnection(existing.id, req.body);
@@ -2192,6 +2195,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
   router.delete("/tool-connections/:connectionId", async (req, res) => {
     const existing = await getAccessibleResource(req, res, svc.getConnection(req.params.connectionId as string), "Tool connection not found");
     if (!existing) return;
+    if (existing.connectionPurpose === "ai") assertCanManageAiModels(req);
     await assertToolConnectionConfigureAccess(req, existing);
     if (aiConnectionRouterPluginKey(existing)) throw badRequest("Remove this connection pool through its revision-checked pool settings.");
     const applicationBefore = await svc.getApplication(existing.applicationId);
