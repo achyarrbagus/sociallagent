@@ -1,4 +1,5 @@
 import type {
+  AdoptManagedAiAgentsResult,
   ManagedAiAdminSettings,
   ManagedAiAgentRow,
   ManagedAiModelOption,
@@ -14,4 +15,5 @@ export const managedAiApi = {
     api.put<UpdateManagedAiModelsResult>("/instance/settings/ai-models", policy),
   catalog: () => api.get<ManagedAiModelOption[]>("/instance/ai-models/catalog"),
   agents: () => api.get<ManagedAiAgentRow[]>("/instance/ai-models/agents"),
+  adoptAll: () => api.post<AdoptManagedAiAgentsResult>("/instance/ai-models/adopt", {}),
 };

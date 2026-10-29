@@ -138,3 +138,10 @@ export interface UpdateManagedAiModelsResult {
   settings: ManagedAiAdminSettings;
   updatedAgents: number;
 }
+
+/** Result of moving existing agents onto SocialAgent AI. */
+export interface AdoptManagedAiAgentsResult {
+  moved: number;
+  skipped: number;
+  failed: { companyId: string; agentId: string | null; error: string }[];
+}

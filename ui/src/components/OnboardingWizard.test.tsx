@@ -2472,19 +2472,23 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       };
       managedApi.list.mockImplementation(async () => structuredClone(gatewayAccounts) as never);
       mockManagedGateway.getManagedGatewayStatus.mockResolvedValue({ enabled: true, name: "9Router", defaultAdapterType: "codex_local", canManage: false });
-      mockManagedGateway.ensureManagedGateway.mockResolvedValue({ binding, model: "gpt-5.5" });
+      let releaseGateway!: () => void;
+      mockManagedGateway.ensureManagedGateway.mockImplementation(() => new Promise(resolve => {
+        releaseGateway = () => resolve({ binding, model: "gpt-5.5" });
+      }));
       mockAdapterBuild.buildAdapterConfig.mockImplementation(values => ({ provider: "codex", model: values?.model }));
       const handles = await openStep4({ adapterType: "codex_local", runner: "paperclip", credentialMode: "api" });
       try {
-        await vi.waitFor(() => expect(document.body.textContent).toContain("SocialAgent AI is ready. No API key needed."));
+        expect(document.body.textContent).not.toContain("Model source");
+        await vi.waitFor(() => expect(mockManagedGateway.ensureManagedGateway).toHaveBeenCalled());
+        expect(mockAgentsApi.hire).not.toHaveBeenCalled();
+        await act(async () => releaseGateway());
         expect(mockManagedGateway.ensureManagedGateway).toHaveBeenCalledExactlyOnceWith("company-new", "codex_local");
         expect(document.querySelector('input[aria-label="API key"]')).toBeNull();
         expect([...document.body.querySelectorAll("button")].some(entry => entry.textContent?.trim() === "Connect 9Router")).toBe(false);
-        await vi.waitFor(() => expect(document.body.textContent).toContain("gpt-5.5 · set by your administrator"));
         expect(document.querySelector('select[aria-label="Model"]')).toBeNull();
-        const connect = [...document.body.querySelectorAll("button")].find(entry => entry.textContent?.trim() === "Connect")!;
-        await vi.waitFor(() => expect(connect.disabled).toBe(false));
-        await act(async () => connect.click());
+        // Nothing to choose: the hire starts without pressing Connect.
+        await vi.waitFor(() => expect(mockAgentsApi.hire).toHaveBeenCalled());
         await flushReact();
         expect(mockAgentsApi.testEnvironment).toHaveBeenCalledExactlyOnceWith("company-new", "codex_local", expect.objectContaining({
           aiConnection: binding, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }),

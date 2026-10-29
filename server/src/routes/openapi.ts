@@ -6996,6 +6996,14 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "post",
+  path: "/api/instance/ai-models/adopt",
+  tags: ["instance"],
+  summary: "Move every eligible agent onto SocialAgent AI with the model for its role",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
+});
+
+registry.registerPath({
   method: "get",
   path: "/api/instance/ai-models/catalog",
   tags: ["instance"],

@@ -660,6 +660,7 @@ export {
   type ManagedAiModelOption,
   type ManagedAiAgentRow,
   type UpdateManagedAiModelsResult,
+  type AdoptManagedAiAgentsResult,
 } from "./onboarding-seed.js";
 
 export {

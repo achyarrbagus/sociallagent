@@ -2,6 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import {
   agents,
   companies,
+  companyMemberships,
   connectionGrants,
   instanceSettings,
   toolConnections,
@@ -26,12 +27,17 @@ import {
 } from "@paperclipai/shared";
 import { conflict, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
+import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { aiConnectionService } from "./ai-connections.js";
 
 export const MANAGED_GATEWAY_NAME = "9Router";
 export const MANAGED_GATEWAY_DEFAULT_BASE_URL = "https://9router.amifish.com/v1";
 const MANAGED_ADAPTER_TYPES: readonly ManagedGatewayAdapterType[] = ["claude_local", "codex_local"];
 const SETTINGS_KEY = "default";
+/** Local harnesses an agent can leave for the managed gateway without losing anything it needs. */
+const ADOPTABLE_HARNESSES = new Set([
+  "claude_local", "codex_local", "opencode_local", "pi_local", "gemini_local", "cursor", "grok_local", "kimi_local", "hermes_local",
+]);
 
 export interface ManagedGatewayConfig {
   apiKey: string;
@@ -325,6 +331,70 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     return updated;
   }
 
+  /**
+   * Moves every agent that is not yet on SocialAgent AI onto it: the managed
+   * adapter (unless it already runs that harness), the model for its role and
+   * the company's shared connection. Built-in and plugin agents, and agents
+   * on remote or custom adapters, are skipped.
+   */
+  async function adoptAllAgents(adminUserId: string | null) {
+    const config = requireConfig();
+    const policy = await getPolicy();
+    const managedIds = await managedConnectionIds();
+    const rows = await db.select().from(agents).where(ne(agents.status, "terminated"));
+    const byCompany = new Map<string, typeof rows>();
+    for (const agent of rows) byCompany.set(agent.companyId, [...(byCompany.get(agent.companyId) ?? []), agent]);
+    const result = { moved: 0, skipped: 0, failed: [] as { companyId: string; agentId: string | null; error: string }[], companyIds: [] as string[] };
+    for (const [companyId, companyAgents] of byCompany) {
+      const candidates = companyAgents.filter((agent) => {
+        const connectionId = boundConnectionId(agent.runtimeConfig);
+        if (connectionId && managedIds.has(connectionId)) return false;
+        const metadata = agent.metadata as Record<string, unknown> | null;
+        const harness = agentHarnessType(agent.adapterType, (agent.adapterConfig ?? {}) as Record<string, unknown>);
+        const adoptable = !readBuiltInAgentMarker(metadata) && !metadata?.pluginManagedAgent
+          && ADOPTABLE_HARNESSES.has(harness === "claude" ? "claude_local" : harness === "codex" ? "codex_local" : harness);
+        if (!adoptable) result.skipped += 1;
+        return adoptable;
+      });
+      if (candidates.length === 0) continue;
+      let binding: ManagedBinding;
+      try {
+        const members = await db
+          .select({ userId: companyMemberships.principalId, role: companyMemberships.membershipRole })
+          .from(companyMemberships)
+          .where(and(
+            eq(companyMemberships.companyId, companyId),
+            eq(companyMemberships.principalType, "user"),
+            eq(companyMemberships.status, "active"),
+          ));
+        const owner = members.find((m) => m.userId === adminUserId)
+          ?? members.find((m) => m.role === "owner")
+          ?? members.find((m) => m.role !== "viewer");
+        binding = await connectionFor(companyId, config.defaultAdapterType, owner?.userId ?? null);
+      } catch (error) {
+        result.failed.push({ companyId, agentId: null, error: error instanceof Error ? error.message : String(error) });
+        continue;
+      }
+      result.companyIds.push(companyId);
+      for (const agent of candidates) {
+        try {
+          const sameHarness = managedHarnessOf(agent.adapterType, agent.adapterConfig) === config.defaultAdapterType;
+          const { model: _model, ...kept } = sameHarness ? (agent.adapterConfig ?? {}) as Record<string, unknown> : {};
+          const model = resolveManagedModel(policy, config, config.defaultAdapterType, agent.role);
+          await agentsSvc.update(agent.id, {
+            ...(sameHarness ? {} : { adapterType: config.defaultAdapterType }),
+            adapterConfig: { ...kept, ...(model ? { model } : {}) },
+            runtimeConfig: { ...((agent.runtimeConfig ?? {}) as Record<string, unknown>), aiConnection: binding },
+          });
+          result.moved += 1;
+        } catch (error) {
+          result.failed.push({ companyId, agentId: agent.id, error: error instanceof Error ? error.message : String(error) });
+        }
+      }
+    }
+    return result;
+  }
+
   async function adminSettings(): Promise<ManagedAiAdminSettings> {
     const config = readConfig();
     const policy = await getPolicy();
@@ -395,5 +465,6 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     catalog,
     agentsOverview,
     managedConnectionIds,
+    adoptAllAgents,
   };
 }

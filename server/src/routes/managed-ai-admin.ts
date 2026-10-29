@@ -39,6 +39,25 @@ export function managedAiAdminRoutes(db: Db, options: { managedGateway?: ReturnT
     res.json(result);
   });
 
+  router.post("/instance/ai-models/adopt", async (req, res) => {
+    assertInstanceAdmin(req);
+    const actor = getActorInfo(req);
+    const result = await managedGateway.adoptAllAgents(actor.actorType === "user" ? actor.actorId : null);
+    await Promise.all(result.companyIds.map((companyId) => logActivity(db, {
+      companyId,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "instance.ai_models.agents_adopted",
+      entityType: "instance_settings",
+      entityId: "ai-models",
+      details: { moved: result.moved, skipped: result.skipped, failed: result.failed.filter((f) => f.companyId === companyId).length },
+    })));
+    const { companyIds: _companyIds, ...body } = result;
+    res.json(body);
+  });
+
   router.get("/instance/ai-models/catalog", async (req, res) => {
     assertInstanceAdmin(req);
     res.json(await managedGateway.catalog());

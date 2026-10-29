@@ -265,4 +265,32 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     expect(overview.body.filter((row: { companyId: string }) => row.companyId === companyId)).toHaveLength(12);
     expect(overview.body.every((row: { companyId: string; managed: boolean }) => row.companyId !== companyId || row.managed)).toBe(true);
   });
+
+  it("moves existing agents onto SocialAgent AI and skips built-in ones", async () => {
+    enable();
+    const { companyId, actor } = await seed();
+    const [legacy] = await ctx.db.insert(agents).values({
+      companyId, name: "Old CEO", role: "ceo", adapterType: "codex_local", adapterConfig: { model: "gpt-5.5" }, runtimeConfig: {},
+    }).returning();
+    const [builtIn] = await ctx.db.insert(agents).values({
+      companyId, name: "Helper", role: "general", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {},
+      metadata: { paperclipBuiltInAgent: { key: "helper", featureKeys: [] } },
+    }).returning();
+    const adminApp = routeApp(ctx.db, adminActor(companyId, actor.userId!), managedAiAdminRoutes);
+    await request(adminApp).put("/api/instance/settings/ai-models").send({ claude_local: { defaultModel: "claude-sonnet-5", roles: { ceo: "claude-opus-5" } } });
+
+    const ownerApp = routeApp(ctx.db, actor, managedAiAdminRoutes);
+    expect((await request(ownerApp).post("/api/instance/ai-models/adopt").send({})).status).toBe(403);
+
+    const adopted = await request(adminApp).post("/api/instance/ai-models/adopt").send({});
+    expect(adopted.status, JSON.stringify(adopted.body)).toBe(200);
+    expect(adopted.body.failed).toEqual([]);
+    const [moved] = await ctx.db.select().from(agents).where(eq(agents.id, legacy!.id));
+    expect(managedHarnessOf(moved!.adapterType, moved!.adapterConfig)).toBe("claude_local");
+    expect(moved!.adapterConfig).toMatchObject({ model: "claude-opus-5" });
+    expect(moved!.runtimeConfig.aiConnection).toMatchObject({ mode: "shared", provider: "anthropic" });
+    const [untouched] = await ctx.db.select().from(agents).where(eq(agents.id, builtIn!.id));
+    expect(untouched!.adapterType).toBe("codex_local");
+    expect(untouched!.runtimeConfig.aiConnection).toBeUndefined();
+  });
 });

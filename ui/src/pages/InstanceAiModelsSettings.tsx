@@ -77,6 +77,20 @@ export function InstanceAiModelsSettings() {
     onError: () => setSavedMessage(null),
   });
 
+  const unmanagedCount = (agents.data ?? []).filter((row) => !row.managed).length;
+  const [confirmAdopt, setConfirmAdopt] = useState(false);
+  const [adoptMessage, setAdoptMessage] = useState<string | null>(null);
+  const adopt = useMutation({
+    mutationFn: managedAiApi.adoptAll,
+    onSuccess: (result) => {
+      setConfirmAdopt(false);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.instance.aiModelAgents });
+      void queryClient.invalidateQueries({ queryKey: ["agents"] });
+      setAdoptMessage(`${result.moved} moved to SocialAgent AI. ${result.skipped} skipped (built-in, plugin or remote agents).${result.failed.length ? ` ${result.failed.length} failed: ${result.failed[0]!.error}` : ""}`);
+    },
+    onError: () => setConfirmAdopt(false),
+  });
+
   const setRole = (role: AgentRole, value: string) => {
     setSavedMessage(null);
     setDraft((current) => {
@@ -135,7 +149,22 @@ export function InstanceAiModelsSettings() {
           </Card>
 
           <Card className="block bg-transparent p-5">
-            <h2 className="text-sm font-semibold">Agents</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold">Agents</h2>
+              {unmanagedCount > 0 && (confirmAdopt ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Move {unmanagedCount} {unmanagedCount === 1 ? "agent" : "agents"} to SocialAgent AI?</span>
+                  <Button type="button" variant="ghost" disabled={adopt.isPending} onClick={() => setConfirmAdopt(false)}>Cancel</Button>
+                  <Button type="button" disabled={adopt.isPending} onClick={() => adopt.mutate()}>{adopt.isPending ? "Moving…" : "Confirm"}</Button>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" onClick={() => { setAdoptMessage(null); setConfirmAdopt(true); }}>
+                  Move {unmanagedCount} {unmanagedCount === 1 ? "agent" : "agents"} to SocialAgent AI
+                </Button>
+              ))}
+            </div>
+            {adopt.error && <p role="alert" className="mt-2 text-sm text-destructive">{adopt.error instanceof Error ? adopt.error.message : "Could not move agents."}</p>}
+            {adoptMessage && <p role="status" className="mt-2 text-sm text-muted-foreground">{adoptMessage}</p>}
             {agents.error && <p role="alert" className="mt-2 text-sm text-destructive">{agents.error instanceof Error ? agents.error.message : "Could not load agents."}</p>}
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-left text-sm">

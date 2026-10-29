@@ -29,9 +29,13 @@ With the managed gateway configured, SocialAgent runs as a SaaS: only an instanc
   - Team catalog installs ignore `adapterOverrides`; installed agents on the managed adapter join the managed connection with their role models. The agency-core team does the same.
 - **UI for company users:** the agent form shows the model read-only, bulk model edits are hidden, AI connection forms show a managed notice, and **New agent** asks only for a name and role.
 
-Admin endpoints: `GET`/`PUT /api/instance/settings/ai-models`, `GET /api/instance/ai-models/catalog` (fetched server-side with the operator key) and `GET /api/instance/ai-models/agents`.
+- **Existing agents:** **Move N agents to SocialAgent AI** on the AI models page (`POST /api/instance/ai-models/adopt`) puts every eligible agent on the managed adapter, its role's model and its company's shared connection. Built-in and plugin agents, and agents on remote or custom adapters, are skipped. A company without a managed connection gets one created for its admin or owner.
+- **Onboarding:** with the gateway on, the connect step shows no source tiles and starts the hire on its own; Connect stays available for a retry.
+- Per-agent adapter, model and connection controls are read-only for everyone, admins included. Admins change models at Settings → AI models.
 
-Not covered yet: company import (`/companies/import`) keeps the package's adapters, and agents created before the lock keep their own connection until an admin changes them.
+Admin endpoints: `GET`/`PUT /api/instance/settings/ai-models`, `POST /api/instance/ai-models/adopt`, `GET /api/instance/ai-models/catalog` (fetched server-side with the operator key) and `GET /api/instance/ai-models/agents`.
+
+Not covered yet: company import (`/companies/import`) keeps the package's adapters until an admin moves them.
 
 ## Manual connection
 

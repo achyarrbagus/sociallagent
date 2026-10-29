@@ -1707,6 +1707,20 @@ function OnboardingWizardInner({
    * a check. This one would be worse: Cmd+Enter would hire before the sign-in
    * it is meant to start, against a source with no credential.
    */
+  // Admin-managed models: there is nothing for the owner to choose on this
+  // step, so the hire starts on its own once the managed connection and the
+  // admin's model are in place. A failed attempt stays on the step with the
+  // Connect button for a manual retry.
+  const managedAutoConnectRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (step !== 4 || !managedActive || !hasGatewaySelection || connectPhase !== "ready") return;
+    if (connectCta.label !== "Connect" || connectCta.disabled || loading || createdAgentId) return;
+    const key = `${createdCompanyId}:${model}`;
+    if (managedAutoConnectRef.current === key) return;
+    managedAutoConnectRef.current = key;
+    handleConnectStepPrimary();
+  });
+
   function handleConnectStepPrimary() {
     if (setupError) { setSetupError(false); setSetupAttempt(value => value + 1); setError(null); return; }
     // Mid-sequence the button belongs to the sign-in, not to the step.
@@ -3136,6 +3150,7 @@ function OnboardingWizardInner({
                         Retry connecting SocialAgent AI
                       </Button>
                     </div> : <p role="status" className="mb-4 text-sm text-muted-foreground">Connecting SocialAgent AI…</p>)}
+                    {!managedGatewayEnabled && (
                     <ModelSourceTiles
                       label="Model source"
                       sources={recommendedAdapters.map((opt) => ({
@@ -3166,6 +3181,7 @@ function OnboardingWizardInner({
                         setConnectPhase("collapsing");
                       }}
                     />
+                    )}
 
                     {/* Fades on the first beat but keeps its space until the
                         second, so pressing a tile moves nothing vertically.
