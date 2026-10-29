@@ -70,7 +70,7 @@ export function AgentContextualSidebar({
   const resolvedId = agentId ?? resolvedAgent?.id;
   const { slots: pluginTabs } = usePluginSlots({ slotTypes: ["detailTab"], entityType: "agent", companyId: resolvedAgent?.companyId ?? selectedCompanyId, enabled: Boolean(resolvedId) });
   const resolvedName = agentName ?? resolvedAgent?.name ?? "Agent";
-  // SaaS mode: company users do not configure the harness/runtime or skills.
+  // SaaS mode: company users see only an agent's Overview and Activity.
   const managedAi = useManagedAiLock(resolvedAgent?.companyId ?? selectedCompanyId);
   const hideRuntime = managedAi.locked && !managedAi.canManage;
 
@@ -87,7 +87,9 @@ export function AgentContextualSidebar({
         data-slot="contextual-sidebar-nav"
         className={contextualSidebarStyles.nav}
       >
-        {AGENT_DETAIL_NAVIGATION.map((section) => (
+        {(hideRuntime
+          ? AGENT_DETAIL_NAVIGATION.slice(0, 1).map((section) => ({ ...section, items: section.items.filter((item) => item.value === "overview") }))
+          : AGENT_DETAIL_NAVIGATION).map((section) => (
           <div
             key={section.label}
             data-slot="contextual-sidebar-section"
@@ -101,7 +103,6 @@ export function AgentContextualSidebar({
             </p>
             <div data-slot="contextual-sidebar-group" className={contextualSidebarStyles.group}>
               {section.items
-                .filter((item) => !(hideRuntime && (item.value === "runtime" || item.value === "skills")))
                 .map((item) => {
                   const href = agentDetailHref(agentRef, item.value);
                   return (
@@ -117,7 +118,7 @@ export function AgentContextualSidebar({
           </div>
         ))}
 
-        {pluginTabs.length > 0 && <div data-slot="contextual-sidebar-section" className={contextualSidebarStyles.section}>
+        {!hideRuntime && pluginTabs.length > 0 && <div data-slot="contextual-sidebar-section" className={contextualSidebarStyles.section}>
           <p className={contextualSidebarStyles.sectionLabel}>Apps</p>
           <div className={contextualSidebarStyles.group}>
             {pluginTabs.map(slot => <SidebarNavItem key={`${slot.pluginKey}:${slot.id}`} to={`/agents/${encodeURIComponent(agentRef)}/${encodeURIComponent(`plugin:${slot.pluginKey}:${slot.id}`)}`} label={slot.displayName} icon={Wrench} />)}
@@ -131,7 +132,7 @@ export function AgentContextualSidebar({
             Audit
           </p>
           <div data-slot="contextual-sidebar-group" className={contextualSidebarStyles.group}>
-            {resolvedId ? auditItems.map((item) => (
+            {resolvedId ? auditItems.filter((item) => !hideRuntime || item.section === "activity").map((item) => (
               <SidebarNavItem
                 key={item.section}
                 to={agentScopedAuditHref(resolvedId, item.section)}

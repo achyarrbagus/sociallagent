@@ -833,6 +833,12 @@ export function AgentDetail() {
   const managedAiLock = useManagedAiLock(resolvedCompanyId);
   const hideAgentRuntime = managedAiLock.locked && !managedAiLock.canManage;
   const canonicalAgentRef = agent ? agentRouteRef(agent) : routeAgentRef;
+  // SaaS mode: company users get only the Overview page of an agent (plus
+  // its Activity in Audit); any other agent page sends them back to Overview.
+  useEffect(() => {
+    if (!hideAgentRuntime || activeView === "overview" || activeView === "run-detail") return;
+    navigate(agentDetailHref(canonicalAgentRef, "overview"), { replace: true });
+  }, [hideAgentRuntime, activeView, canonicalAgentRef, navigate]);
   const handleLegacyTabChange = useCallback((next: string) => {
     if (!prepareAgentNavigation()) return;
     navigate(`/agents/${canonicalAgentRef || routeAgentRef}/${next}`);
