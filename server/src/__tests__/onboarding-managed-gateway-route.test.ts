@@ -5,6 +5,7 @@ import { activityLog, agents, connectionGrants, instanceSettings, toolConnection
 import { agentRoutes } from "../routes/agents.js";
 import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { managedAiAdminRoutes } from "../routes/managed-ai-admin.js";
+import { toolAccessRoutes } from "../routes/tool-access.js";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
 import { managedHarnessOf, readManagedGatewayConfig } from "../services/managed-gateway.js";
 import { coerceManagedAgentPatch } from "../routes/managed-ai-lock.js";
@@ -65,7 +66,7 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
   afterEach(async () => {
     vi.unstubAllEnvs();
     runnerSelectionSpy?.mockRestore();
-    await ctx.db.update(instanceSettings).set({ aiModels: {} });
+    await ctx.db.update(instanceSettings).set({ aiModels: {}, allowedConnectors: [] });
   });
 
   function enable() {
@@ -292,5 +293,35 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     const [untouched] = await ctx.db.select().from(agents).where(eq(agents.id, builtIn!.id));
     expect(untouched!.adapterType).toBe("codex_local");
     expect(untouched!.runtimeConfig.aiConnection).toBeUndefined();
+  });
+
+  it("shows company users only the connectors an admin allowed", async () => {
+    enable();
+    const { companyId, actor } = await seed();
+    const toolsApp = routeApp(ctx.db, actor, (db) => toolAccessRoutes(db));
+    const gallery = async () => (await request(toolsApp).get(`/api/companies/${companyId}/tools/gallery`)).body.apps.map((app: { slug: string }) => app.slug);
+
+    expect(await gallery()).toEqual([]);
+    const blocked = await request(toolsApp).get(`/api/companies/${companyId}/tools/apps/slack/preflight`);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.details).toMatchObject({ code: "connector_not_allowed" });
+
+    const ownerAdmin = routeApp(ctx.db, actor, managedAiAdminRoutes);
+    expect((await request(ownerAdmin).put("/api/instance/settings/connectors").send({ allowed: ["slack"] })).status).toBe(403);
+
+    const adminApp = routeApp(ctx.db, adminActor(companyId, actor.userId!), managedAiAdminRoutes);
+    const settings = await request(adminApp).get("/api/instance/settings/connectors");
+    expect(settings.body.enforced).toBe(true);
+    const slackSlug = settings.body.apps.find((app: { name: string }) => /slack/i.test(app.name))?.slug as string;
+    expect(slackSlug).toBeTruthy();
+    expect(settings.body.apps.some((app: { slug: string }) => app.slug === "anthropic")).toBe(false);
+    const saved = await request(adminApp).put("/api/instance/settings/connectors").send({ allowed: [slackSlug, "not-a-connector"] });
+    expect(saved.body.allowed).toEqual([slackSlug]);
+
+    expect(await gallery()).toEqual([slackSlug]);
+    // An admin still sees the whole catalog.
+    const adminTools = routeApp(ctx.db, adminActor(companyId, actor.userId!), (db) => toolAccessRoutes(db));
+    const adminGallery = await request(adminTools).get(`/api/companies/${companyId}/tools/gallery`);
+    expect(adminGallery.body.apps.length).toBeGreaterThan(1);
   });
 });

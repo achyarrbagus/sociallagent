@@ -1,6 +1,6 @@
 import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestationSchema, createGrokInvitationSchema, configureGrokRoutineSchema, verifyGrokRoutineSchema, recoverGrokRoutineSchema, pairGrokBindingSchema, stopGrokWorkSchema, retryGrokDeliverySchema, updateFastResponseSchema } from "@paperclipai/shared";
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@paperclipai/shared";
-import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema } from "@paperclipai/shared";
+import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema, updateAllowedConnectorsSchema } from "@paperclipai/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
 import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema } from "@paperclipai/shared";
 import { createAgencyContentSchema, reviseAgencyContentSchema, decideAgencyContentSchema, linkAgencyContentTaskSchema, contentRevisionExpectationSchema, listAgencyContentSchema } from "@paperclipai/shared";
@@ -6993,6 +6993,23 @@ registry.registerPath({
   summary: "Set the model per agent role and apply it to every managed agent",
   request: { body: jsonBody(managedAiModelPolicySchema) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/instance/settings/connectors",
+  tags: ["instance"],
+  summary: "Get the Apps catalog connectors company users may connect in SaaS mode",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/api/instance/settings/connectors",
+  tags: ["instance"],
+  summary: "Set the Apps catalog connectors company users may connect in SaaS mode",
+  request: { body: jsonBody(updateAllowedConnectorsSchema) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({

@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { companies, type Db } from "@paperclipai/db";
-import { managedAiModelPolicySchema } from "@paperclipai/shared";
+import { managedAiModelPolicySchema, updateAllowedConnectorsSchema } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
 import { logActivity } from "../services/activity-log.js";
 import { managedGatewayService } from "../services/managed-gateway.js";
+import { connectorPolicyCatalog, connectorPolicyService } from "../services/connector-policy.js";
 import { assertInstanceAdmin, getActorInfo } from "./authz.js";
 
 /**
@@ -56,6 +57,34 @@ export function managedAiAdminRoutes(db: Db, options: { managedGateway?: ReturnT
     })));
     const { companyIds: _companyIds, ...body } = result;
     res.json(body);
+  });
+
+  router.get("/instance/settings/connectors", async (req, res) => {
+    assertInstanceAdmin(req);
+    res.json({
+      enforced: managedGateway.enabled(),
+      allowed: [...await connectorPolicyService(db).getAllowed()].sort(),
+      apps: connectorPolicyCatalog(),
+    });
+  });
+
+  router.put("/instance/settings/connectors", validate(updateAllowedConnectorsSchema), async (req, res) => {
+    assertInstanceAdmin(req);
+    const allowed = await connectorPolicyService(db).setAllowed(req.body.allowed);
+    const actor = getActorInfo(req);
+    const companyRows = await db.select({ id: companies.id }).from(companies);
+    await Promise.all(companyRows.map(({ id }) => logActivity(db, {
+      companyId: id,
+      actorType: actor.actorType,
+      actorId: actor.actorId,
+      agentId: actor.agentId,
+      runId: actor.runId,
+      action: "instance.settings.connectors_updated",
+      entityType: "instance_settings",
+      entityId: "connectors",
+      details: { allowed },
+    })));
+    res.json({ enforced: managedGateway.enabled(), allowed, apps: connectorPolicyCatalog() });
   });
 
   router.get("/instance/ai-models/catalog", async (req, res) => {

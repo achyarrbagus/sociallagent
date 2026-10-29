@@ -33,7 +33,9 @@ With the managed gateway configured, SocialAgent runs as a SaaS: only an instanc
 - **Onboarding:** with the gateway on, the connect step shows no source tiles and starts the hire on its own; Connect stays available for a retry.
 - Per-agent adapter, model and connection controls are read-only for everyone, admins included. Admins change models at Settings → AI models.
 
-Admin endpoints: `GET`/`PUT /api/instance/settings/ai-models`, `POST /api/instance/ai-models/adopt`, `GET /api/instance/ai-models/catalog` (fetched server-side with the operator key) and `GET /api/instance/ai-models/agents`.
+- **Connectors:** Settings → **Connectors** (instance admins) lists the Apps catalog (AI providers excluded) plus "Custom server" for URL-added MCP/REST servers. Company users see and connect only checked apps; the list starts empty. The server enforces it on the gallery, preflight, app connect, application and connection create, and chat channel create (`403 connector_not_allowed`). Existing connections keep working.
+
+Admin endpoints: `GET`/`PUT /api/instance/settings/ai-models`, `GET`/`PUT /api/instance/settings/connectors`, `POST /api/instance/ai-models/adopt`, `GET /api/instance/ai-models/catalog` (fetched server-side with the operator key) and `GET /api/instance/ai-models/agents`.
 
 Not covered yet: company import (`/companies/import`) keeps the package's adapters until an admin moves them.
 

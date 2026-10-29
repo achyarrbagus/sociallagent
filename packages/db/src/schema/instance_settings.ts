@@ -11,6 +11,8 @@ export const instanceSettings = pgTable(
     experimental: jsonb("experimental").$type<Record<string, unknown>>().notNull().default({}),
     // SocialAgent: admin-managed model per adapter and agent role (instance admin only).
     aiModels: jsonb("ai_models").$type<Record<string, unknown>>().notNull().default({}),
+    // SocialAgent: Apps catalog slugs company users may connect in SaaS mode.
+    allowedConnectors: jsonb("allowed_connectors").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

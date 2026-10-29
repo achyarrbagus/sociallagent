@@ -145,3 +145,25 @@ export interface AdoptManagedAiAgentsResult {
   skipped: number;
   failed: { companyId: string; agentId: string | null; error: string }[];
 }
+
+/** Instance-admin allowlist of Apps catalog connectors for SaaS mode. */
+export const updateAllowedConnectorsSchema = z.object({
+  allowed: z.array(z.string().trim().min(1).max(160)).max(1000),
+}).strict();
+
+export type UpdateAllowedConnectors = z.infer<typeof updateAllowedConnectorsSchema>;
+
+export interface ConnectorPolicyApp {
+  slug: string;
+  name: string;
+  description: string;
+  logoUrl: string;
+  darkLogoUrl?: string;
+}
+
+export interface ConnectorPolicySettings {
+  /** True when SaaS mode is on and the allowlist is enforced for company users. */
+  enforced: boolean;
+  allowed: string[];
+  apps: ConnectorPolicyApp[];
+}

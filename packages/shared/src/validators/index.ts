@@ -661,6 +661,10 @@ export {
   type ManagedAiAgentRow,
   type UpdateManagedAiModelsResult,
   type AdoptManagedAiAgentsResult,
+  updateAllowedConnectorsSchema,
+  type UpdateAllowedConnectors,
+  type ConnectorPolicyApp,
+  type ConnectorPolicySettings,
 } from "./onboarding-seed.js";
 
 export {

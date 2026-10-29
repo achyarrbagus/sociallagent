@@ -1,5 +1,6 @@
 import { isCrossSiteOAuthCallbackNavigation, oauthCallbackInterstitialHtml } from "../lib/oauth-browser-return.js";
-import { assertCanManageAiModels } from "./managed-ai-lock.js";
+import { aiModelsLockedFor, assertCanManageAiModels, assertConnectorAllowed, connectorSlugFor } from "./managed-ai-lock.js";
+import { connectorPolicyService } from "../services/connector-policy.js";
 import { aiConnectionRouterPluginKey } from "@paperclipai/shared";
 import { aiConnectionRouterService } from "../services/ai-connection-router.js";
 import { composioAppSetupSchema, composioAppsRefreshSchema, composioAppsSyncSchema, composioAppAccountSchema } from "@paperclipai/shared";
@@ -852,10 +853,16 @@ function connectorEnrollmentPrincipal(req: Request): string {
             : "Vercel Connect setup is disabled on this SocialAgent instance.",
         },
       },
-      apps: [...APP_STORE_DEFINITIONS.filter((app) => (settings.enableMemoryConnectors || !isMemoryConnectorId(app.slug))
-        && isConnectorFeatureEnabled(app, settings)).map((app) =>
-        appWithPaperclipCloudConnectorAvailability(app, advertisedProfiles)
-      ), ...await aiConnectionRouterService(db).catalog()],
+      apps: await (async () => {
+        const apps = [...APP_STORE_DEFINITIONS.filter((app) => (settings.enableMemoryConnectors || !isMemoryConnectorId(app.slug))
+          && isConnectorFeatureEnabled(app, settings)).map((app) =>
+          appWithPaperclipCloudConnectorAvailability(app, advertisedProfiles)
+        ), ...await aiConnectionRouterService(db).catalog()];
+        // SaaS lock: company users see only the connectors an admin allowed.
+        if (!aiModelsLockedFor(req)) return apps;
+        const allowed = await connectorPolicyService(db).getAllowed();
+        return apps.filter((app) => allowed.has(app.slug));
+      })(),
     });
   });
 
@@ -863,6 +870,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
     assertBoard(req);
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
+    await assertConnectorAllowed(db, req, connectorSlugFor(req.params.galleryKey));
     const methodKey = typeof req.query.methodKey === "string" ? req.query.methodKey.trim() || null : null;
     res.json(await svc.preflightGalleryAppMetadata(req.params.galleryKey as string, methodKey));
   });
@@ -894,6 +902,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
     const resumedConnection = retainedConnectionId
       ? await svc.getConnection(retainedConnectionId, companyId)
       : null;
+    if (!resumedConnection) await assertConnectorAllowed(db, req, connectorSlugFor(req.body.galleryKey));
     if (resumedConnection) await assertToolConnectionConfigureAccess(req, resumedConnection);
     const effectiveGrantKind = resumedConnection
       ? resumedConnection.credentialPolicy === "per_user"
@@ -1601,6 +1610,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
   router.post("/companies/:companyId/tools/applications", validate(createToolApplicationSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
     assertToolAppMutationAccess(req, companyId);
+    await assertConnectorAllowed(db, req, connectorSlugFor(req.body.applicationKey));
     try {
       const application = await svc.createApplication(companyId, req.body);
       await logActivity(db, {
@@ -1673,6 +1683,10 @@ function connectorEnrollmentPrincipal(req: Request): string {
   router.post("/companies/:companyId/tools/connections", validate(createToolConnectionSchema), async (req, res) => {
     const companyId = req.params.companyId as string;
     assertToolAppMutationAccess(req, companyId);
+    if (aiModelsLockedFor(req)) {
+      const application = req.body.applicationId ? await svc.getApplication(req.body.applicationId, companyId) : null;
+      await assertConnectorAllowed(db, req, connectorSlugFor(application?.applicationKey ?? (req.body.config as Record<string, unknown> | undefined)?.sourceTemplateKey));
+    }
     try {
       const connection = await svc.createConnection(companyId, req.body, getActorInfo(req));
       await logActivity(db, {

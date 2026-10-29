@@ -1,4 +1,7 @@
 import type { Request } from "express";
+import type { Db } from "@paperclipai/db";
+import { getAppDefinitionForApplicationKey } from "@paperclipai/shared";
+import { connectorPolicyService, CUSTOM_CONNECTOR_SLUG } from "../services/connector-policy.js";
 import { forbidden } from "../errors.js";
 import { readManagedGatewayConfig } from "../services/managed-gateway.js";
 import { isInstanceAdminRequest } from "./authz.js";
@@ -43,4 +46,22 @@ export function coerceManagedAgentPatch(
     patch.runtimeConfig = currentBinding === undefined ? nextRuntime : { ...nextRuntime, aiConnection: currentBinding };
   }
   return patch;
+}
+
+export const CONNECTOR_NOT_ALLOWED_MESSAGE = "This connector is not enabled by your SocialAgent administrator.";
+
+/** The catalog slug for an application key, or the custom-server slug when there is none. */
+export function connectorSlugFor(key: unknown) {
+  if (typeof key !== "string" || !key.trim()) return CUSTOM_CONNECTOR_SLUG;
+  return getAppDefinitionForApplicationKey(key)?.slug ?? key;
+}
+
+/**
+ * SaaS lock for the Apps catalog: company users connect only the connectors an
+ * instance admin allowed. The allowlist starts empty.
+ */
+export async function assertConnectorAllowed(db: Db, req: Request, slug: string) {
+  if (!aiModelsLockedFor(req)) return;
+  const allowed = await connectorPolicyService(db).getAllowed();
+  if (!allowed.has(slug)) throw forbidden(CONNECTOR_NOT_ALLOWED_MESSAGE, { code: "connector_not_allowed", slug });
 }
