@@ -3840,6 +3840,11 @@ export function agentRoutes(
       const agent = await getAccessibleResource(req, res, svc.getById(id), "Agent not found");
       if (!agent) return;
       await assertCanUpdateAgent(req, agent);
+      // SaaS mode: company users run the skills the agent came with; only an
+      // instance admin (or the agent itself) changes them.
+      if (req.actor.type === "board" && aiModelsLockedFor(req)) {
+        throw forbidden("Agent skills are managed by your SocialAgent administrator.", { code: "skills_managed" });
+      }
 
       const requestedSkills = normalizeDesiredSkillSelections(req.body.desiredSkills);
       const {

@@ -1470,7 +1470,10 @@ export function AgentDetail() {
         </div>
       )}
 
-      {activeView === "skills" && (
+      {activeView === "skills" && hideAgentRuntime && (
+        <p role="status" className="text-sm text-muted-foreground">Your SocialAgent administrator manages this agent's skills.</p>
+      )}
+      {activeView === "skills" && !hideAgentRuntime && (
         <AgentSkillsTab
           agent={agent}
           companyId={resolvedCompanyId ?? undefined}
@@ -1840,7 +1843,7 @@ export function AgentOverview({
           )}
         </section>
 
-        <section className="rounded-lg border border-border p-4" aria-labelledby="agent-skills-heading">
+        {!hideRuntime && <section className="rounded-lg border border-border p-4" aria-labelledby="agent-skills-heading">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 id="agent-skills-heading" className="text-sm font-medium">Skills</h3>
             <Link className="text-xs text-muted-foreground hover:text-foreground" to={agentDetailHref(agentRouteId, "skills")}>Manage</Link>
@@ -1853,7 +1856,7 @@ export function AgentOverview({
           ) : (
             <p className="text-sm text-muted-foreground">No skills enabled.</p>
           )}
-        </section>
+        </section>}
       </div>
 
       <section className="space-y-3" aria-labelledby="agent-recent-tasks-heading">
