@@ -27,6 +27,7 @@ With the managed gateway configured, SocialAgent runs as a SaaS: only an instanc
   - `PATCH /agents/:id` keeps the agent's adapter, model and AI connection; other fields still apply. Config rollbacks that would change them return 403 `ai_models_managed`.
   - Creating, defaulting, pooling, editing or removing AI connections returns 403 `ai_models_managed`.
   - Team catalog installs ignore `adapterOverrides`; installed agents on the managed adapter join the managed connection with their role models. The agency-core team does the same.
+- **Hidden from company users:** the Apps page omits AI connections (the 9Router connection) and AI provider apps; opening one by id returns 404. Agent routes for instructions, permissions, API keys, revision rollback, connection-intent adoption, Claude login and project access return `403 agent_settings_managed`, and `PATCH /agents/:id` ignores configuration fields outside onboarding setup (profile fields and status still apply).
 - **UI for company users:** the agent form shows the model read-only, bulk model edits are hidden, AI connection forms show a managed notice, and **New agent** asks only for a name and role.
 
 - **Existing agents:** **Move N agents to SocialAgent AI** on the AI models page (`POST /api/instance/ai-models/adopt`) puts every eligible agent on the managed adapter, its role's model and its company's shared connection. Built-in and plugin agents, and agents on remote or custom adapters, are skipped. A company without a managed connection gets one created for its admin or owner.

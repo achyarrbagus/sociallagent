@@ -8,7 +8,7 @@ const SETTINGS_KEY = "default";
 export const CUSTOM_CONNECTOR_SLUG = "custom";
 
 /** AI providers are governed by the AI model lock, not the connector allowlist. */
-function isAiOnly(app: AppDefinition) {
+export function isAiOnly(app: AppDefinition) {
   return Boolean(app.aiConnectionRouter) || (app.methods.length > 0 && app.methods.every((method) => method.purpose === "ai"));
 }
 

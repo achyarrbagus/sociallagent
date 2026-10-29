@@ -2,10 +2,11 @@ import type { Router } from "express";
 import { agents, type Db } from "@paperclipai/db";
 import { eq } from "drizzle-orm";
 import { addAgentProjectAccessSchema } from "@paperclipai/shared";
-import { notFound } from "../errors.js";
+import { forbidden, notFound } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { addAgentProjectAccess, readAgentProjectAccess } from "../services/agent-project-access.js";
 import { assertBoard, assertCompanyAccess, hasCompanyAccess } from "./authz.js";
+import { aiModelsLockedFor } from "./managed-ai-lock.js";
 
 export function registerAgentProjectAccessRoutes(router: Router, db: Db) {
   router.get("/agents/:id/project-access", async (req, res) => {
@@ -17,6 +18,7 @@ export function registerAgentProjectAccessRoutes(router: Router, db: Db) {
   });
   router.post("/agents/:id/project-access", validate(addAgentProjectAccessSchema), async (req, res) => {
     assertBoard(req);
+    if (aiModelsLockedFor(req)) throw forbidden("Agent settings are managed by your SocialAgent administrator.", { code: "agent_settings_managed" });
     const [agent] = await db.select({ id: agents.id, companyId: agents.companyId }).from(agents).where(eq(agents.id, req.params.id as string));
     if (!agent || !hasCompanyAccess(req, agent.companyId)) throw notFound("Agent not found");
     assertCompanyAccess(req, agent.companyId);

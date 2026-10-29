@@ -1,6 +1,7 @@
 import { isCrossSiteOAuthCallbackNavigation, oauthCallbackInterstitialHtml } from "../lib/oauth-browser-return.js";
+import { getAppDefinitionForApplicationKey } from "@paperclipai/shared";
 import { aiModelsLockedFor, assertCanManageAiModels, assertConnectorAllowed, connectorSlugFor } from "./managed-ai-lock.js";
-import { connectorPolicyService } from "../services/connector-policy.js";
+import { connectorPolicyService, isAiOnly } from "../services/connector-policy.js";
 import { aiConnectionRouterPluginKey } from "@paperclipai/shared";
 import { aiConnectionRouterService } from "../services/ai-connection-router.js";
 import { composioAppSetupSchema, composioAppsRefreshSchema, composioAppsSyncSchema, composioAppAccountSchema } from "@paperclipai/shared";
@@ -1604,7 +1605,14 @@ function connectorEnrollmentPrincipal(req: Request): string {
     assertBoard(req);
     const companyId = req.params.companyId as string;
     assertCompanyAccess(req, companyId);
-    res.json({ applications: await svc.listApplications(companyId) });
+    const applications = await svc.listApplications(companyId);
+    // SaaS mode: company users never see which AI provider runs their agents.
+    res.json({ applications: aiModelsLockedFor(req)
+      ? applications.filter((application) => {
+        const definition = getAppDefinitionForApplicationKey(application.applicationKey);
+        return !(definition && isAiOnly(definition));
+      })
+      : applications });
   });
 
   router.post("/companies/:companyId/tools/applications", validate(createToolApplicationSchema), async (req, res) => {
@@ -1672,11 +1680,13 @@ function connectorEnrollmentPrincipal(req: Request): string {
     assertCompanyAccess(req, companyId);
     const connections = await svc.listConnections(companyId, req.actor.userId);
     const canManageConnections = await isToolConnectionManagerQuiet(req, companyId);
+    const visible = filterVisibleToolConnections(connections, {
+      userId: req.actor.userId,
+      canManageConnections,
+    });
+    // SaaS mode: company users never see the AI connection (9Router) behind their agents.
     res.json({
-      connections: filterVisibleToolConnections(connections, {
-        userId: req.actor.userId,
-        canManageConnections,
-      }),
+      connections: aiModelsLockedFor(req) ? visible.filter((connection) => connection.connectionPurpose !== "ai") : visible,
     });
   });
 
@@ -1719,6 +1729,10 @@ function connectorEnrollmentPrincipal(req: Request): string {
       "Tool connection not found",
     );
     if (!connection) return;
+    if (connection.connectionPurpose === "ai" && aiModelsLockedFor(req)) {
+      res.status(404).json({ error: "Tool connection not found" });
+      return;
+    }
     res.json(connection);
   });
 

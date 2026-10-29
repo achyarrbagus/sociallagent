@@ -43,12 +43,12 @@ describe("assistant setup from Connections", () => {
     mocks.connections.mockRejectedValue(new Error("offline"));
     await render(<AssistantConnectionCard onNavigate={vi.fn()} />);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("Couldn’t load your connection status");
-    expect(container.querySelector('[aria-label="Set up Assistant Connection (MCP)"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Set up Connect your AI assistant"]')).toBeNull();
     expect(container.querySelector('[data-connected]')).toBeNull();
     mocks.connections.mockResolvedValue([grant]);
     await act(async () => Array.from(container.querySelectorAll('button')).find(b => b.textContent === "Try again")!.click());
     await flush();
-    expect(container.querySelector('[aria-label="Manage Assistant Connection (MCP)"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Manage Connect your AI assistant"]')).not.toBeNull();
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
   it("uses the canonical URL and explains how OpenCode opens consent without granting access", async () => {
@@ -90,7 +90,7 @@ describe("assistant setup from Connections", () => {
     expect(container.textContent).toContain("No assistants connected to Butter yet");
     expect(container.textContent).not.toContain("Dotta’s OpenCode connection");
     await render(<AssistantConnectionCard onNavigate={vi.fn()} />);
-    expect(container.querySelector('[aria-label="Set up Assistant Connection (MCP)"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="Set up Connect your AI assistant"]')).not.toBeNull();
     expect(container.textContent).not.toContain("Dotta’s OpenCode connection");
   });
   it.each(["https://assistant.example", "my_assistant", "Custom Assistant"])("preserves a custom client’s name: %s", async (clientName) => {

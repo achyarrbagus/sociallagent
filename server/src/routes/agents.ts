@@ -590,6 +590,30 @@ export function agentRoutes(
   const managedGateway = managedGatewayService(db);
 
   /**
+   * SaaS mode: company users see only an agent's Overview and Activity, so
+   * the configuration behind the hidden agent pages is closed to them too.
+   * Agents themselves and instance admins keep these routes.
+   */
+  const SAAS_LOCKED_AGENT_ROUTES: ReadonlyArray<[string, RegExp]> = [
+    ["PATCH", /^\/agents\/[^/]+\/instructions-(path|bundle)$/],
+    ["PUT", /^\/agents\/[^/]+\/instructions-bundle\/file$/],
+    ["DELETE", /^\/agents\/[^/]+\/instructions-bundle\/file$/],
+    ["POST", /^\/agents\/[^/]+\/instructions-bundle\/(restore|candidates\/[^/]+\/resolve)$/],
+    ["PATCH", /^\/agents\/[^/]+\/permissions$/],
+    ["POST", /^\/agents\/[^/]+\/keys$/],
+    ["DELETE", /^\/agents\/[^/]+\/keys\/[^/]+$/],
+    ["POST", /^\/agents\/[^/]+\/config-revisions\/[^/]+\/rollback$/],
+    ["POST", /^\/agents\/[^/]+\/connection-intents\/[^/]+\/adopt$/],
+    ["POST", /^\/agents\/[^/]+\/claude-login$/],
+  ];
+  router.use((req, _res, next) => {
+    if (req.actor?.type !== "board" || req.path.startsWith("/agents/me/")) return next();
+    if (!SAAS_LOCKED_AGENT_ROUTES.some(([method, pattern]) => method === req.method && pattern.test(req.path))) return next();
+    if (!aiModelsLockedFor(req)) return next();
+    next(forbidden("Agent settings are managed by your SocialAgent administrator.", { code: "agent_settings_managed" }));
+  });
+
+  /**
    * SaaS lock for new agents: with admin-managed models, a non-admin caller's
    * adapter, model, runner and AI connection are replaced by the managed
    * adapter, the admin's model for the agent's role and the company's shared
@@ -5454,9 +5478,18 @@ export function agentRoutes(
     const patchData = runtimeSettings
       ? prepareRuntimeSettingsPatch(existing, req.body)
       : { ...(req.body as Record<string, unknown>) };
-    // Admin-managed models: a non-admin patch keeps the agent's adapter,
-    // model and AI connection as they are; every other field still applies.
-    if (aiModelsLockedFor(req)) coerceManagedAgentPatch(existing, patchData);
+    // SaaS mode: a non-admin patch keeps the agent's adapter, model and AI
+    // connection. Outside onboarding setup it may change only the profile
+    // (name, title, icon, appearance, capabilities, role, reports-to, budget)
+    // and the run status; configuration fields are ignored.
+    if (aiModelsLockedFor(req)) {
+      coerceManagedAgentPatch(existing, patchData);
+      if (req.actor.type === "board" && !existing.lifecycleHolds?.includes("setup")) {
+        for (const key of ["adapterType", "adapterConfig", "replaceAdapterConfig", "runtimeConfig", "defaultEnvironmentId", "metadata", "instructionsBundle", "desiredSkills", "storedSessionId", "applyStoredClaudeLogin", "runner"]) {
+          delete patchData[key];
+        }
+      }
+    }
     const runner = patchData.runner as AgentRunnerChoice | undefined;
     delete patchData.runner;
     const requestedStatus = patchData.status;

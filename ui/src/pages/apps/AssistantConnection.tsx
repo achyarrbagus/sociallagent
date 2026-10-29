@@ -47,10 +47,10 @@ export function AssistantConnectionCard({ onNavigate }: { onNavigate: (href: str
     <div className="flex flex-wrap items-center gap-3 px-4 py-4">
       <SocialAgentMark className="size-9 shrink-0 p-1 text-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
-        <h2 className="text-sm font-semibold text-foreground">Assistant Connection (MCP)</h2>
-        <p className="mt-0.5 text-xs text-muted-foreground">Use your SocialAgent organization from Codex, Claude, OpenCode, or another assistant.</p>
+        <h2 className="text-sm font-semibold text-foreground">Connect your AI assistant</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">Work with your agency from the AI assistant you already use.</p>
       </div>
-      <Button type="button" size="sm" variant="outline" onClick={() => onNavigate(ASSISTANT_CONNECTION_PATH)} aria-label={`${action} Assistant Connection (MCP)`}>{action}</Button>
+      <Button type="button" size="sm" variant="outline" onClick={() => onNavigate(ASSISTANT_CONNECTION_PATH)} aria-label={`${action} Connect your AI assistant`}>{action}</Button>
     </div>
     {connections.isPending && <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Checking your connection status…</p>}
     {connections.isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
@@ -98,7 +98,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
     return client.invalidateQueries({ queryKey: connectionsKey });
   } });
   useEffect(() => {
-    setBreadcrumbs([{ label: "Connectors", href: "/apps" }, { label: "Assistant Connection (MCP)" }]);
+    setBreadcrumbs([{ label: "Connectors", href: "/apps" }, { label: "Connect your AI assistant" }]);
     return () => setBreadcrumbs([]);
   }, [setBreadcrumbs]);
   if (!selectedCompanyId || !selectedCompany) return <p className="text-sm text-muted-foreground">Select an organization to connect an assistant.</p>;
@@ -106,7 +106,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
   const invitation = serverUrl ? mcpInvitation(serverUrl, { id: selectedCompanyId, name: selectedCompany.name }) : "";
   return <div className="max-w-3xl space-y-6 pb-8">
     <header className="space-y-4">
-      <div className="flex items-center gap-3"><SocialAgentMark className="size-7 shrink-0" /><h1 className="text-xl font-semibold">Assistant Connection (MCP)</h1></div>
+      <div className="flex items-center gap-3"><SocialAgentMark className="size-7 shrink-0" /><h1 className="text-xl font-semibold">Connect your AI assistant</h1></div>
       <div className="flex items-center gap-3">
         <CompanyPatternIcon companyName={selectedCompany.name} logoUrl={selectedCompany.logoUrl} className="size-12 shrink-0 rounded-lg" />
         <div className="space-y-1"><p className="font-medium">{selectedCompany.name}</p><p className="text-sm text-muted-foreground">Connect your assistant to SocialAgent. Review work, create tasks, and follow up using your account’s access to this organization.</p></div>
@@ -116,7 +116,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
     {setup.error && <div role="alert" className="space-y-3"><p className="text-sm text-destructive">{setupError(setup.error)}</p><Button variant="outline" onClick={() => void setup.refetch()}>Try again</Button></div>}
     {setup.data && !setup.data.enabled && <section className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
       <h2 className="text-sm font-semibold">Enable assistant connections</h2>
-      <p className="text-sm text-muted-foreground">An instance administrator must turn on Assistant connections (MCP) in Experimental settings. Then return here to connect your assistant.</p>
+      <p className="text-sm text-muted-foreground">Your SocialAgent administrator has not turned this on yet. Ask them to enable it, then come back here.</p>
       <Button variant="outline" asChild><Link to="/company/settings/instance/experimental">Open Experimental settings</Link></Button>
     </section>}
     {setup.data?.enabled && <>
@@ -135,7 +135,7 @@ export function AssistantConnection({ initialAssistant = "codex" }: { initialAss
           <p className="text-sm">Choose <strong>{selectedCompany.name}</strong>, review access, then click <strong>Connect organization</strong>.</p>
           <p className="text-xs text-muted-foreground">Creating tasks and adding comments may start agent work using the organization’s configured execution budget.</p>
         </section>
-        <CopyValue value={serverUrl} label="MCP server URL" />
+        <CopyValue value={serverUrl} label="Connection URL" />
       </details>
     </>}
     <section className="space-y-3" aria-labelledby="connected-assistants">

@@ -340,4 +340,32 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     const [otherRow] = await ctx.db.select().from(agents).where(eq(agents.id, other!.id));
     expect(otherRow!.runtimeConfig.aiConnection).toBeUndefined();
   });
+
+  it("closes hidden agent settings and the AI connection behind agents to company users", async () => {
+    enable();
+    const { companyId, actor, app } = await seed();
+    await request(app).post(`/api/companies/${companyId}/onboarding/managed-gateway`).send({ adapterType: "claude_local" });
+    const [agent] = await ctx.db.insert(agents).values({
+      companyId, name: "Udin", role: "designer", adapterType: "claude_local", adapterConfig: {}, runtimeConfig: {},
+    }).returning();
+
+    const agentsApp = routeApp(ctx.db, actor, agentRoutes);
+    for (const [method, path] of [
+      ["post", `/api/agents/${agent!.id}/keys`],
+      ["patch", `/api/agents/${agent!.id}/permissions`],
+      ["patch", `/api/agents/${agent!.id}/instructions-bundle`],
+    ] as const) {
+      const response = await request(agentsApp)[method](path).send({ name: "key" });
+      expect(response.status, `${method} ${path}`).toBe(403);
+      expect(response.body.details).toMatchObject({ code: "agent_settings_managed" });
+    }
+
+    const toolsApp = routeApp(ctx.db, actor, (db) => toolAccessRoutes(db));
+    const connections = await request(toolsApp).get(`/api/companies/${companyId}/tools/connections`);
+    expect(connections.status).toBe(200);
+    expect(connections.body.connections.some((connection: { connectionPurpose: string }) => connection.connectionPurpose === "ai")).toBe(false);
+    const adminTools = routeApp(ctx.db, adminActor(companyId, actor.userId!), (db) => toolAccessRoutes(db));
+    const adminConnections = await request(adminTools).get(`/api/companies/${companyId}/tools/connections`);
+    expect(adminConnections.body.connections.some((connection: { connectionPurpose: string }) => connection.connectionPurpose === "ai")).toBe(true);
+  });
 });
