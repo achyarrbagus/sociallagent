@@ -1,11 +1,16 @@
 # syntax=docker/dockerfile:1.20
+FROM oven/bun:1.4.4-debian AS bun-binary
+
 FROM node:24-trixie-slim AS base
 ARG USER_UID=1000
 ARG USER_GID=1000
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates gosu curl gh git wget ripgrep python3 tini \
-  && rm -rf /var/lib/apt/lists/* \
-  && corepack enable
+  && rm -rf /var/lib/apt/lists/*
+# Bun is the package manager and the server runtime. Node stays for the agent
+# CLIs (Claude Code, Codex, ...), which ship as npm packages.
+COPY --from=bun-binary /usr/local/bin/bun /usr/local/bin/bun
+RUN ln -s /usr/local/bin/bun /usr/local/bin/bunx && bun --version
 
 # Modify the existing node user/group to have the specified UID/GID to match host user
 RUN usermod -u $USER_UID --non-unique node \
@@ -14,7 +19,7 @@ RUN usermod -u $USER_UID --non-unique node \
 
 FROM base AS deps
 WORKDIR /app
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY package.json bun.lock .npmrc ./
 COPY cli/package.json cli/
 COPY server/package.json server/
 COPY ui/package.json ui/
@@ -53,9 +58,8 @@ COPY packages/paperclip-runner/src/drivers/acpx/copilot-installation.ts packages
 COPY server/scripts/install-copilot-assets.mjs server/scripts/
 COPY server/src/services/copilot-connection-probe.ts server/src/services/
 
-# CI owns repository lock updates. Resolve manifest changes in the image's
-# private build tree, then install from that exact generated lock.
-RUN pnpm install --resolution-only --ignore-scripts --no-frozen-lockfile && pnpm install --frozen-lockfile
+# bun.lock is committed with every manifest change; install exactly from it.
+RUN bun install --frozen-lockfile
 
 FROM base AS rust-toolchain
 WORKDIR /app
@@ -137,8 +141,8 @@ RUN find packages/paperclip-runner/runner packages/paperclip-runner/protocol -ty
 # Both the browser bundle and server stamp need the source commit. Declare it
 # after the stable dependency layers, before either application build.
 ARG PAPERCLIP_BUILD_COMMIT=""
-RUN pnpm --filter @paperclipai/ui build
-RUN pnpm --filter @paperclipai/plugin-sdk build
+RUN bun run --filter @paperclipai/ui build
+RUN bun run --filter @paperclipai/plugin-sdk build
 # The server build runs scripts/write-build-stamp.mjs, which stamps the built
 # commit into dist/build-info.json. The build context has no .git, so the
 # script reads PAPERCLIP_BUILD_COMMIT instead. Docker exposes an ARG to the
@@ -146,9 +150,9 @@ RUN pnpm --filter @paperclipai/plugin-sdk build
 # same ARG again for the runtime fallback; an ARG goes out of scope at the
 # end of its stage. Empty for local `docker build`, which then writes no stamp.
 ENV NODE_OPTIONS=--max-old-space-size=4096
-RUN pnpm --filter @paperclipai/server build
+RUN bun run --filter @paperclipai/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
-RUN pnpm --filter @paperclipai/server build:runtime \
+RUN bun run --filter @paperclipai/server build:runtime \
   && test -f server/dist-runtime/index.mjs || (echo "ERROR: server runtime bundle missing" && exit 1)
 RUN rm -rf packages/paperclip-runner/runner/target
 
@@ -240,7 +244,7 @@ EXPOSE 3100
 # tini reaps adopted orphans and forwards signals, so the exec chain below and
 # graceful shutdown are unchanged. Mirrors docker/agent-runtime/Dockerfile.base.
 ENTRYPOINT ["/usr/bin/tini", "-s", "--", "docker-entrypoint.sh"]
-CMD ["node", "server/dist-runtime/index.mjs"]
+CMD ["bun", "server/dist-runtime/index.mjs"]
 
 # Cloud image variant (build with `--target cloud`): the production image
 # plus built bundled sandbox-provider plugins. Managed instances receive a
@@ -253,11 +257,12 @@ CMD ["node", "server/dist-runtime/index.mjs"]
 # lean; CI pins the default build to `--target production`. Both targets
 # inherit the build-owned remote provider pack from the standard image.
 #
-# The sandbox providers are intentionally excluded from the pnpm workspace
-# (see pnpm-workspace.yaml), so each installs standalone exactly as its
+# The sandbox providers are intentionally excluded from the workspace
+# (the `!packages/plugins/sandbox-providers/**` entry in package.json
+# `workspaces`), so each installs standalone exactly as its
 # README prescribes. Installing in a `build`-based stage (not `production`)
 # keeps devDependencies available for tsc: `production` sets
-# NODE_ENV=production, which would make pnpm skip them.
+# NODE_ENV=production, which would make the install skip them.
 #
 # CLOUD_BUNDLED_PLUGINS is the space-separated list of sandbox-provider
 # directory names to build into the variant. Only what managed deployments
@@ -269,8 +274,7 @@ RUN set -eu; \
   for name in $CLOUD_BUNDLED_PLUGINS; do \
     dir="packages/plugins/sandbox-providers/$name"; \
     test -d "$dir" || { echo "ERROR: unknown sandbox provider '$name'" >&2; exit 1; }; \
-    pnpm -C "$dir" install --ignore-workspace --no-lockfile; \
-    pnpm -C "$dir" build; \
+    (cd "$dir" && bun install --no-save && bun run build); \
     test -f "$dir/dist/manifest.js" || { echo "ERROR: $dir is missing dist/manifest.js after build" >&2; exit 1; }; \
   done
 
@@ -298,12 +302,10 @@ RUN set -eu; \
 # The install happens in its own isolated directory, not inside
 # `server`'s own workspace install. The self-hosted target above never
 # gains these packages this way. The directory sits under `/app`, not
-# `server/`, and `--ignore-workspace` below excludes it from the pnpm
-# workspace. From that directory, pnpm still finds the `packageManager`
-# pin in the repo's own `package.json` by walking up — the same pnpm
-# version the rest of the build uses.
+# `server/`, and no `workspaces` glob matches it, so Bun installs it as a
+# standalone project with the same Bun the rest of the build uses.
 #
-# The install writes no lock file (`--no-lockfile`, the same flag the
+# The install writes no lock file (`--no-save`, the same flag the
 # `cloud-plugins` stage above uses). Two builds of the same commit can
 # therefore install different transitive versions of a named package.
 # Three facts make this an accepted trade-off:
@@ -328,7 +330,7 @@ RUN set -eu; \
     specifiers="$specifiers ${name}@${version}"; \
   done; \
   test -n "$specifiers" || { echo "ERROR: CLOUD_BUNDLED_SERVER_DEPS names no package" >&2; exit 1; }; \
-  pnpm add --ignore-workspace --no-lockfile $specifiers
+  bun add --no-save $specifiers
 
 FROM production AS cloud
 COPY --chown=node:node --from=cloud-plugins /app/packages/plugins/sandbox-providers /app/packages/plugins/sandbox-providers
