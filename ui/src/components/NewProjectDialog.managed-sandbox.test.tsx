@@ -83,7 +83,7 @@ function localPathInput() {
   return document.body.querySelector('input[placeholder="/absolute/path/to/workspace"]');
 }
 
-describe("NewProjectDialog — source repositories across host policies", () => {
+describe("NewProjectDialog — agency project folder across host policies", () => {
   it.each([
     ["policy off", {}],
     ["policy unresolved", null],
@@ -91,8 +91,10 @@ describe("NewProjectDialog — source repositories across host policies", () => 
   ] as const)("offers the simplified project form with %s", (_label, settings) => {
     render(settings);
 
-    expect(documentText()).toContain("Source repos");
-    expect(documentText()).toContain("Add GitHub repo");
+    expect(documentText()).toContain("Project folder");
+    expect(documentText()).toContain("Upload folder");
+    expect(documentText()).not.toContain("Source repos");
+    expect(documentText()).not.toContain("Add GitHub repo");
     expect(documentText()).not.toContain("Repo URL");
     expect(documentText()).not.toContain("Local folder");
     expect(localPathInput()).toBeNull();

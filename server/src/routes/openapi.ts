@@ -6997,6 +6997,33 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
+  path: "/api/companies/{companyId}/projects/{projectId}/files",
+  tags: ["projects"],
+  summary: "List files uploaded into a project",
+  request: { params: z.object({ companyId: z.string(), projectId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/projects/{projectId}/files",
+  tags: ["projects"],
+  summary: "Upload one file of a project folder (images, videos, PDFs, documents; 100 MB and 500 files per project)",
+  request: { params: z.object({ companyId: z.string(), projectId: z.string() }) },
+  responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/companies/{companyId}/projects/{projectId}/files/{fileId}",
+  tags: ["projects"],
+  summary: "Remove a file from a project",
+  request: { params: z.object({ companyId: z.string(), projectId: z.string(), fileId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "get",
   path: "/api/instance/settings/connectors",
   tags: ["instance"],
   summary: "Get the Apps catalog connectors company users may connect in SaaS mode",

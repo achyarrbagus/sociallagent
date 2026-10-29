@@ -1,4 +1,5 @@
 import { useShowAgentCreatedTasks } from "../hooks/useShowAgentCreatedTasks";
+import { ProjectFilesPanel } from "../components/ProjectFilesPanel";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Link, useParams, useNavigate, useLocation, Navigate } from "@/lib/router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -904,6 +905,7 @@ export function ProjectDetail() {
             onArchive={(archived) => archiveProject.mutate(archived)}
             archivePending={archiveProject.isPending}
           />
+          {resolvedCompanyId && <ProjectFilesPanel companyId={resolvedCompanyId} projectId={project.id} />}
         </div>
       )}
 

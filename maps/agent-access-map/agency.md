@@ -93,6 +93,12 @@ With the gateway configured, `GET`/`PUT /api/instance/settings/ai-models`,
 are instance-admin only. Non-admin board users and agents cannot change agent
 adapters, models or AI connections (hires are forced to the managed defaults;
 AI connection mutations return 403 `ai_models_managed`).
+`GET`/`PUT /api/instance/settings/connectors` are instance-admin only; in SaaS
+mode non-admins connect only allowed Apps connectors (403
+`connector_not_allowed`). Project files: `GET
+/api/companies/{companyId}/projects/{projectId}/files` for anyone with company
+access (agents included); `POST` and `DELETE .../files/{fileId}` for board
+members who are not viewers.
 
 Policy: Default `agency-core` team installed only by onboarding (Director is the sole
 recurring task); optional Agency Studio package is never automatic. No other scheduled jobs,
