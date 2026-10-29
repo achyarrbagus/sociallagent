@@ -1,0 +1,1 @@
+ALTER TABLE "instance_settings" ADD COLUMN "ai_models" jsonb DEFAULT '{}'::jsonb NOT NULL;

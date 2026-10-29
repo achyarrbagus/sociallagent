@@ -78,6 +78,8 @@ import { goalsApi } from "../api/goals";
 import { agentsApi } from "../api/agents";
 import { approvalsApi } from "../api/approvals";
 import { ensureAgencyTeam } from "../api/onboarding-agency-team";
+import { ensureManagedGateway, getManagedGatewayStatus } from "../api/onboarding-managed-gateway";
+import type { EnsureManagedGatewayResult } from "@paperclipai/shared";
 import { issuesApi } from "../api/issues";
 import { projectsApi } from "../api/projects";
 import { environmentsApi } from "../api/environments";
@@ -822,6 +824,68 @@ function OnboardingWizardInner({
   const connectionModelReady = (!hasGatewaySelection && !connectionModels) || Boolean(connectionModels
     && (!hasGatewaySelection || (!connectionModelState.error && !connectionModelState.refreshing))
     && model.trim() && (connectionModels.models.length === 0 || connectionModels.models.some(entry => entry.id === model.trim())));
+  /**
+   * The instance-managed 9Router gateway. When the operator configured one,
+   * the connect step chooses the source and the company's shared connection
+   * itself: the owner never sees a key field, only the model and Connect.
+   */
+  const managedGateway = useQuery({
+    queryKey: ["onboarding", "managed-gateway", createdCompanyId],
+    queryFn: () => getManagedGatewayStatus(createdCompanyId!),
+    enabled: effectiveOnboardingOpen && Boolean(createdCompanyId) && (step === 3 || step === 4),
+    staleTime: 60_000,
+  });
+  const managedGatewayEnabled = managedGateway.data?.enabled === true;
+  const [managedConnection, setManagedConnection] = useState<{ companyId: string; result: EnsureManagedGatewayResult; adapterType: "claude_local" | "codex_local" } | null>(null);
+  const [managedGatewayError, setManagedGatewayError] = useState<string | null>(null);
+  const [managedGatewayAttempt, setManagedGatewayAttempt] = useState(0);
+  const managedGatewayRequestRef = useRef<string | null>(null);
+  const managedActive = managedGatewayEnabled && managedConnection?.companyId === createdCompanyId;
+  useEffect(() => {
+    if (step !== 4 || !createdCompanyId || !managedGateway.data?.enabled) return;
+    if (managedConnection?.companyId === createdCompanyId) return;
+    const requestKey = `${createdCompanyId}:${managedGatewayAttempt}`;
+    if (managedGatewayRequestRef.current === requestKey) return;
+    managedGatewayRequestRef.current = requestKey;
+    const companyId = createdCompanyId;
+    const target = managedGateway.data.defaultAdapterType;
+    setManagedGatewayError(null);
+    ensureManagedGateway(companyId, target).then((result) => {
+      if (createdCompanyIdRef.current !== companyId) return;
+      setManagedConnection({ companyId, result, adapterType: target });
+    }).catch((cause) => {
+      if (createdCompanyIdRef.current !== companyId) return;
+      setManagedGatewayError(cause instanceof Error ? cause.message : "Could not connect SocialAgent AI.");
+    });
+  }, [step, createdCompanyId, managedGateway.data, managedConnection, managedGatewayAttempt]);
+  // Arriving on the step (or returning to it) answers the source row with the
+  // managed connection, the same way picking a tile and saving a gateway would.
+  useEffect(() => {
+    if (step !== 4 || !managedActive || !managedConnection || connectPhase !== "idle" || !createdCompanyId) return;
+    if (managedConnection.adapterType !== adapterType) {
+      setRunner("auto");
+      setModel("");
+    }
+    setAdapterType(managedConnection.adapterType);
+    setSourcePicked(true);
+    setCredentialMode("api");
+    setSelectedSavedKey(null);
+    setApiKey("");
+    setGatewayConnection({ companyId: createdCompanyId, adapterType: managedConnection.adapterType, binding: managedConnection.result.binding });
+    setConnectPhase("collapsing");
+  }, [step, managedActive, managedConnection, connectPhase, createdCompanyId, adapterType]);
+  // Pick the operator's model when the gateway offers it, otherwise its first.
+  useEffect(() => {
+    if (!managedActive || !hasGatewaySelection || !connectionModels || connectionModels.models.length === 0) return;
+    if (model.trim() && connectionModels.models.some((entry) => entry.id === model.trim())) return;
+    // A gateway lists every provider's models; without the operator's choice,
+    // prefer one that matches the agent so Claude is not handed a GPT model.
+    const preferred = managedConnection?.result.model;
+    const family = adapterType === "claude_local" ? /claude/i : /gpt|codex/i;
+    setModel(preferred && connectionModels.models.some((entry) => entry.id === preferred)
+      ? preferred
+      : (connectionModels.models.find((entry) => family.test(entry.id)) ?? connectionModels.models[0]!).id);
+  }, [managedActive, hasGatewaySelection, connectionModels, model, managedConnection, adapterType]);
   createdCompanyIdRef.current = createdCompanyId;
 
   // The step the request wants, mirrored for the same reason. `initialStep` is
@@ -1643,6 +1707,20 @@ function OnboardingWizardInner({
    * a check. This one would be worse: Cmd+Enter would hire before the sign-in
    * it is meant to start, against a source with no credential.
    */
+  // Admin-managed models: there is nothing for the owner to choose on this
+  // step, so the hire starts on its own once the managed connection and the
+  // admin's model are in place. A failed attempt stays on the step with the
+  // Connect button for a manual retry.
+  const managedAutoConnectRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (step !== 4 || !managedActive || !hasGatewaySelection || connectPhase !== "ready") return;
+    if (connectCta.label !== "Connect" || connectCta.disabled || loading || createdAgentId) return;
+    const key = `${createdCompanyId}:${model}`;
+    if (managedAutoConnectRef.current === key) return;
+    managedAutoConnectRef.current = key;
+    handleConnectStepPrimary();
+  });
+
   function handleConnectStepPrimary() {
     if (setupError) { setSetupError(false); setSetupAttempt(value => value + 1); setError(null); return; }
     // Mid-sequence the button belongs to the sign-in, not to the step.
@@ -3066,6 +3144,13 @@ function OnboardingWizardInner({
 
                         Picking one starts the sign-in now. The row is the
                         question, and answering it is what opens the card. */}
+                    {managedGatewayEnabled && !managedActive && (managedGatewayError ? <div className="mb-4 space-y-2">
+                      <p role="alert" className="text-sm text-destructive">{managedGatewayError}</p>
+                      <Button type="button" variant="outline" onClick={() => setManagedGatewayAttempt((value) => value + 1)}>
+                        Retry connecting SocialAgent AI
+                      </Button>
+                    </div> : <p role="status" className="mb-4 text-sm text-muted-foreground">Connecting SocialAgent AI…</p>)}
+                    {!managedGatewayEnabled && (
                     <ModelSourceTiles
                       label="Model source"
                       sources={recommendedAdapters.map((opt) => ({
@@ -3096,6 +3181,7 @@ function OnboardingWizardInner({
                         setConnectPhase("collapsing");
                       }}
                     />
+                    )}
 
                     {/* Fades on the first beat but keeps its space until the
                         second, so pressing a tile moves nothing vertically.
@@ -3120,7 +3206,7 @@ function OnboardingWizardInner({
                       transition={{ opacity: SOURCE_LINK_EXIT, height: MAKE_ROOM }}
                     >
                       <div className="-ml-3 mt-1">
-                        <CredentialModeLink mode={credentialMode} onChange={setCredentialMode} />
+                        {!managedGatewayEnabled && <CredentialModeLink mode={credentialMode} onChange={setCredentialMode} />}
                         {savedKeys.options.length > 0 && <p className="px-3 text-sm text-muted-foreground">{savedKeys.options.length} saved API {savedKeys.options.length === 1 ? "key available" : "keys available"}.</p>}
                         {credentialMode === "subscription" && authSignalStatus === "present" && <p className="px-3 text-sm text-muted-foreground">An existing provider connection is available.</p>}
                       </div>
@@ -3197,7 +3283,7 @@ function OnboardingWizardInner({
                       </OnboardingLoginCard>
                     ) : credentialMode === "api" ? (
                       <OnboardingLoginCard
-                        instruction={hasGatewaySelection || connectionModels ? "Choose a model for your saved connection" : savedKeys.options.length ? "Choose a saved API key or enter a new one" : `Provide your ${
+                        instruction={managedActive && hasGatewaySelection ? "SocialAgent AI is ready. No API key needed." : hasGatewaySelection || connectionModels ? "Choose a model for your saved connection" : savedKeys.options.length ? "Choose a saved API key or enter a new one" : `Provide your ${
                           CONNECT_SOURCE_NAMES[adapterType] ?? adapterType
                         } API key to connect`}
                       >
@@ -3229,12 +3315,19 @@ function OnboardingWizardInner({
                           </Button>
                         </> : <p role="status" className="text-sm text-muted-foreground">{connectionModelState.refreshing
                           ? "Loading your saved gateway connection…"
-                          : "Gateway connection saved. Choose a model, then Connect to test it and finish setting up your agent."}</p>)}
-                        {connectionModels && <ModelDropdown models={connectionModels.models} value={model}
+                          : managedActive
+                            ? "Your agents use SocialAgent AI through 9Router. Press Connect to finish setting up your agent."
+                            : "Gateway connection saved. Choose a model, then Connect to test it and finish setting up your agent."}</p>)}
+                        {managedActive && hasGatewaySelection && <p className="text-sm">
+                          <span className="text-muted-foreground">Model: </span>
+                          <span className="font-mono">{model || "Choosing…"}</span>
+                          <span className="text-muted-foreground"> · set by your administrator</span>
+                        </p>}
+                        {connectionModels && !managedActive && <ModelDropdown models={connectionModels.models} value={model}
                           onChange={setModel} open={modelOpen} onOpenChange={setModelOpen}
                           allowDefault={false} required groupByProvider={false}
                           creatable={connectionModels.models.length === 0} presentation="native" />}
-                        {createdCompanyId && (adapterType === "codex_local" || adapterType === "claude_local") && <OnboardingGatewaySetup
+                        {!managedActive && createdCompanyId && (adapterType === "codex_local" || adapterType === "claude_local") && <OnboardingGatewaySetup
                           companyId={createdCompanyId} agentId={setupAgentId ?? undefined} environmentId={resolvedLoginEnvironmentId ?? undefined}
                           adapterType={adapterType} disabled={loading || adapterEnvLoading}
                           onComplete={binding => {
@@ -3243,7 +3336,7 @@ function OnboardingWizardInner({
                             setModel("");
                             setError(null);
                           }} />}
-                        {(hasGatewaySelection || connectionModels) && <Button type="button" variant="ghost" disabled={loading || adapterEnvLoading} onClick={() => {
+                        {!managedActive && (hasGatewaySelection || connectionModels) && <Button type="button" variant="ghost" disabled={loading || adapterEnvLoading} onClick={() => {
                           setGatewayConnection(undefined);
                           setSelectedSavedKey({ companyId: createdCompanyId!, envKey: apiKeyEnvKeyFor(adapterType), id: "" });
                           setModel("");

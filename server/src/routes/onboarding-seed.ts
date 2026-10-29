@@ -1,17 +1,20 @@
 import { Router } from "express";
 import type { Db } from "@paperclipai/db";
-import { applyOnboardingSeedSchema, ensureAgencyTeamSchema } from "@paperclipai/shared";
+import { applyOnboardingSeedSchema, ensureAgencyTeamSchema, ensureManagedGatewaySchema } from "@paperclipai/shared";
 import { validate } from "../middleware/index.js";
 import { agencyCoreTeamService, type EnsureAgencyCoreTeamResult } from "../services/agency-core-team.js";
 import { onboardingSeedService } from "../services/onboarding-seed.js";
 import { accessService } from "../services/access.js";
+import { managedGatewayService } from "../services/managed-gateway.js";
 import {
   assertBoard,
   assertBoardCanCreateAgents,
   assertCompanyAccess,
   boardCanCreateAgents,
   getActorInfo,
+  isInstanceAdminRequest,
 } from "./authz.js";
+import { forbidden } from "../errors.js";
 
 /**
  * Receiver for the onboarding seed Paperclip Cloud collects at signup and
@@ -45,8 +48,9 @@ import {
  * installed only for a board user who passes the same `agents:create` gate as
  * the board retry route; any other actor gets the seed without the team.
  */
-export function onboardingSeedRoutes(db: Db) {
+export function onboardingSeedRoutes(db: Db, options: { managedGateway?: ReturnType<typeof managedGatewayService> } = {}) {
   const router = Router();
+  const managedGateway = options.managedGateway ?? managedGatewayService(db);
   const svc = onboardingSeedService(db);
   const agencyTeam = agencyCoreTeamService(db);
   const access = accessService(db);
@@ -102,6 +106,34 @@ export function onboardingSeedRoutes(db: Db) {
       await assertBoardCanCreateAgents(req, companyId, access);
       const result = await agencyTeam.ensureInstalled(companyId, req.body.agentId, getActorInfo(req));
       res.status(200).json(result);
+    },
+  );
+
+  // Instance-managed 9Router: the operator sets the key in the server
+  // environment, so owners finish onboarding without entering a credential.
+  router.get("/companies/:companyId/onboarding/managed-gateway", (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertBoard(req);
+    assertCompanyAccess(req, companyId);
+    res.status(200).json(managedGateway.status(isInstanceAdminRequest(req)));
+  });
+
+  // Creates (or reuses) the company's shared 9Router connection for every
+  // agent. The save writes `ai_connection.connected` to the activity log.
+  router.post(
+    "/companies/:companyId/onboarding/managed-gateway",
+    validate(ensureManagedGatewaySchema),
+    async (req, res) => {
+      const companyId = req.params.companyId as string;
+      assertBoard(req);
+      assertCompanyAccess(req, companyId);
+      // The connection is the administrator's, so any active non-viewer
+      // member may attach their company to it; nobody supplies a key.
+      const membership = req.actor.memberships?.find((m) => m.companyId === companyId && m.status === "active");
+      if (!isInstanceAdminRequest(req) && (!membership || membership.membershipRole === "viewer")) {
+        throw forbidden("Only an active company member can connect SocialAgent AI");
+      }
+      res.status(200).json(await managedGateway.ensure(companyId, getActorInfo(req).actorId, req.body.adapterType));
     },
   );
 

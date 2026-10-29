@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Bot,
+  Plug,
   Cpu,
   Download,
   FlaskConical,
@@ -22,6 +24,7 @@ import { NavLink } from "@/lib/router";
 import { INSTANCE_SETTINGS_PATH_PREFIX } from "@/lib/instance-settings";
 import { SIDEBAR_SCROLL_RESET_STATE } from "@/lib/navigation-scroll";
 import { queryKeys } from "@/lib/queryKeys";
+import { accessApi } from "@/api/access";
 import { useCompany } from "@/context/CompanyContext";
 import { useCloudInstance } from "@/hooks/useCloudInstance";
 import { useHiddenSettings } from "@/hooks/useHiddenSettings";
@@ -47,6 +50,8 @@ export function CompanySettingsSidebar() {
   const { hidden: hiddenSettings } = useHiddenSettings();
   const showPage = (pageKey: string) => !hiddenSettings.has(pageKey);
   const showPlugins = showPage("instance.plugins");
+  const boardAccess = useQuery({ queryKey: queryKeys.access.currentBoardAccess, queryFn: accessApi.getCurrentBoardAccess });
+  const isInstanceAdmin = boardAccess.data?.source === "local_implicit" || boardAccess.data?.isInstanceAdmin === true;
   // Import is floored server-side on cloud-managed instances (403 cloud_managed), so the
   // nav entry is hidden rather than dead-ending. Export stays available.
   const isCloud = Boolean(useCloudInstance());
@@ -157,6 +162,20 @@ export function CompanySettingsSidebar() {
           )}
           {!isCloud && showPage("company.import") && (
             <SidebarNavItem to="/company/import" label="Import" icon={Upload} end />
+          )}
+          {isInstanceAdmin && (
+            <SidebarNavItem
+              to={`${INSTANCE_SETTINGS_PATH_PREFIX}/ai-models`}
+              label="AI models"
+              icon={Bot}
+            />
+          )}
+          {isInstanceAdmin && (
+            <SidebarNavItem
+              to={`${INSTANCE_SETTINGS_PATH_PREFIX}/connectors`}
+              label="Connectors"
+              icon={Plug}
+            />
           )}
           {showPage("instance.experimental") && (
             <SidebarNavItem

@@ -17,11 +17,11 @@ existing names when following setup instructions; no data migration is required
 for the display rebrand. Paperclip Cloud and Paperclip ID remain the names of
 upstream services.
 
-|        | Step            | Example                                                            |
-| ------ | --------------- | ------------------------------------------------------------------ |
-| **01** | Define the goal | _"Build the #1 AI note-taking app to $1M MRR."_                    |
-| **02** | Hire the team   | CEO, CTO, engineers, designers, marketers — any bot, any provider. |
-| **03** | Approve and run | Review strategy. Set budgets. Hit go. Monitor from the dashboard.  |
+|        | Step              | What happens                                                       |
+| ------ | ----------------- | ------------------------------------------------------------------ |
+| **01** | Name your agency | Create the organization and name your Agency Director.             |
+| **02** | Get the team      | The Director arrives with 11 specialists: strategy, copy, design, SEO, publishing. |
+| **03** | Review and run    | Add clients and brands, approve content revisions, track tasks and costs. |
 
 <br/>
 
@@ -51,6 +51,40 @@ upstream services.
 Custom processes, HTTP endpoints, and external adapter packages extend the roster. See the [adapter overview](https://docs.paperclip.ing/reference/adapters/overview/) for setup and capabilities.
 
 <br/>
+
+## SocialAgent AI: managed models (SaaS mode)
+
+SocialAgent can run as a SaaS where the operator supplies the AI models.
+Owners then finish onboarding without an API key, and only an instance admin
+chooses which model each agent runs.
+
+1. Put the operator's 9Router key in the server environment, for example
+   `server/.env` (git-ignored) or `~/.paperclip/instances/default/.env`:
+
+   ```sh
+   SOCIALAGENT_9ROUTER_API_KEY=<your 9Router key>
+   # optional
+   SOCIALAGENT_9ROUTER_BASE_URL=https://9router.amifish.com/v1
+   SOCIALAGENT_9ROUTER_ADAPTER=claude_local          # or codex_local
+   SOCIALAGENT_9ROUTER_CLAUDE_MODEL=ocz/claude-sonnet-5
+   SOCIALAGENT_9ROUTER_CODEX_MODEL=ocz/gpt-5.3-codex
+   ```
+
+2. Restart SocialAgent (`pnpm dev`).
+3. Onboarding connects each new company to a shared **9Router** connection.
+   The owner names the organization and the Agency Director, then presses
+   **Connect**. The agency team uses the same connection.
+4. As instance admin, open **Settings → AI models** to pick a default model and
+   a model per agent role (Agency Director, Designer, Researcher, …). **Save
+   and apply** moves every managed agent to its role's model.
+
+With the key set, the server locks adapters, models and AI connections for
+everyone who is not an instance admin. New agents get the managed adapter, the
+role's model and the shared connection. Agent edits keep them. AI connection
+changes return `403 ai_models_managed`. Without the key, SocialAgent behaves
+like Paperclip and owners connect models themselves.
+
+See [doc/9router.md](doc/9router.md) for the full reference and current limits.
 
 ## Paperclip is right for you if
 

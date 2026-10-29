@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useManagedAiLock } from "../../hooks/useManagedAiLock";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Network, Monitor } from "lucide-react";
 import {
@@ -124,6 +125,7 @@ export function AiProviderSetup({
   );
   const [apiKey, setApiKey] = useState("");
   const client = useQueryClient();
+  const { locked: aiModelsLocked } = useManagedAiLock(companyId);
   const accounts = useQuery({
     queryKey: ["ai-connections", companyId, agentId],
     queryFn: () => aiConnectionsApi.list(companyId, agentId),
@@ -276,6 +278,12 @@ export function AiProviderSetup({
     />
   ) : undefined;
   const cancel = () => reconnect || initialProvider ? onCancel() : setStep("provider");
+  if (aiModelsLocked) return (
+    <div role="status" className="space-y-3 text-sm">
+      <p>AI models are managed by your SocialAgent administrator. Your agents already use SocialAgent AI, so no API key is needed.</p>
+      {onCancel && <Button type="button" variant="ghost" onClick={onCancel}>Close</Button>}
+    </div>
+  );
   if (!reconnect && accounts.isPending) return <p role="status">Loading connection permissions…</p>;
   if (!reconnect && accounts.isError) return <p role="alert">Could not load connection permissions. <Button type="button" variant="ghost" onClick={() => void accounts.refetch()}>Retry</Button></p>;
   return (

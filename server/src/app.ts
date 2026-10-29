@@ -117,6 +117,8 @@ import { goalRoutes } from "./routes/goals.js";
 import { agencyRoutes } from "./routes/agency.js";
 import { agencyContentRoutes } from "./routes/agency-content.js";
 import { onboardingSeedRoutes } from "./routes/onboarding-seed.js";
+import { managedAiAdminRoutes } from "./routes/managed-ai-admin.js";
+import { projectFileRoutes } from "./routes/project-files.js";
 import { boardChatRoutes } from "./routes/board-chat.js";
 import { approvalRoutes } from "./routes/approvals.js";
 import { secretRoutes } from "./routes/secrets.js";
@@ -878,6 +880,8 @@ export async function createApp(
   api.use(agencyRoutes(db));
   api.use(agencyContentRoutes(db));
   api.use(onboardingSeedRoutes(db));
+  api.use(managedAiAdminRoutes(db));
+  api.use(projectFileRoutes(db, opts.storageService));
   api.use(boardChatRoutes(db, { deploymentMode: opts.deploymentMode }));
   api.use(voiceSessionRoutes(db, chatChannels.voice));
   api.use(approvalRoutes(db, { pluginWorkerManager: workerManager }));

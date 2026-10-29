@@ -1,4 +1,5 @@
 import { taskInterruptionPresentation, taskInterruptionPresentations } from "../services/task-interruption-presentation.js";
+import { projectFilesService } from "../services/project-files.js";
 import { parseObject } from "../adapters/utils.js";
 import { prepareRestrictedWorkspaceRetry } from "../services/restricted-workspace-retry.js";
 import { issueSummariesQuerySchema, type IssueSummary } from "@paperclipai/shared";
@@ -9008,6 +9009,18 @@ export function issueRoutes(
       recoveryActionsSvc.getActiveForIssue(issue.companyId, issue.id),
     ]);
     const visibleProject = await visibleIssueProject(req, project);
+    // The project's uploaded folder (brand assets, briefs, references), so the
+    // agent knows what material exists before it starts the task.
+    const projectFiles = visibleProject
+      ? await projectFilesService(db, storage).list(issue.companyId, visibleProject.id)
+        .then((result) => result.files.map((file) => ({
+          path: file.path,
+          contentType: file.contentType,
+          byteSize: file.byteSize,
+          contentPath: file.contentPath,
+        })))
+        .catch(() => [])
+      : [];
     const recoveryActionsByRelationIssue = await relationRecoveryActionMap(
       recoveryActionsSvc,
       issue.companyId,
@@ -9090,6 +9103,7 @@ export function issueRoutes(
             name: visibleProject.name,
             status: visibleProject.status,
             targetDate: visibleProject.targetDate,
+            files: projectFiles,
           }
         : null,
       goal: goal

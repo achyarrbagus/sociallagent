@@ -87,7 +87,7 @@ export const runnerApiReference: Record<string, { section: string; description?:
   },
   "GET /api/issues/{}/heartbeat-context": {
     "section": "Issues (Tasks)",
-    "description": "Compact issue context including `currentExecutionWorkspace` when one is linked"
+    "description": "Compact issue context including `currentExecutionWorkspace` when one is linked and `project.files`"
   },
   "GET /api/issues/{}/diagnostics/blockers": {
     "section": "Issues (Tasks)",
@@ -500,6 +500,10 @@ export const runnerApiReference: Record<string, { section: string; description?:
   "GET /api/projects/{}": {
     "section": "Companies, Projects, Goals",
     "description": "Project details"
+  },
+  "GET /api/companies/{}/projects/{}/files": {
+    "section": "Companies, Projects, Goals",
+    "description": "List the project's uploaded files (`path`, `contentType`, `byteSize`, `contentPath`); read one with `GET contentPath`"
   },
   "POST /api/companies/{}/projects": {
     "section": "Companies, Projects, Goals",

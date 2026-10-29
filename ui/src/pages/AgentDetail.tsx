@@ -1,4 +1,5 @@
 import { modelDisplayName } from "@/lib/model-display";
+import { useManagedAiLock } from "../hooks/useManagedAiLock";
 import { useSelectedHeartbeatRun } from "../hooks/useSelectedHeartbeatRun";
 import { grokBotApi } from "@/api/grokBot";
 import { GrokBotWorkSummary } from "@/components/GrokBotWorkSummary";
@@ -829,6 +830,8 @@ export function AgentDetail() {
   });
   const lifecycle = useAgentLifecycleStatus(agent);
   const resolvedCompanyId = agent?.companyId ?? selectedCompanyId;
+  const managedAiLock = useManagedAiLock(resolvedCompanyId);
+  const hideAgentRuntime = managedAiLock.locked && !managedAiLock.canManage;
   const canonicalAgentRef = agent ? agentRouteRef(agent) : routeAgentRef;
   const handleLegacyTabChange = useCallback((next: string) => {
     if (!prepareAgentNavigation()) return;
@@ -1431,7 +1434,10 @@ export function AgentDetail() {
         </div>
       )}
 
-      {activeView === "runtime" && (
+      {activeView === "runtime" && hideAgentRuntime && (
+        <p role="status" className="text-sm text-muted-foreground">Your SocialAgent administrator manages this agent's harness and runtime.</p>
+      )}
+      {activeView === "runtime" && !hideAgentRuntime && (
         <div>
           <ConfigurationTab
             agent={agent}
@@ -1740,6 +1746,9 @@ export function AgentOverview({
   agentRouteId: string;
 }) {
   const designSandbox = useDesignSandbox();
+  // Admin-managed models: company users see the model, not the harness behind it.
+  const managedAi = useManagedAiLock(agent.companyId);
+  const hideRuntime = managedAi.locked && !managedAi.canManage;
   const issuesById = useMemo(() => {
     const map = new Map<string, (typeof assignedIssues)[number]>();
     for (const issue of assignedIssues) map.set(issue.id, issue);
@@ -1808,11 +1817,11 @@ export function AgentOverview({
 
         <section className="rounded-lg border border-border p-4" aria-labelledby="agent-runtime-heading">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 id="agent-runtime-heading" className="text-sm font-medium">Harness / Runtime</h3>
-            <Link className="text-xs text-muted-foreground hover:text-foreground" to={agentDetailHref(agentRouteId, "runtime")}>Configure</Link>
+            <h3 id="agent-runtime-heading" className="text-sm font-medium">{hideRuntime ? "Runtime" : "Harness / Runtime"}</h3>
+            {!hideRuntime && <Link className="text-xs text-muted-foreground hover:text-foreground" to={agentDetailHref(agentRouteId, "runtime")}>Configure</Link>}
           </div>
           <div className="space-y-3">
-            <SummaryRow label="Adapter"><span className="text-sm">{getAdapterDisplay(agentDisplayAdapterType(agent)).label}</span></SummaryRow>
+            {!hideRuntime && <SummaryRow label="Adapter"><span className="text-sm">{getAdapterDisplay(agentDisplayAdapterType(agent)).label}</span></SummaryRow>}
             {agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "grok_bot" ? <><SummaryRow label="Execution"><span className="text-sm">Runs in Grok Bot</span></SummaryRow><SummaryRow label="Usage"><span className="text-sm">Not reported</span></SummaryRow></> : <SummaryRow label="Model"><span className="max-w-64 truncate text-sm font-mono">{configuredModel}</span></SummaryRow>}
             <SummaryRow label="Session"><span className="max-w-64 truncate text-sm font-mono">{runtimeState?.sessionDisplayId ?? runtimeState?.sessionId ?? "No session"}</span></SummaryRow>
             <SummaryRow label="Last run">

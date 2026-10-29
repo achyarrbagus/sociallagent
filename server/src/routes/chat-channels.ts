@@ -1,4 +1,6 @@
 import { slackTestMessageSchema, slackRegistrationSchema, slackSetupActionSchema, slackManagedProvisionSchema } from "@paperclipai/shared";
+import { assertConnectorAllowed } from "./managed-ai-lock.js";
+import { connectorSlugForChatProvider } from "../services/connector-policy.js";
 import { isCrossSiteOAuthCallbackNavigation, oauthCallbackInterstitialHtml } from "../lib/oauth-browser-return.js";
 import {
   Router,
@@ -164,6 +166,7 @@ export function chatChannelRoutes(db: Db, options: ChatChannelRouteOptions) {
     async (req, res) => {
       const companyId = req.params.companyId as string;
       await assertConnectionManager(req, companyId);
+      await assertConnectorAllowed(db, req, connectorSlugForChatProvider(String(req.body.provider)));
       if (req.body.provider === "slack" && !req.body.slackSetupMethod) {
         req.body.slackSetupMethod = service.slackRegistration.managerGrants.defaultMethod();
       }

@@ -1,4 +1,5 @@
 import { createAgentLifecycle } from "./agent-lifecycle.js";
+import { managedGatewayService } from "./managed-gateway.js";
 import { agentAppearanceSchema, agentHarnessType, agentRunner, type AgentRunnerChoice } from "@paperclipai/shared";
 import { resolveNewAgentRunnerForCompany } from "./agent-runner-selection.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -6531,6 +6532,17 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         if (attachmentsSkippedNoStorage > 0) {
           warnings.push(`Skipped ${attachmentsSkippedNoStorage} attachment${attachmentsSkippedNoStorage === 1 ? "" : "s"} because storage is unavailable.`);
         }
+      }
+
+      // SocialAgent SaaS mode: imported agents run on the managed 9Router
+      // connection with the admin's model for their role.
+      const managedGateway = managedGatewayService(db);
+      const importedAgentIds = resultAgents
+        .filter((agent) => agent.action === "created" && agent.id)
+        .map((agent) => agent.id as string);
+      if (managedGateway.enabled() && importedAgentIds.length > 0) {
+        const adopted = await managedGateway.adoptCompanyAgents(targetCompany.id, actorUserId ?? null, importedAgentIds);
+        for (const failure of adopted.failed) warnings.push(`SocialAgent AI was not applied${failure.agentId ? ` to agent ${failure.agentId}` : ""}: ${failure.error}`);
       }
 
       return {

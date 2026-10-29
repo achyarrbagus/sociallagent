@@ -1,6 +1,6 @@
 import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestationSchema, createGrokInvitationSchema, configureGrokRoutineSchema, verifyGrokRoutineSchema, recoverGrokRoutineSchema, pairGrokBindingSchema, stopGrokWorkSchema, retryGrokDeliverySchema, updateFastResponseSchema } from "@paperclipai/shared";
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@paperclipai/shared";
-import { ensureAgencyTeamSchema } from "@paperclipai/shared";
+import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema, updateAllowedConnectorsSchema } from "@paperclipai/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
 import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema } from "@paperclipai/shared";
 import { createAgencyContentSchema, reviseAgencyContentSchema, decideAgencyContentSchema, linkAgencyContentTaskSchema, contentRevisionExpectationSchema, listAgencyContentSchema } from "@paperclipai/shared";
@@ -6979,6 +6979,91 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/api/instance/settings/ai-models",
+  tags: ["instance"],
+  summary: "Get the admin-managed model policy for the 9Router gateway",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/api/instance/settings/ai-models",
+  tags: ["instance"],
+  summary: "Set the model per agent role and apply it to every managed agent",
+  request: { body: jsonBody(managedAiModelPolicySchema) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/companies/{companyId}/projects/{projectId}/files",
+  tags: ["projects"],
+  summary: "List files uploaded into a project",
+  request: { params: z.object({ companyId: z.string(), projectId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/projects/{projectId}/files",
+  tags: ["projects"],
+  summary: "Upload one file of a project folder (images, videos, PDFs, documents; 100 MB and 500 files per project)",
+  request: { params: z.object({ companyId: z.string(), projectId: z.string() }) },
+  responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/companies/{companyId}/projects/{projectId}/files/{fileId}",
+  tags: ["projects"],
+  summary: "Remove a file from a project",
+  request: { params: z.object({ companyId: z.string(), projectId: z.string(), fileId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/instance/settings/connectors",
+  tags: ["instance"],
+  summary: "Get the Apps catalog connectors company users may connect in SaaS mode",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/api/instance/settings/connectors",
+  tags: ["instance"],
+  summary: "Set the Apps catalog connectors company users may connect in SaaS mode",
+  request: { body: jsonBody(updateAllowedConnectorsSchema) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/instance/ai-models/adopt",
+  tags: ["instance"],
+  summary: "Move every eligible agent onto SocialAgent AI with the model for its role",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/instance/ai-models/catalog",
+  tags: ["instance"],
+  summary: "List the models the managed 9Router gateway offers",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/instance/ai-models/agents",
+  tags: ["instance"],
+  summary: "List every agent with its role, adapter and current model",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
   method: "patch",
   path: "/api/instance/settings/general",
   tags: ["instance"],
@@ -8376,6 +8461,24 @@ registry.registerPath({
   summary: "Install the default agency team under the onboarding Agency Director",
   request: { params: z.object({ companyId: z.string() }), body: jsonBody(ensureAgencyTeamSchema) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 409: r.conflict, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/companies/{companyId}/onboarding/managed-gateway",
+  tags: ["companies"],
+  summary: "Report whether the instance-managed 9Router gateway is configured",
+  request: { params: z.object({ companyId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/onboarding/managed-gateway",
+  tags: ["companies"],
+  summary: "Connect the company to the instance-managed 9Router gateway",
+  request: { params: z.object({ companyId: z.string() }), body: jsonBody(ensureManagedGatewaySchema) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
 });
 
 registry.registerPath({

@@ -2640,6 +2640,32 @@ precedence and dependency failures use the original built-in detector.
   completes. `POST /companies/:companyId/onboarding-seed` installs the team and
   returns `agencyTeam`. The wizard hires the Director (role `ceo`, editable name,
   default "Agency Director") and calls the route, including on reuse/reopen.
+- Instance-managed 9Router: when the server has `SOCIALAGENT_9ROUTER_API_KEY`,
+  `GET /api/companies/:companyId/onboarding/managed-gateway` reports it enabled
+  and `POST` on the same path creates or reuses one company-shared AI connection
+  per gateway protocol (Messages for Claude, Responses for Codex), installed for
+  all agents. The wizard binds the Director to it without asking for a key, and
+  the agency-core install copies a shared Director binding to specialists on
+  the same harness. Personal and delegated bindings are never copied.
+- SaaS lock: with the managed gateway configured, only an instance admin sets
+  adapters, models and AI connections. `instance_settings.ai_models` holds a
+  default model and per-role models per adapter, edited at
+  `GET`/`PUT /api/instance/settings/ai-models` (instance admin). Non-admin hires
+  are forced onto the managed adapter, role model and shared connection;
+  non-admin agent patches keep adapter, model and connection; AI connection
+  mutations return 403 `ai_models_managed`. Saving the policy re-applies role
+  models to every agent on a managed connection.
+- Connector allowlist: in SaaS mode, company users see and connect only the Apps
+  catalog connectors an instance admin allowed at `GET`/`PUT
+  /api/instance/settings/connectors` (`instance_settings.allowed_connectors`,
+  empty by default; AI providers are excluded and governed by the AI lock).
+- Project folders: `GET`/`POST /api/companies/:companyId/projects/:projectId/files`
+  and `DELETE .../files/:fileId` store files in `assets` (namespace
+  `projects/<id>`) linked by `project_files` with their folder path. Images,
+  videos, PDFs and office/text documents only; 100 MB and 500 files per project.
+  Board non-viewers upload and remove; anyone with company access lists and
+  reads. The create-project dialog offers a folder upload instead of GitHub
+  repositories.
 - This foundation adds neither client approvals nor revision-bound publication
   approvals, a publishing scheduler or provider integration. Those are later
   slices of the [agency PRD](plans/2026-10-25-prd-rewrite-creative-agency.md).

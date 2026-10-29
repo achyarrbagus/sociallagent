@@ -83,6 +83,22 @@ effect only for a board user who passes the same `agents:create` gate, and for a
 other actor applies the seed without the team and reports `agencyTeam.status:
 "failed"`. Both are idempotent, a partial team is reported as failed rather than
 reinstalled, and failures are logged as `company.agency_core_team_install_failed`.
+`GET /api/companies/{companyId}/onboarding/managed-gateway` reports whether the
+instance-managed 9Router gateway is configured (board, company access; never
+returns the key). `POST` on the same path creates or reuses the company's
+shared 9Router AI connection; it uses the shared AI connection create gate,
+denies agents and viewers, and logs `ai_connection.connected`.
+With the gateway configured, `GET`/`PUT /api/instance/settings/ai-models`,
+`GET /api/instance/ai-models/catalog` and `GET /api/instance/ai-models/agents`
+are instance-admin only. Non-admin board users and agents cannot change agent
+adapters, models or AI connections (hires are forced to the managed defaults;
+AI connection mutations return 403 `ai_models_managed`).
+`GET`/`PUT /api/instance/settings/connectors` are instance-admin only; in SaaS
+mode non-admins connect only allowed Apps connectors (403
+`connector_not_allowed`). Project files: `GET
+/api/companies/{companyId}/projects/{projectId}/files` for anyone with company
+access (agents included); `POST` and `DELETE .../files/{fileId}` for board
+members who are not viewers.
 
 Policy: Default `agency-core` team installed only by onboarding (Director is the sole
 recurring task); optional Agency Studio package is never automatic. No other scheduled jobs,

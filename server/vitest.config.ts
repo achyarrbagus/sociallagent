@@ -52,5 +52,8 @@ export default defineConfig({
       hooks: "list",
     },
     setupFiles: ["./src/__tests__/setup-supertest.ts"],
+    // A developer's server/.env (for example a real 9Router key) must not
+    // change test behavior when the suite runs from the server directory.
+    env: { PAPERCLIP_DISABLE_CWD_ENV_FILE: "true" },
   },
 });

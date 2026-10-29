@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { withDedicatedDbConnection, type Db } from "@paperclipai/db";
 import {
   agentHarnessType,
+  aiConnectionBindingSchema,
   paperclipRunnerProfileForHarness,
   type CompanyPortabilityAdapterOverride,
   type EnsureAgencyCoreTeamResult,
@@ -10,6 +11,7 @@ import { findServerAdapter } from "../adapters/index.js";
 import { conflict, unprocessable } from "../errors.js";
 import { logActivity } from "./activity-log.js";
 import { agentService } from "./agents.js";
+import { managedGatewayService } from "./managed-gateway.js";
 import { resolvePaperclipRunnerProviderProfile } from "./native-runtime/provider-profile.js";
 import {
   readCatalogTeamProvenance,
@@ -47,6 +49,7 @@ function formatError(error: unknown): string {
  */
 export function agencyCoreTeamService(db: Db) {
   const agents = agentService(db);
+  const managedGateway = managedGatewayService(db);
 
   async function loadDirector(companyId: string, directorAgentId: string) {
     const director = await agents.getById(directorAgentId);
@@ -105,6 +108,33 @@ export function agencyCoreTeamService(db: Db) {
       return null;
     }
     return { adapterType: director.adapterType, runner: "legacy", adapterConfig: model };
+  }
+
+  /**
+   * Specialists on the Director's harness run on her company-shared AI
+   * connection (for example the instance-managed 9Router gateway), so the
+   * owner never connects each one. Personal and delegated bindings stay hers:
+   * they authorize one human's credential and are never copied.
+   */
+  async function shareDirectorConnection(
+    director: { runtimeConfig: Record<string, unknown> | null },
+    agentIds: string[],
+  ): Promise<string[]> {
+    const parsed = aiConnectionBindingSchema.safeParse(director.runtimeConfig?.aiConnection);
+    if (!parsed.success || parsed.data.mode !== "shared") return [];
+    const warnings: string[] = [];
+    for (const agentId of agentIds) {
+      try {
+        const agent = await agents.getById(agentId);
+        if (!agent) continue;
+        await agents.update(agentId, {
+          runtimeConfig: { ...(agent.runtimeConfig ?? {}), aiConnection: parsed.data },
+        });
+      } catch (error) {
+        warnings.push(`Could not connect agent ${agentId} to the Director's AI connection: ${formatError(error)}`);
+      }
+    }
+    return warnings;
   }
 
   async function logInstallFailure(
@@ -168,7 +198,13 @@ export function agencyCoreTeamService(db: Db) {
       const agentIds = result.portabilityImport.agents
         .filter((agent) => agent.action === "created" && agent.id)
         .map((agent) => agent.id as string);
-      return { status: "installed", agentIds, warnings: result.warnings };
+      // Admin-managed models: every specialist runs the company's managed
+      // connection with the model for its role. Otherwise specialists on the
+      // Director's harness share her company connection.
+      const connectionWarnings = managedGateway.enabled()
+        ? await managedGateway.applyToAgents(companyId, agentIds)
+        : override ? await shareDirectorConnection(director, agentIds) : [];
+      return { status: "installed", agentIds, warnings: [...result.warnings, ...connectionWarnings] };
     } catch (error) {
       const message = formatError(error);
       await logInstallFailure(companyId, director.id, actor, message);

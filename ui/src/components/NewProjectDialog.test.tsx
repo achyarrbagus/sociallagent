@@ -65,7 +65,7 @@ describe("new project colors", () => {
     expect(previewColor).toBe(expected.style.backgroundColor);
     act(() => container.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await settle();
-    expect(vi.mocked(projectsApi.create).mock.calls[1][1]).toEqual({ name: "Colorful project", color: firstColor, status: "planned", repositoryIds: [] });
+    expect(vi.mocked(projectsApi.create).mock.calls[1][1]).toEqual({ name: "Colorful project", color: firstColor, status: "planned" });
     expect(getLastProjectId("company-1")).toBe("project-created");
     expect(onClose).toHaveBeenCalledOnce();
   });

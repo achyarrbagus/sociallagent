@@ -9,6 +9,10 @@ export const instanceSettings = pgTable(
     defaultEnvironmentId: uuid("default_environment_id").references(() => environments.id, { onDelete: "set null" }),
     general: jsonb("general").$type<Record<string, unknown>>().notNull().default({}),
     experimental: jsonb("experimental").$type<Record<string, unknown>>().notNull().default({}),
+    // SocialAgent: admin-managed model per adapter and agent role (instance admin only).
+    aiModels: jsonb("ai_models").$type<Record<string, unknown>>().notNull().default({}),
+    // SocialAgent: Apps catalog slugs company users may connect in SaaS mode.
+    allowedConnectors: jsonb("allowed_connectors").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
