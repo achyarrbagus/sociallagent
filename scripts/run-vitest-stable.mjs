@@ -405,7 +405,7 @@ async function runVitest(args, label, testShard = null) {
     const sourceLines = readFileSync(file, "utf8").split("\n");
     const collect = (filters, name) => {
       const output = path.join(testRoot, `${name}.json`);
-      const result = spawnSync("pnpm", ["exec", "vitest", "list", ...sourceOnlyVitestArgs,
+      const result = spawnSync("bun", ["x", "vitest", "list", ...sourceOnlyVitestArgs,
         ...filters, "--allowOnly=false", "--includeTaskLocation", `--json=${output}`], {
         cwd: repoRoot, env, stdio: "inherit",
       });
@@ -436,7 +436,7 @@ async function runVitest(args, label, testShard = null) {
     args = [...args.filter((arg) => arg !== chatSuite), ...runFilters, "--allowOnly=false"];
   }
   await new Promise((resolve, reject) => {
-    const child = spawn("pnpm", ["exec", "vitest", "run", ...sourceOnlyVitestArgs, ...args], {
+    const child = spawn("bun", ["x", "vitest", "run", ...sourceOnlyVitestArgs, ...args], {
       cwd: repoRoot,
       env: invocationEnv("vitest", env),
       stdio: "inherit",

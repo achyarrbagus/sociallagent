@@ -12,7 +12,7 @@ test("dependency-layer inputs can run both Copilot postinstall entrypoints befor
   const dockerfile = await readFile(path.join(repo, "Dockerfile"), "utf8");
   const stage = dockerfile.split(/^FROM .* AS deps\s*$/im)[1]?.split(/^FROM /im)[0];
   assert.ok(stage, "dependency stage exists");
-  const beforeInstall = stage.split(/^RUN pnpm install/m)[0];
+  const beforeInstall = stage.split(/^RUN (?:pnpm|bun) install/m)[0];
   const fixture = await mkdtemp(path.join(tmpdir(), "paperclip-docker-postinstall-"));
   try {
     for (const line of beforeInstall.split("\n")) {

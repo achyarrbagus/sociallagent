@@ -132,9 +132,9 @@ describe("resolvePnpmInvocation", () => {
 
 describe("prepareRunnerVendor", () => {
   it("still runs the Runner build the server build has always run", () => {
-    // The Dockerfile's standalone `pnpm --filter @paperclipai/server build`
+    // The Dockerfile's standalone `bun run --filter @paperclipai/server build`
     // depends on this exact command producing a current vendored Runner.
-    expect(RUNNER_VENDOR_BUILD_COMMAND).toBe("pnpm --filter @paperclipai/paperclip-runner build");
+    expect(RUNNER_VENDOR_BUILD_COMMAND).toBe("bun run --filter @paperclipai/paperclip-runner build");
   });
 
   it("skips the rebuild when the recorded build is current and reports the check time", () => {
@@ -258,15 +258,15 @@ describe("prepareRunnerVendor", () => {
     "end to end: the first server build rebuilds the Runner, the second reuses it, a change or a lost output rebuilds again",
     async () => {
       const { repoRoot, packageRoot } = makeRepo();
-      // A stand-in pnpm that behaves like the Runner build: it records how it
+      // A stand-in bun that behaves like the Runner build: it records how it
       // was called, then brackets its (empty) step list with the same two
       // record-build-inputs.mjs calls the real build makes.
       const binDir = path.join(repoRoot, "bin");
-      const argvLog = path.join(repoRoot, "pnpm-argv.log");
+      const argvLog = path.join(repoRoot, "bun-argv.log");
       mkdirSync(binDir);
-      const pnpm = path.join(binDir, "pnpm");
+      const bunStub = path.join(binDir, "bun");
       writeFileSync(
-        pnpm,
+        bunStub,
         `${[
           "#!/bin/sh",
           "set -e",
@@ -275,17 +275,17 @@ describe("prepareRunnerVendor", () => {
           `"${process.execPath}" "${recordScript}" --finish --package-root "${packageRoot}" > /dev/null`,
         ].join("\n")}\n`,
       );
-      chmodSync(pnpm, 0o755);
+      chmodSync(bunStub, 0o755);
       const env = { ...process.env, PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ""}` };
       delete env[FORCE_REBUILD_VARIABLE];
-      // The suite itself may run under pnpm; the script must then take the
-      // PATH fallback so the stand-in, not the real pnpm, receives the build.
+      // The script runs under Node here, so it takes the PATH fallback and
+      // the stand-in, not the real bun, receives the build.
       delete env.npm_execpath;
       const run = () => execFileAsync(process.execPath, [prepareScript, "--repo-root", repoRoot], { env });
       const calls = () => readFileSync(argvLog, "utf8").split("\n").filter(Boolean);
 
       const first = await run();
-      expect(calls()).toEqual(["--filter @paperclipai/paperclip-runner build"]);
+      expect(calls()).toEqual(["run --filter @paperclipai/paperclip-runner build"]);
       expect(first.stdout).toMatch(/action:rebuild,reason:no_stamp,/);
       expect(assessRunnerBuild({ repoRoot, packageRoot }).current).toBe(true);
 

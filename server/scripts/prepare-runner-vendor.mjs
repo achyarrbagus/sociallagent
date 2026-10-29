@@ -33,7 +33,7 @@ import {
 } from "../../packages/paperclip-runner/scripts/build-inputs.mjs";
 
 /** The command the server build has always run here; the rebuild path is unchanged. */
-export const RUNNER_VENDOR_BUILD_COMMAND = "pnpm --filter @paperclipai/paperclip-runner build";
+export const RUNNER_VENDOR_BUILD_COMMAND = "bun run --filter @paperclipai/paperclip-runner build";
 export const FORCE_REBUILD_VARIABLE = "PAPERCLIP_RUNNER_VENDOR_REBUILD";
 export const TIMING_SCHEMA = "paperclip.runner-vendor.timing.v1";
 
@@ -66,8 +66,24 @@ export function resolvePnpmInvocation(env = process.env, nodeExecPath = process.
   return { command: "pnpm", argsPrefix: [] };
 }
 
+/** The Bun running this script, or `bun` on PATH (Bun is the workspace's package manager). */
+export function resolveBunInvocation(versions = process.versions, execPath = process.execPath) {
+  return { command: typeof versions.bun === "string" ? execPath : "bun", argsPrefix: [] };
+}
+
 export function runBuildCommand(command, { cwd, env = process.env }) {
   const [tool, ...args] = command.split(" ");
+  if (tool === "bun") {
+    const bun = resolveBunInvocation();
+    const result = spawnSync(bun.command, [...bun.argsPrefix, ...args], {
+      cwd,
+      env,
+      stdio: "inherit",
+      shell: bun.command === "bun" && process.platform === "win32",
+    });
+    if (result.error) throw result.error;
+    return result.status ?? 1;
+  }
   if (tool !== "pnpm") throw new Error(`unexpected build command ${command}`);
   const pnpm = resolvePnpmInvocation(env);
   const result = spawnSync(pnpm.command, [...pnpm.argsPrefix, ...args], {

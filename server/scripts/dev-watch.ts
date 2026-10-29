@@ -4,14 +4,23 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveServerDevWatchIgnorePaths } from "../src/dev-watch-ignore.ts";
 
-const require = createRequire(import.meta.url);
-const tsxCliPath = require.resolve("tsx/cli");
 const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const ignoreArgs = resolveServerDevWatchIgnorePaths(serverRoot).flatMap((ignorePath) => ["--exclude", ignorePath]);
+// Bun is the default runtime: `bun --watch` follows the server's import graph,
+// so data directories never trigger restarts. Under Node, tsx watch needs the
+// explicit exclude list.
+const isBun = typeof (process.versions as Record<string, string | undefined>).bun === "string";
+const watchArgs = isBun
+  ? ["--watch", "src/index.ts"]
+  : [
+      createRequire(import.meta.url).resolve("tsx/cli"),
+      "watch",
+      ...resolveServerDevWatchIgnorePaths(serverRoot).flatMap((ignorePath) => ["--exclude", ignorePath]),
+      "src/index.ts",
+    ];
 
 const child = spawn(
   process.execPath,
-  [tsxCliPath, "watch", ...ignoreArgs, "src/index.ts"],
+  watchArgs,
   {
     cwd: serverRoot,
     env: process.env,

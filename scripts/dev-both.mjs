@@ -25,7 +25,7 @@ function stopAll(code) {
 }
 
 for (const job of jobs) {
-  const child = spawn("pnpm", ["run", job.script], {
+  const child = spawn("bun", ["run", job.script], {
     stdio: ["ignore", "pipe", "pipe"],
     env: process.env,
   });

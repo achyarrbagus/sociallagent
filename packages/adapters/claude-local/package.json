@@ -49,8 +49,8 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "probe:quota": "pnpm exec tsx src/cli/quota-probe.ts --json",
-    "probe:quota:raw": "pnpm exec tsx src/cli/quota-probe.ts --json --raw-cli"
+    "probe:quota": "bunx tsx src/cli/quota-probe.ts --json",
+    "probe:quota:raw": "bunx tsx src/cli/quota-probe.ts --json --raw-cli"
   },
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "^0.73.0",

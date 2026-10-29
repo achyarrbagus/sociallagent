@@ -60,11 +60,15 @@ See [`rules/README.md`](rules/README.md) for rule authoring and Greptile setup.
 
 ## 4. Dev Setup (Auto DB)
 
+Bun is the package manager and the server runtime (`bun install`, `bun run …`).
+Node.js stays installed for the agent CLIs and Vitest. pnpm files remain only
+for the GitHub CI workflows until they are migrated.
+
 Use embedded PGlite in dev by leaving `DATABASE_URL` unset.
 
 ```sh
-pnpm install
-pnpm dev
+bun install
+bun run dev
 ```
 
 This starts:
@@ -83,7 +87,7 @@ Reset local dev DB:
 
 ```sh
 rm -rf data/pglite
-pnpm dev
+bun run dev
 ```
 
 ## 5. Core Engineering Rules
@@ -154,18 +158,18 @@ When changing data model:
 3. Generate migration:
 
 ```sh
-pnpm db:generate
+bun run db:generate
 ```
 
 4. Validate compile:
 
 ```sh
-pnpm -r typecheck
+bun run typecheck
 ```
 
 Notes:
 - `packages/db/drizzle.config.ts` reads compiled schema from `dist/schema/*.js`
-- `pnpm db:generate` compiles `packages/db` first
+- `bun run db:generate` compiles `packages/db` first
 
 ## 7. Verification Before Hand-off
 
@@ -190,14 +194,14 @@ Structural checks are not production acceptance.
 Default local/agent test path:
 
 ```sh
-pnpm test
+bun run test
 ```
 
 This is the cheap default and only runs the Vitest suite. Browser suites stay opt-in:
 
 ```sh
-pnpm test:e2e
-pnpm test:release-smoke
+bun run test:e2e
+bun run test:release-smoke
 ```
 
 Run the browser suites only when your change touches them or when you are explicitly verifying CI/release flows.
@@ -207,9 +211,9 @@ For normal issue work, run the smallest relevant verification first. Do not defa
 Run this full check before claiming repo work done in a PR-ready hand-off, or when the change scope is broad enough that targeted checks are not sufficient:
 
 ```sh
-pnpm -r typecheck
-pnpm test:run
-pnpm build
+bun run typecheck
+bun run test:run
+bun run build
 ```
 
 If anything cannot be run, explicitly report what was not run and why.
@@ -258,4 +262,4 @@ A change is done when all are true:
 
 ## Design system
 
-`DESIGN.md` at the repo root is the source of truth for UI design decisions. The token-only rule applies to all `ui/` changes: every color, spacing, radius, type, shadow, and motion value in `ui/src/components/**` and `ui/src/pages/**` comes from the token layer in `ui/src/index.css` — no hex, raw px, arbitrary Tailwind bracket values, or raw `font-size`/`fontSize` declarations in components, outside the documented allowlist in `ui/src/index.css`. Run `pnpm check:token-gates` (`scripts/check-token-gates.mjs`) before committing UI changes — it fails on any violation not covered by that allowlist.
+`DESIGN.md` at the repo root is the source of truth for UI design decisions. The token-only rule applies to all `ui/` changes: every color, spacing, radius, type, shadow, and motion value in `ui/src/components/**` and `ui/src/pages/**` comes from the token layer in `ui/src/index.css` — no hex, raw px, arbitrary Tailwind bracket values, or raw `font-size`/`fontSize` declarations in components, outside the documented allowlist in `ui/src/index.css`. Run `bun run check:token-gates` (`scripts/check-token-gates.mjs`) before committing UI changes — it fails on any violation not covered by that allowlist.

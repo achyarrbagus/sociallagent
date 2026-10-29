@@ -26,7 +26,7 @@ describe("server package build script", () => {
     };
 
     expect(packageJson.scripts?.prepack).toBe(
-      "pnpm run prepare:ui-dist && pnpm run build",
+      "bun run prepare:ui-dist && bun run build",
     );
   });
 
@@ -59,16 +59,16 @@ describe("server package build script", () => {
       "workspace:*",
     );
     // prepare-runner-vendor.mjs reuses a Runner build whose recorded inputs
-    // are unchanged (the `pnpm -r build` case) and otherwise runs the Runner's
+    // are unchanged (the recursive `bun run build` case) and otherwise runs the Runner's
     // full build, which is what a standalone server build (the Dockerfile's
     // path) relies on. Pin both the indirection and the command behind it.
     expect(packageJson.scripts?.["prepare:runner-vendor"]).toBe(
       "node scripts/prepare-runner-vendor.mjs",
     );
     expect(RUNNER_VENDOR_BUILD_COMMAND).toBe(
-      "pnpm --filter @paperclipai/paperclip-runner build",
+      "bun run --filter @paperclipai/paperclip-runner build",
     );
-    expect(packageJson.scripts?.build.startsWith("pnpm run prepare:runner-vendor && ")).toBe(true);
+    expect(packageJson.scripts?.build.startsWith("bun run prepare:runner-vendor && ")).toBe(true);
     expect(packageJson.scripts?.build).toContain(
       "cp -Rf ../packages/paperclip-runner/dist/. dist/vendor/paperclip-runner/",
     );
@@ -142,8 +142,8 @@ describe("server package build script", () => {
     ), "utf8")) as { scripts: Record<string, string> };
     const steps = runner.scripts.build.split(" && ");
     const wrapped = steps
-      .filter((step) => step.startsWith("pnpm run "))
-      .map((step) => step.slice("pnpm run ".length));
+      .filter((step) => step.startsWith("bun run "))
+      .map((step) => step.slice("bun run ".length));
     for (const name of wrapped) {
       expect(runner.scripts[name], `build step ${name}`).toBeDefined();
     }
@@ -154,9 +154,9 @@ describe("server package build script", () => {
     expect(steps).toContain("node scripts/generate-semantic-contracts.mjs --check");
     expect(steps).toContain("node scripts/check-runner-workflow-traceability.mjs");
     expect(steps.indexOf("node scripts/generate-semantic-contracts.mjs --check"))
-      .toBeGreaterThan(steps.indexOf("pnpm run build:typescript"));
+      .toBeGreaterThan(steps.indexOf("bun run build:typescript"));
     expect(steps.indexOf("node scripts/check-runner-workflow-traceability.mjs"))
-      .toBeGreaterThan(steps.indexOf("pnpm run build:typescript"));
+      .toBeGreaterThan(steps.indexOf("bun run build:typescript"));
   });
 
   it("ships the pinned OpenCode dependency resolved by the vendored Runner", () => {
