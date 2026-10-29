@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { aiModelsLockedFor } from "./managed-ai-lock.js";
 import express, { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { and, count as countFn, eq } from "drizzle-orm";
@@ -1253,6 +1254,10 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
       body = updateCompanyBrandingSchema.parse(req.body);
     } else {
       body = updateCompanySchema.parse(req.body);
+    }
+    // SaaS mode: suspension and budgets belong to the instance admin.
+    if (aiModelsLockedFor(req) && ["status", "budgetMonthlyCents", "pauseReason"].some((key) => Object.prototype.hasOwnProperty.call(body, key))) {
+      throw forbidden("Company status and budget are managed by your SocialAgent administrator.", { code: "company_managed" });
     }
 
     const existingCompany = await svc.getById(companyId);

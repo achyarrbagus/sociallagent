@@ -655,6 +655,8 @@ export {
   managedAdapterModelPolicySchema,
   managedAiModelPolicySchema,
   managedAiBillingSchema,
+  updateTenantBudgetSchema,
+  type ManagedTenantRow,
   type ManagedAiBilling,
   type ManagedAdapterModelPolicy,
   type ManagedAiModelPolicy,

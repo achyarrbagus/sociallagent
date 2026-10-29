@@ -13,12 +13,13 @@ import { queryKeys } from "../lib/queryKeys";
 
 const EMPTY_POLICY: ManagedAdapterModelPolicy = { defaultModel: null, roles: {} };
 
-type BillingDraft = Record<keyof ManagedAiBilling, string>;
-const BILLING_FIELDS: { key: keyof ManagedAiBilling; label: string; hint: string }[] = [
+type BillingKey = Exclude<keyof ManagedAiBilling, "companyBudgetOverrides">;
+type BillingDraft = Record<BillingKey, string>;
+const BILLING_FIELDS: { key: BillingKey; label: string; hint: string }[] = [
   { key: "inputCentsPerMillionTokens", label: "Input price", hint: "USD per 1M input tokens" },
   { key: "cachedInputCentsPerMillionTokens", label: "Cached input price", hint: "USD per 1M cached input tokens" },
   { key: "outputCentsPerMillionTokens", label: "Output price", hint: "USD per 1M output tokens" },
-  { key: "companyMonthlyBudgetCents", label: "Monthly budget per company", hint: "USD; agents pause when it is used up. 0 = no limit" },
+  { key: "companyMonthlyBudgetCents", label: "Default monthly budget per company", hint: "USD; agents pause when it is used up. 0 = no limit. Override per company in Tenants." },
 ];
 const toDollars = (cents: number) => (cents / 100).toFixed(2);
 const toCents = (dollars: string) => Math.max(0, Math.round(Number(dollars || "0") * 100));
@@ -85,7 +86,7 @@ export function InstanceAiModelsSettings() {
       const policy = {
         ...settings.data!.policy,
         [adapterType]: draft,
-        ...(billing ? { billing: Object.fromEntries(BILLING_FIELDS.map(({ key }) => [key, toCents(billing[key])])) as ManagedAiBilling } : {}),
+        ...(billing ? { billing: { ...settings.data!.policy.billing, ...Object.fromEntries(BILLING_FIELDS.map(({ key }) => [key, toCents(billing[key])])) } as ManagedAiBilling } : {}),
       };
       return managedAiApi.updatePolicy(policy);
     },

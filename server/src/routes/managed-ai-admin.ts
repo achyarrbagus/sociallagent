@@ -1,9 +1,12 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { companies, type Db } from "@paperclipai/db";
-import { managedAiModelPolicySchema, updateAllowedConnectorsSchema } from "@paperclipai/shared";
+import { eq } from "drizzle-orm";
+import { managedAiModelPolicySchema, updateAllowedConnectorsSchema, updateTenantBudgetSchema } from "@paperclipai/shared";
 import { validate } from "../middleware/validate.js";
 import { logActivity } from "../services/activity-log.js";
 import { managedGatewayService } from "../services/managed-gateway.js";
+import { companyService } from "../services/companies.js";
+import { notFound } from "../errors.js";
 import { connectorPolicyCatalog, connectorPolicyService } from "../services/connector-policy.js";
 import { assertBoard, assertInstanceAdmin, getActorInfo, isInstanceAdminRequest } from "./authz.js";
 
@@ -93,6 +96,48 @@ export function managedAiAdminRoutes(db: Db, options: { managedGateway?: ReturnT
     })));
     res.json({ enforced: managedGateway.enabled(), allowed, apps: connectorPolicyCatalog() });
   });
+
+  router.get("/instance/tenants", async (req, res) => {
+    assertInstanceAdmin(req);
+    res.json(await managedGateway.tenantsOverview());
+  });
+
+  router.put("/instance/tenants/:companyId/budget", validate(updateTenantBudgetSchema), async (req, res) => {
+    assertInstanceAdmin(req);
+    const companyId = req.params.companyId as string;
+    const [company] = await db.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId));
+    if (!company) throw notFound("Company not found");
+    const actor = getActorInfo(req);
+    await managedGateway.setCompanyBudget(companyId, req.body.monthlyBudgetCents, actor.actorType === "user" ? actor.actorId : null);
+    await logActivity(db, {
+      companyId, actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId, runId: actor.runId,
+      action: "instance.tenant.budget_set", entityType: "company", entityId: companyId,
+      details: { monthlyBudgetCents: req.body.monthlyBudgetCents },
+    });
+    res.json((await managedGateway.tenantsOverview()).find((row) => row.companyId === companyId) ?? null);
+  });
+
+  // Suspension pauses the company: its agents stop and nothing new runs until
+  // the admin resumes it. A budget pause stays with the budget hard stop.
+  async function setTenantStatus(req: Request, res: Response, status: "paused" | "active") {
+    assertInstanceAdmin(req);
+    const companyId = req.params.companyId as string;
+    const actor = getActorInfo(req);
+    const updated = await companyService(db).update(companyId, {
+      status,
+      pauseReason: status === "paused" ? "manual" : null,
+      pausedAt: status === "paused" ? new Date() : null,
+    }, { actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId ?? null, runId: actor.runId ?? null });
+    if (!updated) throw notFound("Company not found");
+    await logActivity(db, {
+      companyId, actorType: actor.actorType, actorId: actor.actorId, agentId: actor.agentId, runId: actor.runId,
+      action: status === "paused" ? "instance.tenant.suspended" : "instance.tenant.resumed", entityType: "company", entityId: companyId,
+    });
+    res.json((await managedGateway.tenantsOverview()).find((row) => row.companyId === companyId) ?? null);
+  }
+
+  router.post("/instance/tenants/:companyId/suspend", (req, res) => setTenantStatus(req, res, "paused"));
+  router.post("/instance/tenants/:companyId/resume", (req, res) => setTenantStatus(req, res, "active"));
 
   router.get("/instance/ai-models/catalog", async (req, res) => {
     assertInstanceAdmin(req);

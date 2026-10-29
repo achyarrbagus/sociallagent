@@ -621,6 +621,7 @@ export const queryKeys = {
     aiModelCatalog: ["instance", "ai-models", "catalog"] as const,
     aiModelAgents: ["instance", "ai-models", "agents"] as const,
     connectorPolicy: ["instance", "connector-policy"] as const,
+    tenants: ["instance", "tenants"] as const,
   },
   health: ["health"] as const,
   stagingCommit: ["staging-commit"] as const,

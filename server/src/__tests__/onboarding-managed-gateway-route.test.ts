@@ -1,12 +1,13 @@
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { activityLog, agents, budgetPolicies, connectionGrants, instanceSettings, toolConnections } from "@paperclipai/db";
+import { activityLog, agents, budgetPolicies, companies, connectionGrants, instanceSettings, toolConnections } from "@paperclipai/db";
 import { agentRoutes } from "../routes/agents.js";
 import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { managedAiAdminRoutes } from "../routes/managed-ai-admin.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
 import { costRoutes } from "../routes/costs.js";
+import { companyRoutes } from "../routes/companies.js";
 import { managedAiCostUsd, managedRunPricing } from "../services/managed-ai-pricing.js";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
 import { managedGatewayService, managedHarnessOf, readManagedGatewayConfig } from "../services/managed-gateway.js";
@@ -408,5 +409,41 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     expect(raise.status).toBe(403);
     expect(raise.body.details).toMatchObject({ code: "billing_managed" });
     expect((await request(costsApp).get(`/api/companies/${companyId}/budgets/overview`)).status).toBe(200);
+  });
+
+  it("lets the admin list tenants, override a company budget and suspend it, and stops owners from undoing that", async () => {
+    enable();
+    const { companyId, actor, app } = await seed();
+    await request(app).post(`/api/companies/${companyId}/onboarding/managed-gateway`).send({ adapterType: "claude_local" });
+
+    const ownerAdmin = routeApp(ctx.db, actor, managedAiAdminRoutes);
+    expect((await request(ownerAdmin).get("/api/instance/tenants")).status).toBe(403);
+
+    const adminApp = routeApp(ctx.db, adminActor(companyId, actor.userId!), managedAiAdminRoutes);
+    const tenants = await request(adminApp).get("/api/instance/tenants");
+    expect(tenants.status).toBe(200);
+    expect(tenants.body.find((row: { companyId: string }) => row.companyId === companyId)).toMatchObject({
+      status: "active", memberCount: 1, monthlyBudgetCents: 2000, budgetOverridden: false, spentThisMonthCents: 0,
+    });
+
+    const budget = await request(adminApp).put(`/api/instance/tenants/${companyId}/budget`).send({ monthlyBudgetCents: 7500 });
+    expect(budget.body).toMatchObject({ monthlyBudgetCents: 7500, budgetOverridden: true });
+    const [policy] = (await ctx.db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, companyId)))
+      .filter((row) => row.scopeType === "company" && row.windowKind === "calendar_month_utc");
+    expect(policy).toMatchObject({ amount: 7500 });
+    // The default no longer overwrites the override.
+    await request(adminApp).put("/api/instance/settings/ai-models").send({ billing: { companyMonthlyBudgetCents: 1000 } });
+    expect((await request(adminApp).get("/api/instance/tenants")).body.find((row: { companyId: string }) => row.companyId === companyId).monthlyBudgetCents).toBe(7500);
+
+    const suspended = await request(adminApp).post(`/api/instance/tenants/${companyId}/suspend`).send({});
+    expect(suspended.body).toMatchObject({ status: "paused", pauseReason: "manual" });
+    const companiesApp = routeApp(ctx.db, actor, (db) => companyRoutes(db, {} as never));
+    const reactivate = await request(companiesApp).patch(`/api/${companyId}`).send({ status: "active" });
+    expect(reactivate.status).toBe(403);
+    const [stillPaused] = await ctx.db.select().from(companies).where(eq(companies.id, companyId));
+    expect(stillPaused!.status).toBe("paused");
+
+    const resumed = await request(adminApp).post(`/api/instance/tenants/${companyId}/resume`).send({});
+    expect(resumed.body).toMatchObject({ status: "active", pauseReason: null });
   });
 });

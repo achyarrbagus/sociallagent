@@ -110,6 +110,8 @@ export const managedAiBillingSchema = z.object({
   cachedInputCentsPerMillionTokens: z.number().int().min(0).max(1_000_000).default(30),
   outputCentsPerMillionTokens: z.number().int().min(0).max(1_000_000).default(1500),
   companyMonthlyBudgetCents: z.number().int().min(0).max(100_000_000).default(2000),
+  /** Per-company monthly budgets that replace the default (company id → cents). */
+  companyBudgetOverrides: z.record(z.string().uuid(), z.number().int().min(0).max(100_000_000)).default({}),
 }).strict();
 
 export type ManagedAiBilling = z.infer<typeof managedAiBillingSchema>;
@@ -122,6 +124,7 @@ export const managedAiModelPolicySchema = z.object({
     cachedInputCentsPerMillionTokens: 30,
     outputCentsPerMillionTokens: 1500,
     companyMonthlyBudgetCents: 2000,
+    companyBudgetOverrides: {},
   }),
 }).strict();
 
@@ -189,3 +192,26 @@ export interface ConnectorPolicySettings {
   allowed: string[];
   apps: ConnectorPolicyApp[];
 }
+
+/** One company as the instance admin sees it in SaaS mode. */
+export interface ManagedTenantRow {
+  companyId: string;
+  name: string;
+  issuePrefix: string;
+  status: string;
+  pauseReason: string | null;
+  createdAt: string;
+  memberCount: number;
+  agentCount: number;
+  /** SocialAgent AI spend this UTC month, in cents. */
+  spentThisMonthCents: number;
+  /** The monthly budget in force, in cents (0 = no limit). */
+  monthlyBudgetCents: number;
+  /** True when the admin set a budget for this company instead of the default. */
+  budgetOverridden: boolean;
+}
+
+export const updateTenantBudgetSchema = z.object({
+  /** Cents; null returns the company to the default budget. */
+  monthlyBudgetCents: z.number().int().min(0).max(100_000_000).nullable(),
+}).strict();

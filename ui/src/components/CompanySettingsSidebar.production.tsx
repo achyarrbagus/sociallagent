@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Bot,
+  Building2,
   Plug,
   ChevronLeft,
   Clock3,
@@ -177,6 +178,13 @@ export function CompanySettingsSidebar() {
               to={`${INSTANCE_SETTINGS_PATH_PREFIX}/ai-models`}
               label="AI models"
               icon={Bot}
+            />
+          )}
+          {isInstanceAdmin && (
+            <SidebarNavItem
+              to={`${INSTANCE_SETTINGS_PATH_PREFIX}/tenants`}
+              label="Tenants"
+              icon={Building2}
             />
           )}
           {isInstanceAdmin && (

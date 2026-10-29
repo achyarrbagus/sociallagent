@@ -1,6 +1,6 @@
 import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestationSchema, createGrokInvitationSchema, configureGrokRoutineSchema, verifyGrokRoutineSchema, recoverGrokRoutineSchema, pairGrokBindingSchema, stopGrokWorkSchema, retryGrokDeliverySchema, updateFastResponseSchema } from "@paperclipai/shared";
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@paperclipai/shared";
-import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema, updateAllowedConnectorsSchema } from "@paperclipai/shared";
+import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema, updateAllowedConnectorsSchema, updateTenantBudgetSchema } from "@paperclipai/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
 import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema } from "@paperclipai/shared";
 import { createAgencyContentSchema, reviseAgencyContentSchema, decideAgencyContentSchema, linkAgencyContentTaskSchema, contentRevisionExpectationSchema, listAgencyContentSchema } from "@paperclipai/shared";
@@ -6976,6 +6976,41 @@ registry.registerPath({
   tags: ["instance"],
   summary: "Get general instance settings",
   responses: { 200: r.ok(), 401: r.unauthorized },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/instance/tenants",
+  tags: ["instance"],
+  summary: "List every company with members, agents, this month's SocialAgent AI spend and budget",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "put",
+  path: "/api/instance/tenants/{companyId}/budget",
+  tags: ["instance"],
+  summary: "Set or clear one company's monthly SocialAgent AI budget",
+  request: { params: z.object({ companyId: z.string() }), body: jsonBody(updateTenantBudgetSchema) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/instance/tenants/{companyId}/suspend",
+  tags: ["instance"],
+  summary: "Suspend a company: its agents stop and nothing new runs",
+  request: { params: z.object({ companyId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/instance/tenants/{companyId}/resume",
+  tags: ["instance"],
+  summary: "Resume a suspended company",
+  request: { params: z.object({ companyId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 registry.registerPath({

@@ -25,6 +25,7 @@ import {
   type ManagedAiModelPolicy,
   type ManagedGatewayAdapterType,
   type ManagedGatewayStatus,
+  type ManagedTenantRow,
 } from "@paperclipai/shared";
 import { conflict, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
@@ -259,21 +260,63 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
         ));
         if (existing) continue;
       }
+      const amount = billing.companyBudgetOverrides[companyId] ?? billing.companyMonthlyBudgetCents;
       await budgets.upsertPolicy(companyId, {
         scopeType: "company",
         scopeId: companyId,
         windowKind: "calendar_month_utc",
-        amount: billing.companyMonthlyBudgetCents,
+        amount,
         hardStopEnabled: true,
         // Live estimates of gateway models are unpriced; the admin rate card
         // prices the run when it is accounted, so they must not trip the stop.
         unpricedUsagePolicy: "allow",
         notifyEnabled: true,
-        isActive: billing.companyMonthlyBudgetCents > 0,
+        isActive: amount > 0,
       }, options.actorUserId ?? null);
       applied += 1;
     }
     return applied;
+  }
+
+  /** Sets (or with null clears) one company's budget override and applies it. */
+  async function setCompanyBudget(companyId: string, monthlyBudgetCents: number | null, actorUserId: string | null) {
+    const policy = await getPolicy();
+    const overrides = { ...policy.billing.companyBudgetOverrides };
+    if (monthlyBudgetCents === null) delete overrides[companyId];
+    else overrides[companyId] = monthlyBudgetCents;
+    await savePolicy({ ...policy, billing: { ...policy.billing, companyBudgetOverrides: overrides } });
+    await applyCompanyBudgets([companyId], { actorUserId });
+  }
+
+  /** Every company with its people, agents, this month's spend and budget. */
+  async function tenantsOverview(): Promise<ManagedTenantRow[]> {
+    const { billing } = await getPolicy();
+    const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+    const rows = await db.execute(sql`
+      select c.id, c.name, c.issue_prefix, c.status, c.pause_reason, c.created_at,
+        (select count(*)::int from company_memberships m where m.company_id = c.id and m.principal_type = 'user' and m.status = 'active') as member_count,
+        (select count(*)::int from agents a where a.company_id = c.id and a.status <> 'terminated') as agent_count,
+        (select coalesce(sum(e.cost_cents), 0)::bigint from cost_events e where e.company_id = c.id and e.occurred_at >= ${monthStart.toISOString()}::timestamptz) as spent
+      from companies c
+      where c.status <> 'archived'
+      order by c.created_at desc`);
+    return (rows as unknown as Array<Record<string, unknown>>).map((row) => {
+      const companyId = String(row.id);
+      const override = billing.companyBudgetOverrides[companyId];
+      return {
+        companyId,
+        name: String(row.name),
+        issuePrefix: String(row.issue_prefix),
+        status: String(row.status),
+        pauseReason: row.pause_reason == null ? null : String(row.pause_reason),
+        createdAt: new Date(row.created_at as string).toISOString(),
+        memberCount: Number(row.member_count ?? 0),
+        agentCount: Number(row.agent_count ?? 0),
+        spentThisMonthCents: Number(row.spent ?? 0),
+        monthlyBudgetCents: override ?? billing.companyMonthlyBudgetCents,
+        budgetOverridden: override !== undefined,
+      };
+    });
   }
 
   /** Onboarding: the Director's binding and model. */
@@ -472,7 +515,11 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
   }
 
   async function updatePolicy(input: ManagedAiModelPolicy, actorUserId: string | null = null) {
-    await savePolicy(managedAiModelPolicySchema.parse(input));
+    // Per-company budgets are set from the tenants view only; saving the
+    // model policy keeps them.
+    const current = await getPolicy();
+    const next = managedAiModelPolicySchema.parse(input);
+    await savePolicy({ ...next, billing: { ...next.billing, companyBudgetOverrides: current.billing.companyBudgetOverrides } });
     const updatedAgents = await applyPolicyEverywhere();
     const budgetedCompanies = await applyCompanyBudgets(undefined, { actorUserId });
     return { settings: await adminSettings(), updatedAgents, budgetedCompanies };
@@ -534,5 +581,7 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     adoptAllAgents,
     adoptCompanyAgents,
     applyCompanyBudgets,
+    setCompanyBudget,
+    tenantsOverview,
   };
 }
