@@ -37,7 +37,7 @@ With the managed gateway configured, SocialAgent runs as a SaaS: only an instanc
 
 Admin endpoints: `GET`/`PUT /api/instance/settings/ai-models`, `GET`/`PUT /api/instance/settings/connectors`, `POST /api/instance/ai-models/adopt`, `GET /api/instance/ai-models/catalog` (fetched server-side with the operator key) and `GET /api/instance/ai-models/agents`.
 
-Not covered yet: company import (`/companies/import`) keeps the package's adapters until an admin moves them.
+Company imports and team catalog installs put their new agents on SocialAgent AI with the model for each agent's role. Built-in, plugin and remote agents keep their own setup.
 
 ## Manual connection
 

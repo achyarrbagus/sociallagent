@@ -7,7 +7,7 @@ import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { managedAiAdminRoutes } from "../routes/managed-ai-admin.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
-import { managedHarnessOf, readManagedGatewayConfig } from "../services/managed-gateway.js";
+import { managedGatewayService, managedHarnessOf, readManagedGatewayConfig } from "../services/managed-gateway.js";
 import { coerceManagedAgentPatch } from "../routes/managed-ai-lock.js";
 import {
   describeEmbeddedPostgres,
@@ -323,5 +323,21 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     const adminTools = routeApp(ctx.db, adminActor(companyId, actor.userId!), (db) => toolAccessRoutes(db));
     const adminGallery = await request(adminTools).get(`/api/companies/${companyId}/tools/gallery`);
     expect(adminGallery.body.apps.length).toBeGreaterThan(1);
+  });
+
+  it("moves only the given imported agents and creates the company connection for the importer", async () => {
+    enable();
+    const { companyId, actor } = await seed();
+    const [imported, other] = await ctx.db.insert(agents).values([
+      { companyId, name: "Imported", role: "designer", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {} },
+      { companyId, name: "Existing", role: "general", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {} },
+    ]).returning();
+
+    const result = await managedGatewayService(ctx.db).adoptCompanyAgents(companyId, actor.userId!, [imported!.id]);
+    expect(result).toMatchObject({ moved: 1, failed: [] });
+    const [movedRow] = await ctx.db.select().from(agents).where(eq(agents.id, imported!.id));
+    expect(movedRow!.runtimeConfig.aiConnection).toMatchObject({ mode: "shared" });
+    const [otherRow] = await ctx.db.select().from(agents).where(eq(agents.id, other!.id));
+    expect(otherRow!.runtimeConfig.aiConnection).toBeUndefined();
   });
 });
