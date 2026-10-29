@@ -150,6 +150,11 @@ RUN bun run --filter @paperclipai/plugin-sdk build
 # same ARG again for the runtime fallback; an ARG goes out of scope at the
 # end of its stage. Empty for local `docker build`, which then writes no stamp.
 ENV NODE_OPTIONS=--max-old-space-size=4096
+# TypeScript 7 is a native compiler: NODE_OPTIONS does not cap its memory, and
+# its default checker count gets the server typecheck OOM-killed on an 8 GB
+# Docker VM. Cap the checkers for this image build only.
+ARG TSC_CHECKERS=2
+RUN node -e "const fs=require('fs');const f='server/tsconfig.json';const j=JSON.parse(fs.readFileSync(f,'utf8'));j.compilerOptions.checkers=Number(process.env.TSC_CHECKERS);fs.writeFileSync(f,JSON.stringify(j,null,2));"
 RUN bun run --filter @paperclipai/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
 RUN bun run --filter @paperclipai/server build:runtime \

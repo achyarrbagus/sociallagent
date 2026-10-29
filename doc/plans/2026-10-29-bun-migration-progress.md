@@ -33,25 +33,23 @@ Merge into `main` only after the Docker image builds and runs.
 
 ## Docker build: status
 
-- The first build passed `bun install --frozen-lockfile` in the deps stage.
-- The second build failed at the global agent-CLI `npm install` step because the
-  disk filled up (`EIO`, buildkit `metadata_v2.db: input/output error`). After
-  that the Docker VM filesystem went read-only and the daemon hung.
-- Still to do: once Docker responds (`docker version`), run the build again:
-
-  ```sh
-  cd /Users/achyarbagus/Kerja/socialagent-bun
-  docker build -t socialagent:bun --target production .
-  ```
-
-  If the daemon still hangs after a reboot, use Docker Desktop → Troubleshoot →
-  Clean / Purge data. Set Settings → Resources → Disk usage limit to about 40 GB.
-  The build needs about 10–15 GB free on the Mac.
+- `docker build -t socialagent:bun --target production .` passes (image about 5.5 GB).
+- Earlier failures:
+  - The disk filled up (`EIO`).
+  - Then `tsc` in the server build was OOM-killed (exit 137) on the 8 GB
+    Docker VM. The cause is TypeScript 7 (native compiler, also on `main`):
+    `NODE_OPTIONS` does not cap its memory. The Dockerfile now sets
+    `compilerOptions.checkers` from `ARG TSC_CHECKERS=2` for the image build
+    only. Local builds are unchanged.
+- Smoke run passed:
+  - `docker run -p 3199:3100 -e BETTER_AUTH_SECRET=... socialagent:bun`
+  - The server runs on Bun, and embedded Postgres applies all migrations.
+  - `/api/health` returns `ok`, and the UI returns 200.
+- Dockerfile tests pass: 6 vitest files (47 tests) and 2 node test files (72 tests).
 
 ## Next steps
 
-1. Docker build passes, then smoke-run the container
-   (`docker run --rm -p 3100:3100 socialagent:bun`, then `curl /api/health`).
+1. ~~Docker build and smoke run~~ (done).
 2. Merge `chore/bun` into `main` and push.
 3. Later:
    - move the CI workflows to Bun;
