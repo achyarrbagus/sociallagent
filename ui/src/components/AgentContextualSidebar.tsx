@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useManagedAiLock } from "@/hooks/useManagedAiLock";
 import {
   Activity,
   BadgeDollarSign,
@@ -69,6 +70,9 @@ export function AgentContextualSidebar({
   const resolvedId = agentId ?? resolvedAgent?.id;
   const { slots: pluginTabs } = usePluginSlots({ slotTypes: ["detailTab"], entityType: "agent", companyId: resolvedAgent?.companyId ?? selectedCompanyId, enabled: Boolean(resolvedId) });
   const resolvedName = agentName ?? resolvedAgent?.name ?? "Agent";
+  // Admin-managed models: company users do not configure the harness/runtime.
+  const managedAi = useManagedAiLock(resolvedAgent?.companyId ?? selectedCompanyId);
+  const hideRuntime = managedAi.locked && !managedAi.canManage;
 
   return (
     <ContextualSidebarFrame
@@ -97,6 +101,7 @@ export function AgentContextualSidebar({
             </p>
             <div data-slot="contextual-sidebar-group" className={contextualSidebarStyles.group}>
               {section.items
+                .filter((item) => !(hideRuntime && item.value === "runtime"))
                 .map((item) => {
                   const href = agentDetailHref(agentRef, item.value);
                   return (
