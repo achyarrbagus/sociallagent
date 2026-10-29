@@ -556,9 +556,9 @@ test("a failed chat child fails the job after its sibling finishes", { skip: pro
   const tests = lines.map((line) => ({ file, projectName: "@paperclipai/server",
     name: `launcher fixture ${line}`, location: { line } }));
   const receipt = path.join(directory, "sibling-finished");
-  const fakePnpm = path.join(directory, "pnpm");
+  const fakeBun = path.join(directory, "bun");
   try {
-    writeFileSync(fakePnpm, `#!${process.execPath}
+    writeFileSync(fakeBun, `#!${process.execPath}
       const fs = require('node:fs');
       const args = process.argv.slice(2);
       const tests = ${JSON.stringify(tests)};
@@ -573,7 +573,7 @@ test("a failed chat child fails the job after its sibling finishes", { skip: pro
       } else if (selected.includes(${lines[0]})) process.exit(7);
       else setTimeout(() => fs.writeFileSync(${JSON.stringify(receipt)}, 'finished'), 200);
     `);
-    chmodSync(fakePnpm, 0o755);
+    chmodSync(fakeBun, 0o755);
     const result = spawnSync(process.execPath, [script, "--mode", "general", "--group", "general-chat",
       "--shard-index", "0", "--shard-count", "3"], {
       cwd: repoRoot, encoding: "utf8", timeout: 30_000,

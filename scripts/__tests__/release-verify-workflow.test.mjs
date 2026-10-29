@@ -502,7 +502,7 @@ test("release verify workflow covers the same split test surface as stable PR ve
   const runnerChecks = [...verifyWorkflow.matchAll(/^            checks: (.+)$/gm)]
     .flatMap(([, checks]) => checks.split(" "));
   assert.deepEqual(runnerChecks, runnerScripts["check:all"].split(" && ")
-    .map((command) => command.replace(/^pnpm run /, "")));
+    .map((command) => command.replace(/^(?:pnpm|bun) run /, "")));
   assert.match(verifyWorkflow, /pnpm --filter @paperclipai\/paperclip-runner "\$check"/);
   assert.match(verifyWorkflow, /runner_workflow_evals:/);
   assert.match(verifyWorkflow, /runner_chaos_evals:/);
