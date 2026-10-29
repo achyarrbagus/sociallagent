@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { expect, it } from "vitest";
 import { projects } from "@paperclipai/db";
 import { projectFileRoutes } from "../routes/project-files.js";
+import { issueRoutes } from "../routes/issues.js";
 import { normalizeProjectFilePath, projectFileContentType, PROJECT_FILES_MAX_COUNT } from "../services/project-files.js";
 import type { StorageService } from "../storage/types.js";
 import {
@@ -98,5 +99,20 @@ describeEmbeddedPostgres("project files", () => {
     expect(upload.status).toBe(403);
     const [stillThere] = await ctx.db.select().from(projects).where(eq(projects.id, project.id));
     expect(stillThere).toBeTruthy();
+  });
+
+  it("lists the project's files in the agent-facing heartbeat context", async () => {
+    const { companyId, project, storage, actor, app } = await seed();
+    await request(app).post(`/api/companies/${companyId}/projects/${project.id}/files`)
+      .field("path", "Brand/guide.pdf").attach("file", Buffer.from("%PDF-1"), { filename: "guide.pdf", contentType: "application/pdf" });
+    const issuesApp = routeApp(ctx.db, actor, (db) => issueRoutes(db, storage));
+    const created = await request(issuesApp).post(`/api/companies/${companyId}/issues`).send({ title: "Write launch copy", projectId: project.id });
+    expect(created.status, JSON.stringify(created.body)).toBeLessThan(300);
+
+    const context = await request(issuesApp).get(`/api/issues/${created.body.id}/heartbeat-context`);
+    expect(context.status, JSON.stringify(context.body)).toBe(200);
+    expect(context.body.project.files).toEqual([expect.objectContaining({
+      path: "Brand/guide.pdf", contentType: "application/pdf", byteSize: 6, contentPath: expect.stringMatching(/^\/api\/assets\/.+\/content$/),
+    })]);
   });
 });
