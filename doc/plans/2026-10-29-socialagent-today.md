@@ -10,9 +10,20 @@
 
 **Execution:** Inline, as requested by the user. 12ui draft attempted; unavailable because CLI requires sign-in. Use the supplied written design directly.
 
-- [ ] Test real overview derivation: active brand campaigns only, cancelled tasks excluded from completion denominator, publication status and date boundaries respected.
-- [ ] Implement agency overview with independent loading/error/empty states, honest pagination labels, actionable links and accessible progress indicators.
-- [ ] Integrate with the dashboard, retain operational blockers, update affected feature maps and design documentation.
+- [x] Test real overview derivation: active brand campaigns only, cancelled tasks excluded from completion denominator, publication status and date boundaries respected.
+- [x] Implement agency overview with independent loading/error/empty states, honest pagination labels, actionable links and accessible progress indicators.
+- [x] Integrate with the dashboard, retain operational blockers, update affected feature maps and design documentation.
 - [ ] Run focused tests, UI typecheck/build, token gates and map checks. Inspect the live page at desktop/mobile widths when browser access is available.
 
 **Review focus:** Company changes must remount the overview; failed requests must not appear as zero counts; review pagination must not claim an exact total; time range is explicitly seven days in the viewer's local timezone; no placeholder metrics or nonfunctional controls.
+
+## Verification record
+
+- UI typecheck and production build passed after the final changes.
+- 80 targeted shell/auth/overview tests plus the 20-test company-route suite passed (100 distinct tests; the 28-test follow-up includes eight overview tests already in the first set).
+- Token gates, map checks and Git whitespace checks passed.
+- Live desktop: checked Hari ini in light/dark, content form and keyboard focus, calendar, reports, agency directory, task list, agent roster, connectors, and settings. Also observed a second authorized company with a real campaign/progress row and paused-agent notice. No content/task data was created or submitted.
+- Browser viewport override reported success but left innerWidth at 1669; mobile layout is implemented but not live-verified. The viewport override was reset.
+- Full UI suite and cross-repository typecheck were attempted, then stopped under resource pressure; neither is claimed green. Full repository test:run/build were not completed. The UI-only build/typecheck and targeted tests above are the completed evidence.
+- 12ui remains unavailable without its CLI sign-in. Implementation follows the supplied written design.
+- The local authenticated/private preview serves the built UI on 127.0.0.1:3100; health and bootstrap are ready. Artifact upload environment is absent (no assigned Paperclip task in this session); the screenshot is local review evidence, not an uploaded issue artifact.

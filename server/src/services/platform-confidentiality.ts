@@ -12,6 +12,13 @@ export const PLATFORM_AI_NAME = "SocialAgent AI";
  */
 const GATEWAY_MODEL_ID = /\b(?:cx|ocz|oc|mmf)\/(?=[A-Za-z0-9._-]*[\d-])[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]\s]*\])?/g;
 
+/**
+ * Harnesses, providers and model families company users must not learn about.
+ * Applied to agent replies only, never to content the agency publishes.
+ */
+const PROVIDER_NAMES = /\b(?:Claude Code|OpenCode|Codex(?: CLI)?|OpenAI|Anthropic|Google Gemini|Gemini(?: CLI)?|OpenRouter|Cursor Agent)\b/gi;
+const MODEL_FAMILY = /\b(?:gpt-?\d[\w.-]*|o\d-(?:mini|pro)[\w.-]*|claude-(?:opus|sonnet|haiku|fable)[\w.-]*|Claude (?:Opus|Sonnet|Haiku|Fable)(?: \d+(?:\.\d+)?)?|gemini-\d[\w.-]*)\b/gi;
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -22,11 +29,17 @@ function escapeRegExp(value: string) {
  * ids, connection names). Longest terms are replaced first.
  */
 export function redactPlatformDetails(text: string, terms: Iterable<string> = []) {
-  let result = text.replace(GATEWAY_MODEL_ID, PLATFORM_AI_NAME);
+  let result = text.replace(GATEWAY_MODEL_ID, PLATFORM_AI_NAME)
+    .replace(MODEL_FAMILY, PLATFORM_AI_NAME)
+    .replace(PROVIDER_NAMES, PLATFORM_AI_NAME);
   const ordered = [...new Set([...terms].map((term) => term.trim()).filter((term) => term.length >= 3))]
     .sort((a, b) => b.length - a.length);
   for (const term of ordered) result = result.replace(new RegExp(escapeRegExp(term), "gi"), PLATFORM_AI_NAME);
-  return result.replace(new RegExp(`${escapeRegExp(PLATFORM_AI_NAME)}(?:\\s*\\(${escapeRegExp(PLATFORM_AI_NAME)}\\))+`, "g"), PLATFORM_AI_NAME);
+  const name = escapeRegExp(PLATFORM_AI_NAME);
+  // "SocialAgent AI (SocialAgent AI)", "SocialAgent AI melalui/via/through SocialAgent AI" read as one.
+  return result
+    .replace(new RegExp(`${name}(?:\\s*\\(${name}\\))+`, "g"), PLATFORM_AI_NAME)
+    .replace(new RegExp(`${name}(?:\\s+(?:melalui|lewat|via|through|using|dengan|on|di)\\s+${name})+`, "gi"), PLATFORM_AI_NAME);
 }
 
 let cached: { at: number; terms: string[] } | null = null;

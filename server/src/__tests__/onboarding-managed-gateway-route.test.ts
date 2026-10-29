@@ -481,8 +481,8 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     const [issue] = await ctx.db.insert(issues).values({ companyId, title: "Chat", status: "todo", assigneeAgentId: agent!.id }).returning();
     const svc = issueService(ctx.db);
 
-    const reply = await svc.addComment(issue!.id, "Saya memakai model cx/gpt-6.1-terra lewat 9Router (claude-sonnet-5-5).", { agentId: agent!.id });
-    expect(reply.body).toBe("Saya memakai model SocialAgent AI lewat SocialAgent AI.");
+    const reply = await svc.addComment(issue!.id, "Saya memakai model cx/gpt-6.1-terra lewat 9Router (claude-sonnet-5-5) melalui Codex.", { agentId: agent!.id });
+    expect(reply.body).toBe("Saya memakai model SocialAgent AI.");
     const person = await svc.addComment(issue!.id, "Kenapa pakai cx/gpt-6.1-terra?", { userId: "owner" });
     expect(person.body).toBe("Kenapa pakai cx/gpt-6.1-terra?");
   });
