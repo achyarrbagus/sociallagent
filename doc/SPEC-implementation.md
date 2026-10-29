@@ -2599,3 +2599,72 @@ Company-managed [Prompt Injection Prevention](prompt-injection-prevention.md)
 optionally classifies existing tool-result boundaries through a shared OpenRouter
 connection. Settings → Connections is permanent; valid model verdicts take
 precedence and dependency failures use the original built-in detector.
+
+## Creative agency foundation addendum (2026-10-25)
+
+- `agency_clients` and `agency_brands` are company-scoped. Brand-client and
+  project-brand relationships use compound company/ID foreign keys.
+- `/api/companies/:companyId/agency` returns clients, brands and actor-specific
+  `canManage`. Collection GETs also exist at `/agency/clients` and `/agency/brands`.
+  Read access follows company authorization; profiles are company-readable.
+- POST collection and PATCH `/:id` require an active human company owner, with
+  the existing trusted local implicit board as full-control operator. Agent
+  identity, an agent title and instance-admin status alone do not grant these
+  owner mutations. All mutations are audited in their persistence transaction.
+- Brand profiles store name, client, website, audience, tone, brief and timezone.
+  Archived records remain readable. Creating a brand requires an active client.
+- Project create/update accepts optional nullable `brandId`; omission retains
+  current behavior and null clears a link. New bindings validate active brand and
+  client under transaction locks. Updating unrelated fields retains archived
+  historical bindings. Existing project write/privacy authorization still applies.
+- `/agency` supports profile editing, archival/restoration and campaign creation
+  or attachment through existing project APIs. Forms are scoped to company identity.
+- Optional Agency Studio team instructions add Creative Strategist insight for
+  the owner alongside SEO, Marketing and production roles. Installation grants no
+  provider or owner authority and seeds no automatic schedules.
+- Default agency team (2026-10-26): `AGENT_ROLE_LABELS.ceo` is "Agency Director";
+  the `ceo` enum value and every `role === "ceo"` authorization check are
+  unchanged, and no owner-visible text says "CEO". The bundled team
+  `paperclipai/bundled/company-defaults/agency-core` (`defaultInstall: true`, 12
+  agents, one recurring `director-review` task owned by the Director) is installed
+  by onboarding under the first agent through the catalog install option
+  `adoptManagerAgentId` (portability option `adoptAgents`): the package's manager
+  slot maps to the existing active same-company `ceo` agent instead of creating a
+  second one. Installing a team that adds another Director into a company that
+  already has one yields a preview warning, not a block. `core-exec-team` is
+  `defaultInstall: false`; `agency-studio` is unchanged and optional.
+- `POST /api/companies/:companyId/onboarding/agency-team` (board only; requires
+  `agents:create`, like catalog install) idempotently ensures the team for a given
+  Director. A failed install returns 200 with `status: "failed"` and writes
+  `company.agency_core_team_install_failed` to the activity log; onboarding still
+  completes. `POST /companies/:companyId/onboarding-seed` installs the team and
+  returns `agencyTeam`. The wizard hires the Director (role `ceo`, editable name,
+  default "Agency Director") and calls the route, including on reuse/reopen.
+- This foundation adds neither client approvals nor revision-bound publication
+  approvals, a publishing scheduler or provider integration. Those are later
+  slices of the [agency PRD](plans/2026-10-25-prd-rewrite-creative-agency.md).
+
+
+## Agency content and owner review (2026-10-25)
+
+The [agency content contract](agency-content.md) implements the next agency slice:
+ideas, immutable complete revisions, retained production-task/asset sources, and
+owner select/approve/request-changes/reject decisions. UI entry is `/content`;
+company-scoped REST/OpenAPI entry is `/api/companies/:companyId/content-items`.
+
+- Owner-only actions recheck active company ownership under lock. Source privacy
+  and project authorization still apply; being owner does not bypass private data.
+- Assigned authorized agents may revise and submit through their open linked
+  production task; agents cannot decide, link tasks, or grant themselves access.
+- Mutations require an expected current revision and serialize against context,
+  membership, source and content state. Approval never carries to a new revision.
+- Client/brand context edits and project brand/description/archive changes
+  invalidate waiting/accepted approval. Restoring a binding does not revive it.
+- Asset snapshots retain identity and SHA-256. All historical task/asset sources
+  remain access boundaries. Missing sources fail closed; no recovery UI is added.
+- Normal task preparation uses reference-only text, stable idempotency, and the
+  existing status-version-guarded backlog-to-todo API after content linking.
+  Retried preparation never resets active/completed/cancelled work.
+- Idea selection, task completion and final content review are separate decisions.
+  This feature grants no provider dispatch authority, client approval workflow,
+  scheduled publication or portability export of agency content.

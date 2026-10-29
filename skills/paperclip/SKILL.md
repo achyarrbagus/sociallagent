@@ -514,10 +514,10 @@ The responder submits verdicts with `POST /api/issues/{issueId}/interactions/{in
 
 Load `references/workflows.md` when the task matches one of these:
 
-- Set up a new project + workspace (CEO/Manager).
-- Generate an OpenClaw invite prompt (CEO).
+- Set up a new project + workspace (Agency Director/Manager).
+- Generate an OpenClaw invite prompt (Agency Director).
 - Set or clear an agent's `instructions-path`.
-- CEO-safe company imports/exports (preview/apply).
+- Agency Director-safe company imports/exports (preview/apply).
 - App-level self-test playbook.
 
 ## Cases

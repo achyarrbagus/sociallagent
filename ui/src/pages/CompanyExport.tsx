@@ -404,7 +404,7 @@ function FrontmatterCard({
 // ── Client-side README generation ────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
-  ceo: "CEO", cto: "CTO", cmo: "CMO", cfo: "CFO", coo: "COO",
+  ceo: "Agency Director", cto: "CTO", cmo: "CMO", cfo: "CFO", coo: "COO",
   vp: "VP", manager: "Manager", engineer: "Engineer", agent: "Agent",
 };
 
@@ -490,10 +490,10 @@ function generateReadmeFromSelection(
   lines.push("npx paperclipai company import this-github-url-or-folder");
   lines.push("```");
   lines.push("");
-  lines.push("See [Paperclip](https://paperclip.ing) for more information.");
+  lines.push("SocialAgent is based on [Paperclip](https://paperclip.ing).");
   lines.push("");
   lines.push("---");
-  lines.push(`Exported from [Paperclip](https://paperclip.ing) on ${new Date().toISOString().split("T")[0]}`);
+  lines.push(`Exported from SocialAgent on ${new Date().toISOString().split("T")[0]}`);
   lines.push("");
 
   return lines.join("\n");

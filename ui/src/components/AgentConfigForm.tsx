@@ -63,7 +63,8 @@ import {
   resolveManagedSandboxEnvironmentId,
 } from "../lib/adapter-test-environment";
 import { environmentDisplayLabel } from "../lib/managed-sandbox-environment";
-import { adapterCuratesModelOrder, extractModelName, extractProviderId } from "../lib/model-utils";
+import { adapterCuratesModelOrder, extractProviderId } from "../lib/model-utils";
+import { modelDisplayCode, modelDisplayName } from "../lib/model-display";
 import { queryKeys } from "../lib/queryKeys";
 import { useCompany } from "../context/CompanyContext";
 import {
@@ -944,7 +945,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         });
         if (!qualified) throw new Error("Agent settings changed during verification. Retry the upgrade with the current settings.");
         queryClient.setQueryData(queryKeys.adapters.availability(selectedCompanyId, rawCurrentDefaultEnvironmentId || null), qualified.adapters);
-        if (qualified.runner !== "paperclip") throw new Error("This environment does not support Paperclip Runner. Your agent still uses Legacy runner.");
+        if (qualified.runner !== "paperclip") throw new Error("This environment does not support SocialAgent Runner. Your agent still uses Legacy runner.");
       }
       await props.onSave({ ...buildAgentUpdatePatch(props.agent, nextOverlay), runner: "paperclip" });
       setRunnerUpgrade(current => current?.agentId === agentId ? { agentId, status: "upgraded" } : current);
@@ -1007,7 +1008,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const inheritedEnvironmentLabel = instanceDefaultEnvironment
     ? environmentDisplayLabel(instanceDefaultEnvironment)
     : managedSandboxOnly
-      ? "Paperclip Computer"
+      ? "SocialAgent Computer"
       : "Local";
 
   const modelProvider = adapterType === "opencode_local" && aiConnectionBindingSchema.safeParse(
@@ -1579,7 +1580,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
         <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1 space-y-1">
-              <p className="text-sm font-medium">Upgrade to Paperclip Runner</p>
+              <p className="text-sm font-medium">Upgrade to SocialAgent Runner</p>
               <p className="text-sm text-muted-foreground">
                 Keep {harnessType === "claude_local" ? "Claude" : "Codex"}, your model, account, and compatible settings.
                 New sessions start fresh; past runs stay available.
@@ -1600,7 +1601,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           {runnerUpgradeError ? <p role="alert" className="text-sm text-destructive">{runnerUpgradeError}</p> : null}
         </div>
       ) : null}
-      {runnerUpgraded ? <p role="status" className="text-sm text-muted-foreground">Upgraded to Paperclip Runner.</p> : null}
+      {runnerUpgraded ? <p role="status" className="text-sm text-muted-foreground">Upgraded to SocialAgent Runner.</p> : null}
       {adapterType === "paperclip_runner" && upgradeWarnings.length > 0 ? (
         <div role="status" className="space-y-1 rounded-lg border border-border bg-muted/30 p-4">
           {upgradeWarnings.map(warning => <p key={warning.field} className="text-sm text-muted-foreground">{warning.message}</p>)}
@@ -1939,7 +1940,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
                 }}
                 open={modelOpen}
                 onOpenChange={setModelOpen}
-                defaultLabel={adapterType === "claude_local" ? `Default (${DEFAULT_CLAUDE_LOCAL_MODEL})` : undefined}
+                defaultLabel={adapterType === "claude_local" ? `Default (${modelDisplayName(DEFAULT_CLAUDE_LOCAL_MODEL)})` : undefined}
                 allowDefault={adapterType !== "opencode_local" && adapterType !== "pi_local" && adapterType !== "paperclip_runner"}
                 required={adapterType === "opencode_local" || adapterType === "pi_local"}
                 groupByProvider={!connectionModels && (adapterType === "opencode_local" || adapterType === "pi_local")}
@@ -2339,7 +2340,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
               <div className="mt-3 flex items-start gap-2 rounded-md border border-border bg-background/60 px-3 py-2 text-xs text-foreground">
                 <Bug className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  Raw tracing is on for future runs. Paperclip keeps at most 64 MiB per run and automatically deletes it after 24 hours.
+                  Raw tracing is on for future runs. SocialAgent keeps at most 64 MiB per run and automatically deletes it after 24 hours.
                 </span>
               </div>
             ) : null}
@@ -3948,13 +3949,7 @@ export function ModelDropdown({
   const [modelSearch, setModelSearch] = useState("");
   const [enteringCustomModel, setEnteringCustomModel] = useState(false);
   const [detectingModel, setDetectingModel] = useState(false);
-  const selected = models.find((m) => m.id === value);
   const manualModel = modelSearch.trim();
-  const canCreateManualModel = Boolean(
-    creatable &&
-      manualModel &&
-      !models.some((m) => m.id.toLowerCase() === manualModel.toLowerCase()),
-  );
   // Model IDs already shown as detected/candidate badges — exclude from regular list
   const promotedModelIds = useMemo(() => {
     const set = new Set<string>();
@@ -3965,6 +3960,20 @@ export function ModelDropdown({
     return set;
   }, [detectedModel, detectedModelCandidates]);
 
+  const visibleModelIds = new Set([...models.map(model => model.id), value, ...promotedModelIds].filter(Boolean));
+  const aliasCounts = new Map<string, number>();
+  for (const id of visibleModelIds) {
+    const alias = modelDisplayName(id);
+    aliasCounts.set(alias, (aliasCounts.get(alias) ?? 0) + 1);
+  }
+  const displayModel = (id: string) => {
+    const alias = modelDisplayName(id);
+    return (aliasCounts.get(alias) ?? 0) > 1 ? `${alias} · ${modelDisplayCode(id)}` : alias;
+  };
+  const canCreateManualModel = Boolean(creatable && manualModel
+    && ![...visibleModelIds].some(id => [id, modelDisplayName(id), modelDisplayCode(id), displayModel(id)]
+      .some(label => label.toLowerCase() === manualModel.toLowerCase())));
+
   const filteredModels = useMemo(() => {
     return models.filter((m) => {
       if (promotedModelIds.has(m.id)) return false;
@@ -3974,6 +3983,8 @@ export function ModelDropdown({
       return (
         m.id.toLowerCase().includes(q) ||
         m.label.toLowerCase().includes(q) ||
+        modelDisplayName(m.id).toLowerCase().includes(q) ||
+        modelDisplayCode(m.id).toLowerCase().includes(q) ||
         provider.toLowerCase().includes(q)
       );
     });
@@ -4034,12 +4045,12 @@ export function ModelDropdown({
           <option value="" disabled={!allowDefault}>
             {allowDefault ? (defaultLabel ?? "Default") : loadingModels ? "Loading models…" : required ? "Select model (required)" : "Select model"}
           </option>
-          {extraModels.map(id => <option key={id} value={id}>{models.find(model => model.id === id)?.label ?? id}</option>)}
+          {extraModels.map(id => <option key={id} value={id}>{displayModel(id)}</option>)}
           {groupedModels.map(({ provider, entries }) => groupByProvider ? (
             <optgroup key={provider} label={provider}>
-              {entries.map(model => <option key={model.id} value={model.id}>{model.label}</option>)}
+              {entries.map(model => <option key={model.id} value={model.id}>{displayModel(model.id)}</option>)}
             </optgroup>
-          ) : entries.map(model => <option key={model.id} value={model.id}>{model.label}</option>))}
+          ) : entries.map(model => <option key={model.id} value={model.id}>{displayModel(model.id)}</option>))}
           {creatable && <option value={customOption}>Enter custom model…</option>}
         </NativeSelect>
         {enteringCustomModel && (
@@ -4060,7 +4071,7 @@ export function ModelDropdown({
     <Field label="Model" hint={help.model}>
       <SelectPopover aria-label="Model" value={value}
         displayValue={<span className={cn("truncate", !value && "text-muted-foreground")}>
-          {selected?.label ?? (value || (allowDefault ? (defaultLabel ?? "Default") : required ? "Select model (required)" : "Select model"))}
+          {value ? displayModel(value) : (allowDefault ? (defaultLabel ?? "Default") : required ? "Select model (required)" : "Select model")}
         </span>}
         open={open}
         onOpenChange={(nextOpen) => {
@@ -4135,8 +4146,8 @@ export function ModelDropdown({
                 onOpenChange(false);
               }}
             >
-              <span className="block w-full text-left truncate font-mono text-xs" title={value}>
-                {models.find((m) => m.id === value)?.label ?? value}
+              <span className="block w-full text-left truncate font-mono text-xs" title={displayModel(value)}>
+                {displayModel(value)}
               </span>
               <Badge variant="outline" className="ml-auto text-(length:--text-nano) px-1.5 bg-green-500/15 text-green-400 border-green-500/20">
                 current
@@ -4155,8 +4166,8 @@ export function ModelDropdown({
                 onOpenChange(false);
               }}
             >
-              <span className="block w-full text-left truncate font-mono text-xs" title={detectedModel}>
-                {models.find((m) => m.id === detectedModel)?.label ?? detectedModel}
+              <span className="block w-full text-left truncate font-mono text-xs" title={displayModel(detectedModel)}>
+                {displayModel(detectedModel)}
               </span>
               <Badge variant="outline" className="ml-auto text-(length:--text-nano) px-1.5 bg-blue-500/15 text-blue-400 border-blue-500/20">
                 detected
@@ -4166,7 +4177,6 @@ export function ModelDropdown({
           {detectedModelCandidates
             ?.filter((candidate) => candidate && candidate !== detectedModel && candidate !== value)
             .map((candidate) => {
-              const entry = models.find((m) => m.id === candidate);
               return (
                 <button
                   key={`detected-${candidate}`}
@@ -4180,8 +4190,8 @@ export function ModelDropdown({
                     onOpenChange(false);
                   }}
                 >
-                  <span className="block w-full text-left truncate font-mono text-xs" title={candidate}>
-                    {entry?.label ?? candidate}
+                  <span className="block w-full text-left truncate font-mono text-xs" title={displayModel(candidate)}>
+                    {displayModel(candidate)}
                   </span>
                   <Badge variant="outline" className="ml-auto text-(length:--text-nano) px-1.5 bg-sky-500/15 text-sky-400 border-sky-500/20">
                     config
@@ -4218,7 +4228,7 @@ export function ModelDropdown({
                 }}
               >
                 <span>Use manual model</span>
-                <span className="text-xs font-mono text-muted-foreground">{manualModel}</span>
+                <span className="text-xs font-mono text-muted-foreground">{modelDisplayName(manualModel)}</span>
               </button>
             )}
             {groupedModels.map((group) => (
@@ -4242,8 +4252,8 @@ export function ModelDropdown({
                       onOpenChange(false);
                     }}
                   >
-                    <span className="block w-full text-left truncate" title={m.id}>
-                      {groupByProvider ? extractModelName(m.id) : m.label}
+                    <span className="block w-full text-left truncate" title={displayModel(m.id)}>
+                      {displayModel(m.id)}
                     </span>
                   </button>
                 ))}

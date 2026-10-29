@@ -1,9 +1,17 @@
 import { Router } from "express";
 import type { Db } from "@paperclipai/db";
-import { applyOnboardingSeedSchema } from "@paperclipai/shared";
+import { applyOnboardingSeedSchema, ensureAgencyTeamSchema } from "@paperclipai/shared";
 import { validate } from "../middleware/index.js";
+import { agencyCoreTeamService, type EnsureAgencyCoreTeamResult } from "../services/agency-core-team.js";
 import { onboardingSeedService } from "../services/onboarding-seed.js";
-import { assertCompanyAccess, getActorInfo } from "./authz.js";
+import { accessService } from "../services/access.js";
+import {
+  assertBoard,
+  assertBoardCanCreateAgents,
+  assertCompanyAccess,
+  boardCanCreateAgents,
+  getActorInfo,
+} from "./authz.js";
 
 /**
  * Receiver for the onboarding seed Paperclip Cloud collects at signup and
@@ -28,10 +36,20 @@ import { assertCompanyAccess, getActorInfo } from "./authz.js";
  * transaction as the seed. Because Cloud stops retrying on a 2xx, anything this
  * route reports as applied must already be durable — a half that can still be
  * lost after the response is a half that is lost for good.
+ *
+ * Once the seed has committed a Director, the default agency team is installed
+ * under her. That install is best-effort and never fails the push: any failure,
+ * including a Director still waiting for approval, is written to the activity
+ * log and reported as `agencyTeam.status: "failed"` so Cloud still records the
+ * seed and the owner keeps a usable Director. The team hires 11 agents, so it is
+ * installed only for a board user who passes the same `agents:create` gate as
+ * the board retry route; any other actor gets the seed without the team.
  */
 export function onboardingSeedRoutes(db: Db) {
   const router = Router();
   const svc = onboardingSeedService(db);
+  const agencyTeam = agencyCoreTeamService(db);
+  const access = accessService(db);
 
   router.post(
     "/companies/:companyId/onboarding-seed",
@@ -47,7 +65,15 @@ export function onboardingSeedRoutes(db: Db) {
       // and re-logs. Handling it here instead, as this route used to, could only
       // pick which half to lose: 500 and the retry reports `changed: false` and
       // never logs; 200 and Cloud stops retrying with the entry still absent.
-      const result = await svc.apply(companyId, req.body, getActorInfo(req));
+      const actor = getActorInfo(req);
+      const result = await svc.apply(companyId, req.body, actor);
+
+      let agencyTeamResult: EnsureAgencyCoreTeamResult | null = null;
+      if (result.agentId) {
+        agencyTeamResult = await boardCanCreateAgents(req, companyId, access)
+          ? await agencyTeam.ensureInstalledOrReportFailure(companyId, result.agentId, actor)
+          : await agencyTeam.reportFailure(companyId, result.agentId, actor, "Missing permission: agents:create");
+      }
 
       res.status(200).json({
         companyId,
@@ -57,7 +83,25 @@ export function onboardingSeedRoutes(db: Db) {
         goalId: result.goalId,
         agentId: result.agentId,
         issueId: result.issueId,
+        agencyTeam: agencyTeamResult,
       });
+    },
+  );
+
+  // The board's onboarding retry: installs the default agency team under the
+  // given Agency Director. Director validation surfaces as 409/422; a failed
+  // install is a 200 with `status: "failed"` so the owner sees why.
+  router.post(
+    "/companies/:companyId/onboarding/agency-team",
+    validate(ensureAgencyTeamSchema),
+    async (req, res) => {
+      const companyId = req.params.companyId as string;
+      assertBoard(req);
+      assertCompanyAccess(req, companyId);
+      // Same gate as a catalog team install: the team hires 11 agents.
+      await assertBoardCanCreateAgents(req, companyId, access);
+      const result = await agencyTeam.ensureInstalled(companyId, req.body.agentId, getActorInfo(req));
+      res.status(200).json(result);
     },
   );
 

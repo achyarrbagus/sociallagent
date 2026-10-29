@@ -4,13 +4,13 @@
   "options": [
     {
       "id": "interview",
-      "label": "Interview me and propose a plan and an agent team to execute it.",
-      "description": "A few questions about what you're building, then a short plan and the team to carry it out, for you to approve."
+      "label": "Interview me about the agency and our first client",
+      "description": "I'll learn about your agency, your first client and brand, then plan the team's first work."
     },
     {
       "id": "task",
-      "label": "I have a task in mind",
-      "description": "Describe it and I'll propose how to get it done.",
+      "label": "I already have a brief",
+      "description": "Describe it and I'll hand it to the right people on the team.",
       "freeText": true
     }
   ]

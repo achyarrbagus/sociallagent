@@ -24,7 +24,7 @@ Agent access: [companion](../agent-access-map/skills.md).
 
 ### `library-sources`
 
-Open `/skills`, Discover, or `/skills/sources`; project import is available through the library’s import flow. In Streamlined UI, Installed, Discover and My Skills are route links styled as tabs beneath the toolbar, with no secondary navigation rail. Sources stays separate under New → Manage sources. Legacy UI retains the Skills sidebar.
+The global Skills menu is hidden in SocialAgent's primary sidebar. Existing direct URLs (`/skills`, Discover, `/skills/sources`) and agent skill settings remain available; project import is available through the library’s import flow. In Streamlined UI, Installed, Discover and My Skills are route links styled as tabs beneath the toolbar, with no secondary navigation rail. Sources stays separate under New → Manage sources. Legacy UI retains the contextual Skills sidebar on these direct routes.
 
 ### `studio`
 

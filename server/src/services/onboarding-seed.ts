@@ -23,10 +23,13 @@ export const ONBOARDING_SEED_PROJECT_NAME = "Onboarding";
 
 /**
  * Role assigned to the seeded lead agent. The seed's own `agent.role` is
- * customer free text ("Chief of Staff") and lands on `title`; `role` stays the
+ * customer free text ("Head of Studio") and lands on `title`; `role` stays the
  * structural `ceo` key the org chart and default-instructions lookup read.
  */
 const SEEDED_AGENT_ROLE = "ceo";
+
+/** Name and title the seeded lead falls back to when the seed leaves them empty. */
+const DEFAULT_SEEDED_AGENT_NAME = "Agency Director";
 
 /**
  * Adapter the seeded agent is created with. Mirrors the teams-catalog default
@@ -185,8 +188,8 @@ export function onboardingSeedService(db: Db) {
     const existing = await readRecord(dbx, companyId);
     if (existing?.revision === seed.revision) return existing.agentId;
     const agentSvc = agentService(dbx);
-    const agentName = seed.agent?.name.trim() || null;
-    const agentRole = seed.agent?.role?.trim() || null;
+    const agentName = seed.agent ? seed.agent.name.trim() || DEFAULT_SEEDED_AGENT_NAME : null;
+    const agentRole = seed.agent ? seed.agent.role?.trim() || DEFAULT_SEEDED_AGENT_NAME : null;
     // 2. Agent → the customer's first hire, the lead the first task is
     //    assigned to.
     let agentId = await resolveTargetAgentId(dbx, companyId, existing?.agentId ?? null);

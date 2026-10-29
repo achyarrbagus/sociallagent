@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
+import { modelDisplayName } from "@/lib/model-display";
 import { renderToStaticMarkup } from "react-dom/server";
 import { parseAcpxStdoutLine } from "@paperclipai/adapter-utils/acpx-engine/ui";
 import { buildTranscript, type RunLogChunk, type TranscriptEntry } from "../../adapters";
@@ -9,6 +10,19 @@ import { ThemeProvider } from "../../context/ThemeContext";
 import { RunTranscriptView, keyTranscriptBlocks, normalizeTranscript } from "./RunTranscriptView";
 
 describe("RunTranscriptView", () => {
+  it("masks rendered model metadata while preserving original transcript entries", () => {
+    const entries: TranscriptEntry[] = [
+      { kind: "init", ts: "2026-08-21T12:00:00.000Z", model: "gpt-6-sol", sessionId: "session-1" },
+      { kind: "provider_activity", ts: "2026-08-21T12:00:01.000Z", family: "model_identity", eventType: "model.route.changed", status: "running", title: "Model gpt-6-sol", summary: "gpt-6-sol routed to gpt-6-astra", payload: { requestedModel: "gpt-6-sol", effectiveModel: "gpt-6-astra" } },
+    ];
+    const html = renderToStaticMarkup(<RunTranscriptView entries={entries} />);
+    expect(html).toContain(modelDisplayName("gpt-6-sol"));
+    expect(html).toContain(modelDisplayName("gpt-6-astra"));
+    expect(html).not.toContain("gpt-6-sol");
+    expect(html).not.toContain("gpt-6-astra");
+    expect(entries[0]).toHaveProperty("model", "gpt-6-sol");
+    expect(entries[1]).toHaveProperty("payload.effectiveModel", "gpt-6-astra");
+  });
   it("renders provider activity semantically without dumping the payload", () => {
     const html = renderToStaticMarkup(<RunTranscriptView entries={[{ kind: "provider_activity", ts: "2026-08-21T12:00:00.000Z", family: "plan", eventType: "plan.updated", status: "completed", title: "Plan", summary: "Plan completed", payload: { steps: [{ stepId: "s1", body: "Validate schemas", status: "completed" }], hiddenSecret: "must-not-render" } }]} />);
     expect(html).toContain("Plan");

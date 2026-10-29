@@ -1,5 +1,6 @@
 import {
   Inbox,
+  Users,
   ListChecks,
   CircleDot,
   Target,
@@ -9,7 +10,6 @@ import {
   Search,
   SquarePen,
   Network,
-  Boxes,
   Repeat,
   Layers,
   GitBranch,
@@ -194,7 +194,6 @@ export function Sidebar() {
             />
           ) : null}
           <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
-          <SidebarNavItem to="/skills" label="Skills" icon={Boxes} />
           {showWorkspacesLink ? (
             <SidebarNavItem to="/workspaces" label="Workspaces" icon={GitBranch} />
           ) : null}
@@ -204,6 +203,8 @@ export function Sidebar() {
               <SidebarStarredProjects />
             </>
           ) : null}
+          <SidebarNavItem to="/agency" label="Clients & Brands" icon={Users} />
+          <SidebarNavItem to="/content" label="Content & Review" icon={SquarePen} />
           <PluginSlotOutlet
             errorBehavior="hidden"
             slotTypes={["sidebar"]}

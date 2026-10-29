@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -405,7 +406,7 @@ export function StatusCardDetailDrawer({
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {formatTokenSplit(update.inputTokens, update.outputTokens)} · {formatCents(update.costCents)}
-                          {update.model ? ` · ${update.model}` : ""}
+                          {update.model ? ` · ${modelDisplayName(update.model)}` : ""}
                           {update.changes.length > 0 ? ` · ${update.changes.length} changes` : ""}
                         </p>
                         {update.error ? <p className="mt-1 text-xs text-destructive">{update.error}</p> : null}

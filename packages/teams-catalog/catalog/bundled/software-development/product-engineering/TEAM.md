@@ -29,7 +29,7 @@ requiredSkills:
 
 # Product Engineering
 
-An optional drop-in engineering pod for companies that want a working software-delivery loop without going through the catalog's `core-exec-team` first. Install it under an existing CEO/manager and the imported CTO will own engineering execution.
+An optional drop-in engineering pod for companies that want a working software-delivery loop without going through the catalog's `core-exec-team` first. Install it under an existing Agency Director or manager and the imported CTO will own engineering execution.
 
 ## Contents
 

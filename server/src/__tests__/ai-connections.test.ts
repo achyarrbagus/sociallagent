@@ -22,6 +22,7 @@ import { fetchCompanyQuotaWindows } from "../services/quota-windows.js";
 import { quotaCredentialRecoveryPath, quotaCredentialRecovery, quotaCredentialHash } from "../services/quota-credential-recovery.js";
 import { readAiConnectionConfigurationFailure } from "../services/ai-connection-configuration-failure.js";
 import { aiConnectionService } from "../services/ai-connections.js";
+import * as aiConnectionsModule from "../services/ai-connections.js";
 import { DELIVERY_QUEUES, subscribeDeliveryWork } from "../services/delivery-work-notifications.js";
 import { syncConnectionCredentialBindings } from "../services/connection-credential-bindings.js";
 import * as codexAdapter from "@paperclipai/adapter-codex-local/server";
@@ -1251,6 +1252,52 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect(await service.probeUsage(companyId, owner, apiAccount.connectionId)).toMatchObject({ status: "unsupported" });
       expect(fetchSpy).not.toHaveBeenCalled();
     } finally { fetchSpy.mockRestore(); }
+  });
+
+  it.each([
+    ["gateway", "responses", "openai", "codex_local"],
+    ["gateway", "messages", "anthropic", "claude_local"],
+    ["local", "responses", "openai", "codex_local"],
+    ["local", "messages", "anthropic", "claude_local"],
+  ] as const)("explicitly selects a personal %s %s default through the API", async (kind, protocol, provider, adapterType) => {
+    const owner = `custom-default-${kind}-${protocol}`;
+    await db.insert(companyMemberships).values({ companyId, principalId: owner, principalType: "user", status: "active", membershipRole: "member" });
+    const routing = { kind, protocol, auth: "bearer", baseUrl: kind === "local" ? "http://localhost:20128/v1" : "https://gateway.example/v1", models: [] } as const;
+    const saved = await service.save(companyId, owner, { provider, method: "api_key", name: owner, ownership: "personal", apiKey: "fixture", allAgents: true, agentIds: [], routing: { ...routing, models: [] } }, "fixture-personal-gateway");
+    const selected = { provider, method: "api_key", mode: "responsible_user" } as const;
+    await expect(service.select({ companyId, agentId, userId: owner, adapterType, binding: selected })).rejects.toThrow("personal default");
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.actor = { type: "board", source: "session", userId: String(req.headers["x-test-user"] ?? owner), companyIds: [companyId], memberships: [{ companyId, membershipRole: "member", status: "active" }] };
+      next();
+    });
+    app.use("/api", aiConnectionRoutes(db));
+    app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
+    const url = `/api/companies/${companyId}/ai-connections/default`;
+    expect((await request(app).put(url).set("x-test-user", "bob").send({ grantId: saved.grantId })).status).toBe(403);
+    expect((await request(app).put(url).send({ grantId: saved.grantId })).status).toBe(200);
+    expect(await service.select({ companyId, agentId, userId: owner, adapterType, binding: selected })).toMatchObject({ attribution: { ...saved, mode: "responsible_user", provider, responsibleUserId: owner } });
+    const runtime = await prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType, binding: selected, config: {} });
+    try {
+      expect(runtime.attribution).toMatchObject({ ...saved, mode: "responsible_user" });
+      expect(runtime.config.env).toMatchObject(protocol === "responses"
+        ? { PAPERCLIP_AI_PROVIDER_KEY: "fixture-personal-gateway" }
+        : { ANTHROPIC_BASE_URL: routing.baseUrl, ANTHROPIC_AUTH_TOKEN: "fixture-personal-gateway" });
+    } finally { await runtime.cleanup(); }
+    const runtimeCredential = vi.spyOn(service, "runtimeCredential");
+    const factory = vi.spyOn(aiConnectionsModule, "aiConnectionService").mockReturnValue(service);
+    try {
+      await expect(prepareManagedAiRuntime(db, { companyId, agentId, responsibleUserId: owner, adapterType: "paperclip_runner", binding: selected,
+        config: { provider: "acpx", acpxAgent: "pi", model: `${provider}/gateway-model` } })).rejects.toThrow("incompatible");
+      expect(runtimeCredential).not.toHaveBeenCalled();
+    } finally { factory.mockRestore(); runtimeCredential.mockRestore(); }
+  });
+
+  it.each(["gateway", "local"] as const)("keeps %s chat endpoints explicitly bound", async kind => {
+    const saved = await service.save(companyId, "alice", { provider: "openai", method: "api_key", name: `${kind} chat`, ownership: "personal", allAgents: true, agentIds: [],
+      routing: { kind, protocol: "chat", auth: "none", baseUrl: "http://localhost:20128/v1", models: [] } }, "");
+    await expect(service.setDefault(companyId, "alice", saved.grantId)).rejects.toThrow("explicit connection");
   });
 
   it("vaults routed credentials, enforces compatibility and access, and configures both Codex runners", async () => {

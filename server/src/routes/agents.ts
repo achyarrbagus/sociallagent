@@ -2478,8 +2478,8 @@ export function agentRoutes(
   }
 
   // Resolve the server-owned instruction bundle for the onboarding first agent.
-  // The marker seeds the chief-of-staff persona (server/src/onboarding-assets/
-  // first-task/chief-of-staff/AGENTS.md, placeholders filled) over the agent's
+  // The marker seeds the Agency Director persona (server/src/onboarding-assets/
+  // first-task/agency-director/AGENTS.md, placeholders filled) over the agent's
   // entry file instead of the generic default. Honored only for board-authored
   // requests — the onboarding wizard runs as the board — so a client marker
   // alone cannot swap another actor's instructions. Runtime coordination is
@@ -2748,7 +2748,7 @@ export function agentRoutes(
     };
   }
 
-  // CEO and board-created onboarding chief-of-staff instructions assume the
+  // CEO-role and board-created onboarding Agency Director instructions assume the
   // core paperclip skills (board coordination, planning, hiring, memory).
   // Union them into these skills-capable hires/creates so their desired skills
   // match their instructions. Optional role
@@ -4350,7 +4350,7 @@ export function agentRoutes(
       // fixed reference to the owner stored value with no login round trip.
       applyStoredClaudeLogin: hireApplyStoredClaudeLogin,
       // The onboarding marker is not an agent column. The server consumes it to
-      // seed the chief-of-staff persona; it never reaches the insert values.
+      // seed the Agency Director persona; it never reaches the insert values.
       onboardingFirstAgent: hireOnboardingFirstAgent,
       // This intent flag is consumed below and must never reach agent create.
       inheritRuntimeFrom,
@@ -4751,7 +4751,7 @@ export function agentRoutes(
       // fixed reference to the owner stored value with no login round trip.
       applyStoredClaudeLogin: createApplyStoredClaudeLogin,
       // The onboarding marker is not an agent column. The server consumes it to
-      // seed the chief-of-staff persona; it never reaches the insert values.
+      // seed the Agency Director persona; it never reaches the insert values.
       onboardingFirstAgent: createOnboardingFirstAgent,
       setupId,
       runner: createRunner,
@@ -4933,7 +4933,7 @@ export function agentRoutes(
         return;
       }
       if (actorAgent.role !== "ceo") {
-        res.status(403).json({ error: "Only CEO can manage permissions" });
+        res.status(403).json({ error: "Only the Agency Director can manage permissions" });
         return;
       }
     } else {

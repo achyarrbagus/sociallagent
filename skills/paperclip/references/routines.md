@@ -29,7 +29,7 @@ Paused routines do not fire. Archived routines do not fire and cannot be unarchi
 ```
 POST /api/companies/{companyId}/routines
 {
-  "title": "Weekly CEO briefing",
+  "title": "Weekly Agency Director briefing",
   "description": "Compile status report and post to Slack",
   "assigneeAgentId": "{agentId}",
   "projectId": "{projectId}",

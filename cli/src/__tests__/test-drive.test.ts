@@ -32,7 +32,7 @@ function agent(overrides: Partial<Agent> = {}): Agent {
   return {
     id: "agent-1",
     companyId: "company-1",
-    name: "CEO",
+    name: "Agency Director",
     role: "ceo",
     adapterType: "claude_local",
     adapterConfig: {},
@@ -208,7 +208,7 @@ describe("test-drive bootstrap validation", () => {
     const resolved = resolveTestDriveBootstrap({}, { ANTHROPIC_API_KEY: "anthropic-secret" });
     expect(resolved).toMatchObject({
       companyName: "Test Company",
-      agentName: "CEO",
+      agentName: "Agency Director",
       adapterType: "claude_local",
       credentialTarget: "ANTHROPIC_API_KEY",
       credential: "anthropic-secret",
@@ -311,7 +311,7 @@ describe("test-drive API bootstrap", () => {
     ["claude", "claude_local", "ANTHROPIC_API_KEY", undefined],
     ["codex", "codex_local", "OPENAI_API_KEY", undefined],
     ["opencode", "opencode_local", "OPENROUTER_API_KEY", "openrouter/anthropic/claude-sonnet-4.5"],
-  ] as const)("creates exactly one company and one CEO for %s", async (
+  ] as const)("creates exactly one company and one Agency Director for %s", async (
     harness,
     adapterType,
     credentialTarget,
@@ -339,7 +339,7 @@ describe("test-drive API bootstrap", () => {
     expect(secretValueCall?.body).toEqual({ definitionKey: credentialTarget, value: "secret" });
     const agentCall = calls.find((call) => call.path.endsWith("/agents"));
     expect(agentCall?.body).toEqual({
-      name: "CEO",
+      name: "Agency Director",
       role: "ceo",
       adapterType,
       adapterConfig: {

@@ -56,7 +56,7 @@ export function agentRunnerAvailability(harness: string, target: RunnerTarget = 
 }
 
 function incompatible(fields: string[]): never {
-  throw unprocessable(`Paperclip Runner cannot honor these settings: ${fields.join(", ")}. Remove them or select Legacy runner in Advanced.`, { code: "agent_runner_config_incompatible", fields });
+  throw unprocessable(`SocialAgent Runner cannot honor these settings: ${fields.join(", ")}. Remove them or select Legacy runner in Advanced.`, { code: "agent_runner_config_incompatible", fields });
 }
 
 function resolvePiRunnerConfig(config: Record<string, unknown>): Record<string, unknown> {
@@ -164,7 +164,7 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
         ...(config.acpxSessionMode !== undefined ? ["acpxSessionMode"] : []),
         ...(!["off", "minimal", "low", "medium", "high", "xhigh"].includes(String(thinking)) ? [config.thinking !== undefined ? "thinking" : "piThinkingLevel"] : []),
       ];
-      if (unsupported.length) throw unprocessable(`Legacy Pi cannot honor these settings: ${unsupported.join(", ")}. Keep Paperclip Runner or explicitly choose compatible settings.`, { code: "agent_runner_config_incompatible", fields: unsupported });
+      if (unsupported.length) throw unprocessable(`Legacy Pi cannot honor these settings: ${unsupported.join(", ")}. Keep SocialAgent Runner or explicitly choose compatible settings.`, { code: "agent_runner_config_incompatible", fields: unsupported });
       for (const key of ["provider", "acpxAgent", "acpxPermissionMode", "acpxSessionMode", "piThinkingLevel", "lifecycleMode", "idleTimeoutMs"]) delete config[key];
       return { adapterType: "pi_local", adapterConfig: { ...config, thinking } };
     }
@@ -194,8 +194,8 @@ function resolveAgentRunner(input: AgentRunnerSelection): { adapterType: string;
   }
   if (native && harness !== "codex_local" && choice === "paperclip") return { adapterType, adapterConfig: normalizeLegacyRunnerProvider(config) };
   if (!availability.supportedRunners.includes("paperclip")) throw unprocessable(input.target?.driver === "sandbox"
-    ? "Paperclip Runner is unavailable for this sandbox. Choose an immutable OCI image digest and run its environment connection probe to qualify the OS, architecture and libc, or select Legacy runner in Advanced."
-    : "Paperclip Runner is unavailable for this harness and environment. Select Legacy runner in Advanced.", { code: "agent_runner_unavailable" });
+    ? "SocialAgent Runner is unavailable for this sandbox. Choose an immutable OCI image digest and run its environment connection probe to qualify the OS, architecture and libc, or select Legacy runner in Advanced."
+    : "SocialAgent Runner is unavailable for this harness and environment. Select Legacy runner in Advanced.", { code: "agent_runner_unavailable" });
   if (native) return { adapterType, adapterConfig: normalizeLegacyRunnerProvider(config) };
   if (harness === "pi_local") {
     config = resolvePiRunnerConfig(config);

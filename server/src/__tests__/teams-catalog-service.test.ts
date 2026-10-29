@@ -30,8 +30,10 @@ vi.mock("../services/company-skills.js", () => ({
   companySkillService: () => mockCompanySkillService,
 }));
 
+const mockLogActivity = vi.hoisted(() => vi.fn());
+
 vi.mock("../services/activity-log.js", () => ({
-  logActivity: vi.fn(),
+  logActivity: mockLogActivity,
 }));
 
 const {
@@ -64,6 +66,7 @@ function agentWithCatalogTeam(originHash: string | null, extra: Record<string, u
 describe("teamsCatalogService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAgentService.list.mockResolvedValue([]);
     mockAgentService.getById.mockResolvedValue({
       id: "manager-1",
       companyId: "company-1",
@@ -238,6 +241,132 @@ describe("teamsCatalogService", () => {
       }),
       { mode: "agent_safe", sourceCompanyId: "company-1" },
     );
+  });
+
+  describe("adopting an existing Agency Director", () => {
+    const DIRECTOR_ID = "11111111-1111-4111-8111-111111111111";
+    const director = {
+      id: DIRECTOR_ID,
+      companyId: "company-1",
+      name: "Agency Director",
+      role: "ceo",
+      status: "idle",
+      lifecycleState: "ready",
+    };
+
+    it("installs under adopted manager", async () => {
+      mockAgentService.getById.mockResolvedValue(director);
+      const svc = teamsCatalogService({} as any);
+
+      const result = await svc.installCatalogTeam("company-1", "core-exec-team", {
+        adoptManagerAgentId: DIRECTOR_ID,
+      });
+
+      const [importInput, , importOptions] = mockCompanyPortabilityService.importBundle.mock.calls.at(-1)!;
+      expect(importOptions).toMatchObject({ adoptAgents: { ceo: DIRECTOR_ID } });
+      expect(importInput.adapterOverrides).toEqual({
+        cto: { adapterType: "claude_local" },
+        qa: { adapterType: "claude_local" },
+      });
+      const [, previewOptions] = mockCompanyPortabilityService.previewImport.mock.calls.at(-1)!;
+      expect(previewOptions).toMatchObject({ adoptAgents: { ceo: DIRECTOR_ID } });
+      expect(result.warnings.join("\n")).not.toContain("adds another Agency Director");
+    });
+
+    it("logs an install agentCount that excludes the adopted manager", async () => {
+      mockAgentService.getById.mockResolvedValue(director);
+      mockCompanyPortabilityService.importBundle.mockResolvedValueOnce({
+        company: { id: "company-1", name: "Paperclip", action: "unchanged" },
+        agents: [
+          { slug: "ceo", id: DIRECTOR_ID, action: "skip", name: "Agency Director", reason: "Adopted existing agent." },
+          { slug: "cto", id: "a2", action: "created", name: "CTO", reason: null },
+          { slug: "qa", id: "a3", action: "created", name: "QA", reason: null },
+        ],
+        projects: [],
+        envInputs: [],
+        warnings: [],
+      });
+      const svc = teamsCatalogService({} as any);
+
+      await svc.installCatalogTeam("company-1", "core-exec-team", {
+        adoptManagerAgentId: DIRECTOR_ID,
+        actor: { actorType: "user", actorId: "user-1", userId: "user-1" },
+      });
+
+      expect(mockLogActivity).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          action: "company.team_catalog_installed",
+          details: expect.objectContaining({ agentCount: 2 }),
+        }),
+      );
+    });
+
+    it("rejects adopt of non-ceo agent", async () => {
+      mockAgentService.getById.mockResolvedValue({ ...director, role: "engineer" });
+      const svc = teamsCatalogService({} as any);
+
+      await expect(
+        svc.installCatalogTeam("company-1", "core-exec-team", { adoptManagerAgentId: DIRECTOR_ID }),
+      ).rejects.toMatchObject({
+        status: 422,
+        message: "Adopted manager must be an active Agency Director in this company.",
+      });
+      expect(mockCompanyPortabilityService.importBundle).not.toHaveBeenCalled();
+    });
+
+    it("rejects adopt of terminated, pending-approval or foreign-company directors", async () => {
+      const svc = teamsCatalogService({} as any);
+      for (const agent of [
+        { ...director, status: "terminated" },
+        { ...director, lifecycleState: "terminating" },
+        { ...director, status: "pending_approval" },
+        { ...director, lifecycleState: "pending_approval" },
+        { ...director, companyId: "company-2" },
+      ]) {
+        mockAgentService.getById.mockResolvedValue(agent);
+        await expect(
+          svc.previewCatalogTeamImport("company-1", "core-exec-team", { adoptManagerAgentId: DIRECTOR_ID }),
+        ).rejects.toMatchObject({
+          status: 422,
+          message: "Adopted manager must be an active Agency Director in this company.",
+        });
+      }
+    });
+
+    it("rejects adopt combined with targetManagerAgentId", async () => {
+      mockAgentService.getById.mockResolvedValue(director);
+      const svc = teamsCatalogService({} as any);
+
+      await expect(
+        svc.installCatalogTeam("company-1", "core-exec-team", {
+          adoptManagerAgentId: DIRECTOR_ID,
+          targetManagerAgentId: "manager-1",
+        }),
+      ).rejects.toMatchObject({ status: 422 });
+      expect(mockCompanyPortabilityService.importBundle).not.toHaveBeenCalled();
+    });
+
+    it("warns about a second Agency Director", async () => {
+      mockAgentService.list.mockResolvedValue([director]);
+      const svc = teamsCatalogService({} as any);
+
+      const result = await svc.installCatalogTeam("company-1", "core-exec-team");
+
+      expect(result.warnings).toContain(
+        "This team adds another Agency Director; the company already has one (Agency Director).",
+      );
+      expect(mockCompanyPortabilityService.importBundle).toHaveBeenCalled();
+    });
+
+    it("does not warn when the only ceo agent is terminated", async () => {
+      mockAgentService.list.mockResolvedValue([{ ...director, status: "terminated" }]);
+      const svc = teamsCatalogService({} as any);
+
+      const result = await svc.installCatalogTeam("company-1", "core-exec-team");
+
+      expect(result.warnings.join("\n")).not.toContain("adds another Agency Director");
+    });
   });
 
   it("preflights imports before installing catalog skills", async () => {

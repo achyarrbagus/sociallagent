@@ -15,7 +15,7 @@ Agent access: [companion](../agent-access-map/onboarding.md).
 ## Sub-features
 
 - `instance`: `onboarding/instance` — choose local instance configuration and start the server.
-- `company`: `onboarding/company` — create a company with its identity and initial agent.
+- `company`: `onboarding/company` — create a company with its identity and initial agent (the Agency Director, with the bundled `agency-core` team installed under it).
 - `adapter`: `onboarding/adapter` — choose an available harness, model, account, and execution environment.
 - `first-task`: `onboarding/first-task` — leave setup with a task whose execution or missing prerequisite is visible.
 
@@ -35,6 +35,12 @@ Open `/onboarding` or the onboarding launcher in an empty company context.
 Use `/<company-prefix>/onboarding` to resume an existing company's agent setup;
 the unprefixed route starts at organization naming on self-hosted instances.
 Cloud-managed instances reuse their existing company for agent setup.
+
+In **Connect a model**, select Codex or Claude Code and API-key credentials to
+use **Connect 9Router**. The shortcut fills an editable local gateway URL;
+model selection and the existing agent connection test follow saving. See
+[9Router setup](../../doc/9router.md). This uses the existing managed gateway
+connection permissions and does not start a 9Router server.
 
 ### `cli-setup`
 
@@ -58,7 +64,11 @@ Automated: [wizard tests](../../ui/src/components/OnboardingWizard.test.tsx) cov
   without creating another company. Screenshots and a trace capture the real UI action and result.
   This proves company creation/resumption, not hiring or a first model run.
 
-Manual: Create a disposable company and first agent. Leave midway, reopen the
+Manual: Create a disposable company and first agent. The agent step defaults to
+the name "Agency Director" (editable; no role picker). After hiring, confirm the
+org chart shows 12 agents (Director over Account Manager, Creative Strategist and
+Creative Director with their reports) and that no label says "CEO". A failed team
+install shows a notice and still advances; retry from the team catalog. Leave midway, reopen the
 company's onboarding route, and finish; drafts save automatically. Follow the
 created first task, verify the selected agent and company, and inspect its output
 or explicit authentication gate. Reload both company and task.

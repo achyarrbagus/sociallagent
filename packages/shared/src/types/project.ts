@@ -113,6 +113,8 @@ export interface ProjectWorkspaceProviderConfiguration {
 export interface Project {
   id: string;
   companyId: string;
+  /** Optional for older servers and existing unbranded projects. */
+  brandId?: string | null;
   urlKey: string;
   /** @deprecated Use goalIds / goals instead */
   goalId: string | null;

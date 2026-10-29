@@ -3017,7 +3017,7 @@ export function accessRoutes(
         throw forbidden("Agent key cannot access another company");
       }
       if (actorAgent.role !== "ceo") {
-        throw forbidden("Only CEO agents can generate OpenClaw invite prompts");
+        throw forbidden("Only Agency Director agents can generate OpenClaw invite prompts");
       }
       return;
     }
@@ -4225,7 +4225,7 @@ export function accessRoutes(
         const managerId = resolveJoinRequestAgentManagerId(existingAgents);
         if (!managerId) {
           throw conflict(
-            "Join request cannot be approved because this company has no active CEO"
+            "Join request cannot be approved because this company has no active Agency Director"
           );
         }
 

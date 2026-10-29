@@ -753,6 +753,8 @@ type ImportPlanInternal = {
   include: CompanyPortabilityInclude;
   collisionStrategy: CompanyPortabilityCollisionStrategy;
   selectedAgents: CompanyPortabilityAgentManifestEntry[];
+  /** Manifest agent slug -> existing target-company agent id, validated by the preview. */
+  adoptedAgentIds: Map<string, string>;
 };
 
 type ImportMode = "board_full" | "agent_safe";
@@ -761,6 +763,13 @@ type ImportBehaviorOptions = {
   mode?: ImportMode;
   sourceCompanyId?: string | null;
   pauseAutomations?: boolean;
+  /**
+   * Manifest agent slug -> existing agent id in the target company. An adopted
+   * slug is never created, renamed or replaced; package references to it
+   * (reporting links, task assignees) resolve to the existing agent, whose own
+   * fields are left untouched.
+   */
+  adoptAgents?: Record<string, string>;
 };
 
 type AgentLike = {
@@ -5021,6 +5030,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
     const agentPlans: CompanyPortabilityPreviewAgentPlan[] = [];
     const existingSlugToAgent = new Map<string, { id: string; name: string }>();
     const existingAgentIds = new Set<string>();
+    const existingAgentById = new Map<string, { id: string; name: string }>();
     const existingSlugs = new Set<string>();
     const projectPlans: CompanyPortabilityPreviewResult["plan"]["projectPlans"] = [];
     const issuePlans: CompanyPortabilityPreviewResult["plan"]["issuePlans"] = [];
@@ -5033,6 +5043,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         const slug = normalizeAgentUrlKey(existing.name) ?? existing.id;
         if (!existingSlugToAgent.has(slug)) existingSlugToAgent.set(slug, existing);
         existingAgentIds.add(existing.id);
+        existingAgentById.set(existing.id, existing);
         existingSlugs.add(slug);
       }
       const existingProjects = await projects.list(input.target.companyId);
@@ -5058,7 +5069,32 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
       }
     }
 
+    const adoptedAgentIds = new Map<string, string>();
+    for (const [slug, agentId] of Object.entries(options?.adoptAgents ?? {})) {
+      if (!manifest.agents.some((agent) => agent.slug === slug)) {
+        errors.push(`Adopted agent slug not found in manifest: ${slug}`);
+        continue;
+      }
+      if (!existingAgentById.has(agentId)) {
+        errors.push(`Adopted agent ${slug} (${agentId}) is not present in the target company.`);
+        continue;
+      }
+      adoptedAgentIds.set(slug, agentId);
+    }
+
     for (const manifestAgent of selectedAgents) {
+      const adoptedAgent = existingAgentById.get(adoptedAgentIds.get(manifestAgent.slug) ?? "");
+      if (adoptedAgent) {
+        // Adopted slots bypass collision handling: the existing agent fills the slot as-is.
+        agentPlans.push({
+          slug: manifestAgent.slug,
+          action: "skip",
+          plannedName: adoptedAgent.name,
+          existingAgentId: adoptedAgent.id,
+          reason: "Adopted existing agent.",
+        });
+        continue;
+      }
       if (
         manifestAgent.reportsToExistingAgentId
         && !existingAgentIds.has(manifestAgent.reportsToExistingAgentId)
@@ -5241,6 +5277,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
       include,
       collisionStrategy,
       selectedAgents,
+      adoptedAgentIds,
     };
   }
 
@@ -5559,6 +5596,12 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         preImportExistingAgentIds.add(existing.id);
         agentStatusById.set(existing.id, existing.status);
       }
+      for (const [slug, agentId] of plan.adoptedAgentIds) {
+        if (!preImportExistingAgentIds.has(agentId)) {
+          throw unprocessable(`Adopted agent ${slug} (${agentId}) is not present in the target company.`);
+        }
+        importedSlugToAgentId.set(slug, agentId);
+      }
       const importedSlugToProjectId = new Map<string, string>();
       const importedProjectWorkspaceIdByProjectSlug = new Map<string, Map<string, string>>();
       const existingProjectSlugToId = new Map<string, string>();
@@ -5795,6 +5838,8 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
 
         // Apply reporting links once all imported agent ids are available.
         for (const manifestAgent of plan.selectedAgents) {
+          // An adopted agent keeps its own reporting line.
+          if (plan.adoptedAgentIds.has(manifestAgent.slug)) continue;
           const agentId = importedSlugToAgentId.get(manifestAgent.slug);
           if (!agentId) continue;
           const managerSlug = manifestAgent.reportsToSlug;

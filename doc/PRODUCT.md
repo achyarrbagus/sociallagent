@@ -391,3 +391,48 @@ operation logs retain their app authorization. Workspace `_issuePrivacySources` 
 operation privacy metadata protect app-record disclosure; they do not grant or deny
 filesystem execution or task-bound file browsing. Current trust and sandbox policy,
 publication receipts, binding checks, and lifecycle locks remain authoritative.
+
+## Creative agency foundation (2026-10-25)
+
+An agency can use one company to manage clients and their brands through
+**Clients & Brands** (`/agency`). Owners create, edit, archive and restore client
+and brand profiles; agents and other authorized company members can read this
+company-wide context. Profiles store audience, tone, brief, website and timezone,
+not credentials. They are not an independent brand privacy boundary.
+
+Projects can optionally bind to a brand as campaigns. Existing projects remain
+valid without a brand. New bindings require an active same-company brand and
+client; archiving retains history and prevents new bindings.
+
+The optional **Agency Studio** catalog team adds an account manager and creative,
+content, SEO, marketing, copywriting, design, analysis and publication-preparation
+roles. Creative Strategist provides the owner a ranked shortlist of ideas with
+audience insight, hook, format, CTA, evidence and experiment proposals. Owner
+selection hands an idea to production; it does not approve publication. The team
+is installed through the normal preview/configuration/governance flow.
+
+### Default agency team and Agency Director (2026-10-26)
+
+Every company created through onboarding starts as an agency. The first agent is
+the **Agency Director**, who leads the company, and onboarding installs the bundled
+`agency-core` team under it: Account Manager (with Publishing Coordinator and
+Performance Analyst), Creative Strategist (with Content Strategist, SEO Specialist
+and Marketing Strategist) and Creative Director (with Copywriter, Scriptwriter and
+Creative Designer), 12 agents in total. Only the Director has a recurring task (a priority
+review); specialists wake only when assigned work. The owner remains the only one
+who approves final content. Internally the Director uses the existing `ceo` role, so
+delegation and hiring rules are unchanged, but the product never labels it "CEO".
+If the team install fails, onboarding still finishes with a usable Director; the
+failure is shown to the owner and written to the activity log, and the owner retries
+by going Back and pressing Connect in onboarding. Only a board user who may create
+agents (`agents:create`) triggers the install; a seed pushed by any other actor
+leaves the Director without a team and reports why. A partially installed team is
+reported as a failure rather than reinstalled, so the owner removes the partial
+agents or adds the missing ones from the Team Catalog. `core-exec-team` and `agency-studio` stay in
+the catalog as optional teams; existing companies are not migrated.
+
+Client approval is not required. Revision-bound owner content review is now implemented in the
+[content production flow](agency-content.md). A content calendar and automated
+provider publishing remain subsequent implementation slices described in the
+[agency PRD](plans/2026-10-25-prd-rewrite-creative-agency.md). Content approval does
+not imply provider publication authority.

@@ -643,6 +643,9 @@ export {
 export {
   applyOnboardingSeedSchema,
   type ApplyOnboardingSeed,
+  ensureAgencyTeamSchema,
+  type EnsureAgencyTeam,
+  type EnsureAgencyCoreTeamResult,
 } from "./onboarding-seed.js";
 
 export {
@@ -987,3 +990,5 @@ export * from "./skill-source.js";
 export * from "./agent-commentary.js";
 export * from "./task-workspace.js";
 export * from "./workspace-repository.js";
+export * from "./agency.js";
+export * from "./agency-content.js";

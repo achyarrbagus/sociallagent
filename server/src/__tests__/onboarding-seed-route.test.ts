@@ -5,13 +5,16 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   activityLog,
   agents,
+  companyMemberships,
   companyOnboardingSeeds,
+  companySkills,
   goals,
   issues,
   projects,
 } from "@paperclipai/db";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
 import { logActivity } from "../services/activity-log.js";
+import { teamsCatalogService } from "../services/teams-catalog.js";
 import {
   describeEmbeddedPostgres,
   resetCompanyIssueFixtures,
@@ -27,6 +30,13 @@ import {
 vi.mock("../services/activity-log.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/activity-log.js")>();
   return { ...actual, logActivity: vi.fn(actual.logActivity) };
+});
+
+// Wrapped the same way: the real agency-core team installs everywhere except
+// the one test that opts into a failing install.
+vi.mock("../services/teams-catalog.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/teams-catalog.js")>();
+  return { ...actual, teamsCatalogService: vi.fn(actual.teamsCatalogService) };
 });
 
 const SEED = {
@@ -54,6 +64,8 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     await ctx.db.delete(projects);
     await ctx.db.delete(agents);
     await ctx.db.delete(goals);
+    // Rows the agency-core team install adds alongside its agents.
+    await ctx.db.delete(companySkills);
     await resetCompanyIssueFixtures(ctx.db);
   });
 
@@ -65,6 +77,34 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
   function post(app: ReturnType<typeof routeApp>, companyId: string, body: unknown) {
     return request(app).post(`/api/companies/${companyId}/onboarding-seed`).send(body);
   }
+
+  // The seed hires the Agency Director; the default agency team installed under
+  // her adds specialists, so seed assertions read the Director alone.
+  function directorsOf(companyId: string) {
+    return ctx.db.select().from(agents).where(and(eq(agents.companyId, companyId), eq(agents.role, "ceo")));
+  }
+
+  function agentsOf(companyId: string) {
+    return ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+  }
+
+  // The agency team brings its own Agency Operations project.
+  function onboardingProjectsOf(companyId: string) {
+    return ctx.db.select().from(projects).where(and(eq(projects.companyId, companyId), eq(projects.name, "Onboarding")));
+  }
+
+  it("defaults the lead's title to Agency Director when the seed role is empty", async () => {
+    const { companyId, app } = await seedCompany();
+
+    const response = await post(app, companyId, { ...SEED, agent: { name: "Ada" } });
+
+    expect(response.status).toBe(200);
+    const companyAgents = await directorsOf(companyId);
+    expect(companyAgents).toHaveLength(1);
+    expect(companyAgents[0]?.name).toBe("Ada");
+    expect(companyAgents[0]?.title).toBe("Agency Director");
+    expect(companyAgents[0]?.role).toBe("ceo");
+  });
 
   // Ordering, not eventual consistency: every assertion below reads the
   // database immediately after the 200 comes back, with no waiting and no
@@ -80,6 +120,8 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(response.body.applied).toBe(true);
     expect(response.body.changed).toBe(true);
     expect(response.body.revision).toBe(SEED.revision);
+    expect(response.body.agencyTeam).toMatchObject({ status: "installed" });
+    expect(response.body.agencyTeam.agentIds).toHaveLength(11);
 
     const companyGoals = await ctx.db.select().from(goals).where(eq(goals.companyId, companyId));
     expect(companyGoals).toHaveLength(1);
@@ -87,7 +129,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(companyGoals[0]?.level).toBe("company");
     expect(companyGoals[0]?.status).toBe("active");
 
-    const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const companyAgents = await directorsOf(companyId);
     expect(companyAgents).toHaveLength(1);
     expect(companyAgents[0]?.name).toBe("Ada");
     // The seed's free-text role is a job title; the structural role stays `ceo`.
@@ -111,7 +153,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(companyIssues[0]?.assigneeAgentId).toBe(companyAgents[0]?.id);
     expect(companyIssues[0]?.goalId).toBe(companyGoals[0]?.id);
 
-    const companyProjects = await ctx.db.select().from(projects).where(eq(projects.companyId, companyId));
+    const companyProjects = await onboardingProjectsOf(companyId);
     expect(companyProjects).toHaveLength(1);
     expect(companyProjects[0]?.name).toBe("Onboarding");
     expect(companyIssues[0]?.projectId).toBe(companyProjects[0]?.id);
@@ -135,7 +177,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
       const response = await post(app, companyId, SEED);
 
       expect(response.status).toBe(200);
-      const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+      const companyAgents = await directorsOf(companyId);
       expect(companyAgents).toHaveLength(1);
       expect(companyAgents[0]).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "acpx", acpxAgent: "claude", model: "claude-opus-5-5" } });
     } finally {
@@ -154,11 +196,11 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
       const { companyId, app } = await seedCompany();
       const response = await post(app, companyId, SEED);
       expect(response.status).toBe(200);
-      const [agent] = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+      const [agent] = await directorsOf(companyId);
       expect(agent).toMatchObject({ adapterType: "paperclip_runner", adapterConfig: { provider: "codex" } });
       expect(agent?.adapterConfig).toMatchObject({ paperclipSkillSync: { desiredSkills: expect.arrayContaining(["paperclipai/paperclip/paperclip-create-agent"]) } });
       expect((await post(app, companyId, SEED)).body.changed).toBe(false);
-      const [replayed] = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+      const [replayed] = await directorsOf(companyId);
       expect(replayed?.adapterConfig).toEqual(agent?.adapterConfig);
     } finally {
       if (previous === undefined) delete process.env.PAPERCLIP_ONBOARDING_SEED_ADAPTER_TYPE;
@@ -180,11 +222,13 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(replay.body.changed).toBe(false);
     expect(replay.body.agentId).toBe(first.body.agentId);
     expect(replay.body.issueId).toBe(first.body.issueId);
+    expect(replay.body.agencyTeam).toEqual({ status: "already_installed" });
 
-    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+    expect(await directorsOf(companyId)).toHaveLength(1);
+    expect(await agentsOf(companyId)).toHaveLength(12);
     expect(await ctx.db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(1);
     expect(await ctx.db.select().from(goals).where(eq(goals.companyId, companyId))).toHaveLength(1);
-    expect(await ctx.db.select().from(projects).where(eq(projects.companyId, companyId))).toHaveLength(1);
+    expect(await onboardingProjectsOf(companyId)).toHaveLength(1);
   });
 
   it("updates in place when the customer edits their answers and the revision changes", async () => {
@@ -204,7 +248,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(revised.body.agentId).toBe(first.body.agentId);
     expect(revised.body.issueId).toBe(first.body.issueId);
 
-    const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const companyAgents = await directorsOf(companyId);
     expect(companyAgents).toHaveLength(1);
     expect(companyAgents[0]?.name).toBe("Grace");
     expect(companyAgents[0]?.title).toBe("Head of Ops");
@@ -237,6 +281,37 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(await ctx.db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(0);
     expect(response.body.agentId).toBeNull();
     expect(response.body.issueId).toBeNull();
+    expect(response.body.agencyTeam).toBeNull();
+  });
+
+  it("reports and logs a failed team install without failing the seed", async () => {
+    const { companyId, app } = await seedCompany();
+    const actual = await vi.importActual<typeof import("../services/teams-catalog.js")>("../services/teams-catalog.js");
+    vi.mocked(teamsCatalogService).mockImplementationOnce((db) => ({
+      ...actual.teamsCatalogService(db),
+      installCatalogTeam: async () => {
+        throw new Error("catalog unavailable");
+      },
+    }));
+
+    const response = await post(app, companyId, SEED);
+
+    expect(response.status).toBe(200);
+    expect(response.body.applied).toBe(true);
+    expect(response.body.agencyTeam).toEqual({ status: "failed", error: "catalog unavailable" });
+    expect(await agentsOf(companyId)).toHaveLength(1);
+    const entries = await ctx.db
+      .select()
+      .from(activityLog)
+      .where(and(
+        eq(activityLog.companyId, companyId),
+        eq(activityLog.action, "company.agency_core_team_install_failed"),
+      ));
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.details).toEqual({
+      directorAgentId: response.body.agentId,
+      error: "catalog unavailable",
+    });
   });
 
   it("accepts a revision-only seed and records it", async () => {
@@ -288,12 +363,12 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
         .from(companyOnboardingSeeds)
         .where(eq(companyOnboardingSeeds.companyId, companyId)),
     ).toHaveLength(0);
-    const committedAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const committedAgents = await agentsOf(companyId);
     expect(committedAgents).toHaveLength(1);
     expect(await ctx.db.select().from(projects).where(eq(projects.companyId, companyId))).toHaveLength(0);
 
     await post(app, companyId, SEED).expect(200);
-    expect((await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).map(agent => agent.id))
+    expect((await directorsOf(companyId)).map(agent => agent.id))
       .toEqual(committedAgents.map(agent => agent.id));
     expect(
       await ctx.db
@@ -325,6 +400,38 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(committedAgents).toHaveLength(0);
     expect(await ctx.db.select().from(projects).where(eq(projects.companyId, companyId))).toHaveLength(0);
     expect(await ctx.db.select().from(companyOnboardingSeeds)).toHaveLength(0);
+  });
+
+  it("applies the seed for an agent actor but does not install the agency team", async () => {
+    const { companyId } = await seedCompany();
+    const [existing] = await ctx.db.insert(agents).values({
+      companyId,
+      name: "Helper",
+      role: "general",
+      adapterType: "claude_local",
+    }).returning();
+    const agentActor = { type: "agent", agentId: existing!.id, companyId, source: "agent_key" };
+    const app = routeApp(ctx.db, agentActor as unknown as BoardActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, SEED);
+
+    expect(response.status).toBe(200);
+    expect(response.body.applied).toBe(true);
+    expect(response.body.agencyTeam).toEqual({ status: "failed", error: "Missing permission: agents:create" });
+    const companyAgents = await agentsOf(companyId);
+    expect(companyAgents.map((agent) => agent.id).sort()).toEqual([existing!.id, response.body.agentId].sort());
+    const failures = await ctx.db
+      .select()
+      .from(activityLog)
+      .where(and(
+        eq(activityLog.companyId, companyId),
+        eq(activityLog.action, "company.agency_core_team_install_failed"),
+      ));
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.details).toEqual({
+      directorAgentId: response.body.agentId,
+      error: "Missing permission: agents:create",
+    });
   });
 
   it("rejects a body missing the revision", async () => {
@@ -388,7 +495,7 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     const response = await post(app, companyId, SEED);
 
     expect(response.status).toBe(200);
-    const companyProjects = await ctx.db.select().from(projects).where(eq(projects.companyId, companyId));
+    const companyProjects = await onboardingProjectsOf(companyId);
     expect(companyProjects).toHaveLength(1);
     const companyIssues = await ctx.db.select().from(issues).where(eq(issues.companyId, companyId));
     expect(companyIssues[0]?.projectId).toBe(companyProjects[0]?.id);
@@ -411,8 +518,9 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
     expect(second.status).toBe(200);
 
     expect(await ctx.db.select().from(goals).where(eq(goals.companyId, companyId))).toHaveLength(1);
-    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
-    expect(await ctx.db.select().from(projects).where(eq(projects.companyId, companyId))).toHaveLength(1);
+    expect(await directorsOf(companyId)).toHaveLength(1);
+    expect(await agentsOf(companyId)).toHaveLength(12);
+    expect(await onboardingProjectsOf(companyId)).toHaveLength(1);
     expect(await ctx.db.select().from(issues).where(eq(issues.companyId, companyId))).toHaveLength(1);
     expect(await ctx.db.select().from(companyOnboardingSeeds)).toHaveLength(1);
   });
@@ -445,9 +553,131 @@ describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding-seed", () =>
 
     const companyIssues = await ctx.db.select().from(issues).where(eq(issues.companyId, companyId));
     expect(companyIssues).toHaveLength(1);
-    const companyAgents = await ctx.db.select().from(agents).where(eq(agents.companyId, companyId));
+    const companyAgents = await directorsOf(companyId);
     const companyGoals = await ctx.db.select().from(goals).where(eq(goals.companyId, companyId));
     expect(companyIssues[0]?.assigneeAgentId).toBe(companyAgents[0]?.id);
     expect(companyIssues[0]?.goalId).toBe(companyGoals[0]?.id);
+  });
+});
+
+describeEmbeddedPostgres("POST /api/companies/:companyId/onboarding/agency-team", () => {
+  const ctx = useEmbeddedPostgres("onboarding-agency-team-route");
+  let runnerSelectionSpy: { mockRestore(): void } | undefined;
+
+  beforeEach(async () => {
+    const selection = await import("../services/agent-runner-selection.js");
+    runnerSelectionSpy = vi.spyOn(selection, "resolveNewAgentRunnerForCompany").mockImplementation(async (_db, _companyId, input) =>
+      selection.resolveNewAgentRunner({ ...input, target: { driver: "local", platform: "linux", architecture: "x64" } }));
+  });
+
+  afterEach(() => {
+    runnerSelectionSpy?.mockRestore();
+  });
+
+  async function seedDirector() {
+    const seeded = await seedCompanyWithBoardAccess(ctx.db, "Agency team route");
+    const [director] = await ctx.db.insert(agents).values({
+      companyId: seeded.companyId,
+      name: "Rina",
+      role: "ceo",
+      adapterType: "claude_local",
+      adapterConfig: { model: "claude-opus-5-5" },
+    }).returning();
+    return { ...seeded, director: director! };
+  }
+
+  function post(app: ReturnType<typeof routeApp>, companyId: string, body: unknown) {
+    return request(app).post(`/api/companies/${companyId}/onboarding/agency-team`).send(body);
+  }
+
+  it("installs the team for the board and reports a replay as already installed", async () => {
+    const { companyId, actor, director } = await seedDirector();
+    const app = routeApp(ctx.db, actor, onboardingSeedRoutes);
+
+    const first = await post(app, companyId, { agentId: director.id });
+    expect(first.status).toBe(200);
+    expect(first.body).toMatchObject({ status: "installed" });
+    expect(first.body.agentIds).toHaveLength(11);
+
+    const replay = await post(app, companyId, { agentId: director.id });
+    expect(replay.status).toBe(200);
+    expect(replay.body).toEqual({ status: "already_installed" });
+  });
+
+  it("refuses an agent actor", async () => {
+    const { companyId, director } = await seedDirector();
+    const agentActor = { type: "agent", agentId: director.id, companyId, source: "agent_key" };
+    const app = routeApp(ctx.db, agentActor as unknown as BoardActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: director.id });
+
+    expect(response.status).toBe(403);
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("refuses a board user without access to the company", async () => {
+    const { companyId, director } = await seedDirector();
+    const strangerActor: BoardActor = {
+      type: "board",
+      source: "session",
+      userId: `user-${randomUUID()}`,
+      companyIds: [randomUUID()],
+      memberships: [],
+      isInstanceAdmin: false,
+    };
+    const app = routeApp(ctx.db, strangerActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: director.id });
+
+    expect(response.status).toBe(403);
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("refuses a board member without agents:create", async () => {
+    const { companyId, director } = await seedDirector();
+    // An active member with no permission grants: company access passes, the
+    // `agents:create` gate shared with catalog team installs does not.
+    const userId = `user-${randomUUID()}`;
+    await ctx.db.insert(companyMemberships).values({
+      companyId,
+      principalType: "user",
+      principalId: userId,
+      status: "active",
+      membershipRole: "operator",
+      updatedAt: new Date(),
+    });
+    const memberActor: BoardActor = {
+      type: "board",
+      source: "session",
+      userId,
+      companyIds: [companyId],
+      memberships: [{ companyId, membershipRole: "operator", status: "active" }],
+      isInstanceAdmin: false,
+    };
+    const app = routeApp(ctx.db, memberActor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: director.id });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error).toBe("Missing permission: agents:create");
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("rejects a Director from another company", async () => {
+    const { companyId, actor } = await seedDirector();
+    const other = await seedDirector();
+    const app = routeApp(ctx.db, actor, onboardingSeedRoutes);
+
+    const response = await post(app, companyId, { agentId: other.director.id });
+
+    expect(response.status).toBe(422);
+    expect(await ctx.db.select().from(agents).where(eq(agents.companyId, companyId))).toHaveLength(1);
+  });
+
+  it("rejects a body without a valid agent id", async () => {
+    const { companyId, actor } = await seedDirector();
+    const app = routeApp(ctx.db, actor, onboardingSeedRoutes);
+
+    expect((await post(app, companyId, { agentId: "not-a-uuid" })).status).toBe(400);
   });
 });

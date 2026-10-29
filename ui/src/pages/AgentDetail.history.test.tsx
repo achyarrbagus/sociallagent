@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { modelDisplayName } from "@/lib/model-display";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -25,7 +26,7 @@ it.each([
 ])("renders an older selected run when history is empty (%#)", async ({ Tab, isMobile }) => {
   mobile.value = isMobile;
   const run = { id: "older-run", companyId: "company-1", agentId: "agent-1", status: "succeeded", invocationSource: "manual",
-    createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z", usageJson: null, resultJson: null,
+    createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z", usageJson: { provider: "openai", model: "gpt-6-sol" }, resultJson: null,
     contextSnapshot: null, exitCode: 0, error: null, logRef: null, startedAt: null, finishedAt: null } as unknown as HeartbeatRun;
   get.mockResolvedValue(run);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -37,6 +38,8 @@ it.each([
     </ToastProvider></PanelProvider></MemoryRouter></QueryClientProvider>));
     await vi.waitFor(async () => { await act(async () => {}); expect(element.textContent).toContain("succeeded"); });
     expect(element.textContent).not.toContain("No runs yet.");
+    expect(element.textContent).toContain(modelDisplayName("gpt-6-sol"));
+    expect(element.textContent).not.toContain("gpt-6-sol");
     expect(get).toHaveBeenCalledWith("older-run");
   } finally { await act(async () => root.unmount()); client.clear(); element.remove(); }
 });

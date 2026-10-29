@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Loader2 } from "lucide-react";
@@ -84,14 +85,14 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
       problem = bindingProblem(row.binding, { companyId, provider: row.binding.provider }, row.accounts.connections, row.accounts.currentUserId, agent.id);
       if (!problem && !isAiConnectionCompatible(row.binding, harness, nextModel)) problem = "Choose a model compatible with this connection.";
     }
-    if (!problem && row.restricted && !row.models.some(m => m.id === nextModel)) problem = `${nextModel ?? "Harness default"} isn’t available on this connection. Choose a different connection or change the default model.`;
+    if (!problem && row.restricted && !row.models.some(m => m.id === nextModel)) problem = `${modelDisplayName(nextModel)} isn’t available on this connection. Choose a different connection or change the default model.`;
     return problem ? [{ agent, message: problem }] : [];
   });
   const canSave = !saving && !missing && !selectionError && !catalogs.isFetching && !catalogs.error && !loadErrors.length && rows.length === targets.length && !problems.length && changed.length > 0;
   const updateCount = changed.length || agents.length;
   const otherSelected = totalSelected - agents.length;
   const currentConnections = [...new Set(agents.map(a => bulkConnectionName(agentConnection(a), rows.find(r => r.agent.id === a.id)?.accounts)))];
-  const currentModels = [...new Set(agents.map(a => agentDefaultModel(a) ?? "Harness default"))];
+  const currentModels = [...new Set(agents.map(a => agentDefaultModel(a)))];
   const close = () => { if (!savingRef.current) onClose(updatedIds); };
 
   async function save() {
@@ -137,7 +138,7 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
             setSelectionError(""); setBinding(value);
           }} /></div>}
         </section>
-        <section className="space-y-3"><label className="flex cursor-pointer items-start gap-3"><Checkbox checked={changeModel} onCheckedChange={value => setChangeModel(value === true)} aria-label="Change default model" className="mt-0.5" /><span className="space-y-1"><span className="block text-sm font-medium">Change default model</span><span className="block text-xs text-muted-foreground">{currentModels.length === 1 ? currentModels[0] : `${currentModels.length} different models`}{!changeModel && " · Keep current"}</span></span></label>
+        <section className="space-y-3"><label className="flex cursor-pointer items-start gap-3"><Checkbox checked={changeModel} onCheckedChange={value => setChangeModel(value === true)} aria-label="Change default model" className="mt-0.5" /><span className="space-y-1"><span className="block text-sm font-medium">Change default model</span><span className="block text-xs text-muted-foreground">{currentModels.length === 1 ? modelDisplayName(currentModels[0]) : `${currentModels.length} different models`}{!changeModel && " · Keep current"}</span></span></label>
           {changeModel && <div className="pl-7"><ModelDropdown models={availableModels} value={model} onChange={setModel} open={modelOpen} onOpenChange={setModelOpen} allowDefault={false} required groupByProvider={false} preserveOrder creatable={allowManualModel} /><p className="pt-2 text-xs text-muted-foreground">{allowManualModel ? "Choose a suggested model or enter a model ID supported by your harness." : `Available on every selected agent’s ${changeConnection ? "new connection" : "current connection"}.`}</p></div>}
         </section>
       </fieldset>
@@ -145,7 +146,7 @@ export function AgentBulkSettingsSheet({ companyId, agents, totalSelected, onClo
       {(catalogs.error || loadErrors.length > 0) && <div role="alert" className="space-y-2 text-sm text-destructive"><p>{catalogs.error?.message}</p>{loadErrors.map(r => <p key={r.agent.id}>{r.agent.name}: {"error" in r ? r.error : ""}</p>)}<Button variant="outline" size="sm" onClick={() => void catalogs.refetch()}>Retry loading options</Button></div>}
       {selectionError && <p role="alert" className="text-sm text-destructive">{selectionError}</p>}
       {problems.length > 0 && <div role="alert" className="space-y-2 rounded-md border border-destructive/30 p-3 text-sm">{problems.map(p => <p key={p.agent.id}><span className="font-medium">{p.agent.name}: </span>{p.message}</p>)}{!changeModel && !failures && <Button size="sm" variant="outline" onClick={() => setChangeModel(true)}>Change default model</Button>}</div>}
-      {!missing && changed.length > 0 && <section className="space-y-3" aria-label="Changes to apply"><h3 className="text-xs font-medium text-muted-foreground">CHANGES TO APPLY</h3><div className="divide-y divide-border">{changed.map(agent => <div key={agent.id} className="space-y-1.5 py-3 text-xs"><p className="text-sm font-medium">{agent.name}</p>{changeConnection && !sameBinding(binding, agentConnection(agent)) && <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground"><span>{bulkConnectionName(agentConnection(agent), rows.find(r => r.agent.id === agent.id)?.accounts)}</span><ArrowRight className="size-3" aria-label="to" /><span className="text-foreground">{bulkConnectionName(binding, rows.find(r => r.agent.id === agent.id)?.accounts)}</span></p>}{changeModel && model !== agentDefaultModel(agent) && <p className="flex flex-wrap items-center gap-1.5 font-mono text-muted-foreground"><span>{agentDefaultModel(agent) ?? "Harness default"}</span><ArrowRight className="size-3" aria-label="to" /><span className="text-foreground">{model}</span></p>}</div>)}</div>{targets.length > changed.length && <p className="text-xs text-muted-foreground">{targets.length - changed.length} already have these settings.</p>}</section>}
+      {!missing && changed.length > 0 && <section className="space-y-3" aria-label="Changes to apply"><h3 className="text-xs font-medium text-muted-foreground">CHANGES TO APPLY</h3><div className="divide-y divide-border">{changed.map(agent => <div key={agent.id} className="space-y-1.5 py-3 text-xs"><p className="text-sm font-medium">{agent.name}</p>{changeConnection && !sameBinding(binding, agentConnection(agent)) && <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground"><span>{bulkConnectionName(agentConnection(agent), rows.find(r => r.agent.id === agent.id)?.accounts)}</span><ArrowRight className="size-3" aria-label="to" /><span className="text-foreground">{bulkConnectionName(binding, rows.find(r => r.agent.id === agent.id)?.accounts)}</span></p>}{changeModel && model !== agentDefaultModel(agent) && <p className="flex flex-wrap items-center gap-1.5 font-mono text-muted-foreground"><span>{modelDisplayName(agentDefaultModel(agent))}</span><ArrowRight className="size-3" aria-label="to" /><span className="text-foreground">{modelDisplayName(model)}</span></p>}</div>)}</div>{targets.length > changed.length && <p className="text-xs text-muted-foreground">{targets.length - changed.length} already have these settings.</p>}</section>}
       {!missing && !changed.length && <p className="text-sm text-muted-foreground">All selected agents already have these settings.</p>}
       <p className="text-xs text-muted-foreground">Applies to future runs. Running work keeps its current settings. Task-specific model overrides stay in place. A model change may start a fresh session; existing sessions may retain their connection until reset.</p>
     </div>

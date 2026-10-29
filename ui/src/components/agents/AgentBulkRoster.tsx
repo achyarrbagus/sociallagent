@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Filter, Pencil, X } from "lucide-react";
@@ -77,7 +78,7 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent 
         <td className="min-w-64 p-0">{renderAgent(agent)}</td>
         <td className="whitespace-nowrap text-xs">{getAdapterLabel(bulkAgentHarness(agent))}</td>
         <td className="text-xs">{["http", "process"].includes(agent.adapterType) ? "Managed externally" : bulkConnectionName(agentConnection(agent), accounts.data)}</td>
-        <td className="font-mono text-xs">{agentDefaultModel(agent) ?? "Harness default"}</td>
+        <td className="font-mono text-xs">{modelDisplayName(agentDefaultModel(agent))}</td>
       </tr>)}</tbody>
     </table></div>
     {!visible.length && <p className="py-8 text-center text-sm text-muted-foreground">No agents match these filters.</p>}

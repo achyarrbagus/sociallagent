@@ -8,6 +8,7 @@ import { asBoolean, asString, parseFrontmatterMarkdown } from "./frontmatter.js"
 import type { CatalogTeam } from "./types.js";
 
 const EXPECTED_BUNDLED_KEYS = [
+  "paperclipai/bundled/company-defaults/agency-core",
   "paperclipai/bundled/company-defaults/core-exec-team",
   "paperclipai/bundled/product/product-design",
   "paperclipai/bundled/software-development/product-engineering",
@@ -15,6 +16,7 @@ const EXPECTED_BUNDLED_KEYS = [
 
 const EXPECTED_OPTIONAL_KEYS = [
   "paperclipai/optional/communications/speko-company-phone-agent",
+  "paperclipai/optional/content/agency-studio",
   "paperclipai/optional/content/content-machine",
 ];
 
@@ -93,6 +95,18 @@ describe("shipped teams catalog", () => {
 
   it("preserves shipped agent roles, reporting lines, and skill assignments", () => {
     const expected = {
+      "agency-core/agency-director": { role: "ceo", reportsTo: null, skills: undefined },
+      "agency-core/account-manager": { role: "pm", reportsTo: "agency-director", skills: undefined },
+      "agency-core/publishing-coordinator": { role: "general", reportsTo: "account-manager", skills: undefined },
+      "agency-core/performance-analyst": { role: "researcher", reportsTo: "account-manager", skills: undefined },
+      "agency-core/creative-strategist": { role: "general", reportsTo: "agency-director", skills: undefined },
+      "agency-core/content-strategist": { role: "general", reportsTo: "creative-strategist", skills: undefined },
+      "agency-core/seo-specialist": { role: "researcher", reportsTo: "creative-strategist", skills: undefined },
+      "agency-core/marketing-strategist": { role: "cmo", reportsTo: "creative-strategist", skills: undefined },
+      "agency-core/creative-director": { role: "designer", reportsTo: "agency-director", skills: undefined },
+      "agency-core/copywriter": { role: "general", reportsTo: "creative-director", skills: undefined },
+      "agency-core/scriptwriter": { role: "general", reportsTo: "creative-director", skills: undefined },
+      "agency-core/designer": { role: "designer", reportsTo: "creative-director", skills: undefined },
       "core-exec-team/ceo": { role: "ceo", reportsTo: null, skills: ["task-planning", "issue-triage"] },
       "core-exec-team/cto": { role: "engineering-manager", reportsTo: "ceo", skills: ["github-pr-workflow", "task-planning"] },
       "core-exec-team/qa": { role: "qa", reportsTo: "cto", skills: ["qa-acceptance"] },
@@ -102,6 +116,15 @@ describe("shipped teams catalog", () => {
       "product-design/ux-designer": { role: "designer", reportsTo: null, skills: ["wireframe", "design-critique", "task-planning"] },
       "speko-company-phone-agent/speko-company-phone-agent": { role: "general", reportsTo: null, skills: undefined },
       "content-machine/content-lead": { role: "content-strategist", reportsTo: null, skills: ["content-calendar"] },
+      "agency-studio/account-manager": { role: "pm", reportsTo: null, skills: undefined },
+      "agency-studio/creative-strategist": { role: "general", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/content-strategist": { role: "general", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/seo-specialist": { role: "researcher", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/marketing-strategist": { role: "cmo", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/copywriter": { role: "general", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/designer": { role: "designer", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/analyst": { role: "researcher", reportsTo: "account-manager", skills: undefined },
+      "agency-studio/publisher": { role: "general", reportsTo: "account-manager", skills: undefined },
     };
     const observed: Record<string, unknown> = {};
     for (const team of catalogTeams) {
@@ -119,6 +142,42 @@ describe("shipped teams catalog", () => {
       }
     }
     expect(observed).toEqual(expected);
+  });
+
+  it("ships agency-core as the default team and demotes core-exec-team", () => {
+    const core = catalogTeams.find((team) => team.key === "paperclipai/bundled/company-defaults/agency-core");
+    expect(core).toBeDefined();
+    if (!core) return;
+    expect(core.defaultInstall).toBe(true);
+    expect(core.agentSlugs).toHaveLength(12);
+    expect(core.rootAgentSlugs).toEqual(["agency-director"]);
+    expect(core.recommendedForCompanyTypes).toEqual(["agency", "marketing", "content"]);
+
+    const reportsTo: Record<string, unknown> = {};
+    for (const file of core.files) {
+      const text = fs.readFileSync(path.join(PACKAGE_DIR, core.path, file.path), "utf8");
+      expect(text, `${file.path} must not mention CEO`).not.toMatch(/\bCEO\b/);
+      if (file.kind !== "agent") continue;
+      const { frontmatter } = parseFrontmatterMarkdown(text);
+      reportsTo[String(frontmatter.slug)] = frontmatter.reportsTo;
+    }
+    expect(reportsTo).toEqual({
+      "agency-director": null,
+      "account-manager": "agency-director",
+      "publishing-coordinator": "account-manager",
+      "performance-analyst": "account-manager",
+      "creative-strategist": "agency-director",
+      "content-strategist": "creative-strategist",
+      "seo-specialist": "creative-strategist",
+      "marketing-strategist": "creative-strategist",
+      "creative-director": "agency-director",
+      "copywriter": "creative-director",
+      "scriptwriter": "creative-director",
+      "designer": "creative-director",
+    });
+
+    const legacy = catalogTeams.find((team) => team.key === "paperclipai/bundled/company-defaults/core-exec-team");
+    expect(legacy?.defaultInstall).toBe(false);
   });
 
   it("declares a valid project for every shipped recurring task", () => {

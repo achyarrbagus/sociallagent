@@ -864,3 +864,19 @@ Company-managed [Prompt Injection Prevention](prompt-injection-prevention.md)
 optionally classifies existing tool-result boundaries through a shared OpenRouter
 connection. Settings → Connections is permanent; valid model verdicts take
 precedence and dependency failures use the original built-in detector.
+
+
+## Creative agency specialization (2026-10-25)
+
+A company can represent a creative agency, with human owners directing agents and
+company-scoped clients/brands providing the context for campaigns. The initial
+foundation adds profile management, optional project-brand links and an optional
+Agency Studio team with Creative Strategist, SEO and Marketing roles. Client
+approval is not required. Idea selection does not grant publication authority.
+Revision-bound owner content review is implemented in [agency content](agency-content.md).
+New companies from onboarding start with an Agency Director (internal role `ceo`,
+labelled "Agency Director" in the product) and the bundled 12-agent `agency-core`
+team; existing companies are not migrated.
+Calendar and provider publishing remain subsequent work described in the
+[agency PRD](plans/2026-10-25-prd-rewrite-creative-agency.md);
+the current shipped boundary is defined in SPEC-implementation.md.

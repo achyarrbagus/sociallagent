@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { modelDisplayName } from "@/lib/model-display";
 import { useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
@@ -103,9 +104,9 @@ vi.mock("../lib/clipboard", () => ({
 
 vi.mock("../context/CompanyContext", () => ({
   useCompany: () => ({
-    companies: [{ id: "company-1", name: "Paperclip" }],
+    companies: [{ id: "company-1", name: "SocialAgent" }],
     selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", name: "Paperclip" },
+    selectedCompany: { id: "company-1", name: "SocialAgent" },
     selectionSource: "bootstrap",
     loading: false,
     error: null,
@@ -712,7 +713,7 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
     expect(result.container.querySelector('[aria-label="Harness"]')?.textContent).toContain("Codex");
     await clickByText(result.container, "Advanced");
-    expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain(adapterType === "paperclip_runner" ? "Paperclip Runner" : "Legacy runner");
+    expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain(adapterType === "paperclip_runner" ? "SocialAgent Runner" : "Legacy runner");
     await act(async () => setInputValue(result.container.querySelector<HTMLInputElement>('[placeholder="Agent name"]')!, "Renamed Cody"));
     await flushReact();
     await clickByText(result.container, "Save");
@@ -723,7 +724,7 @@ describe("AgentConfigForm environment selector", () => {
     mockAdaptersApi.list.mockResolvedValueOnce([{ type: adapterType, supportedRunners: ["legacy", "paperclip"], defaultRunner: "paperclip" }]);
     const result = await renderForm([], { adapterType, adapterConfig: { model: "existing-model", effort: "high" } });
     roots.push(result.root);
-    expect(result.container.textContent).toContain("Upgrade to Paperclip Runner");
+    expect(result.container.textContent).toContain("Upgrade to SocialAgent Runner");
     await act(async () => setInputValue(result.container.querySelector<HTMLInputElement>('[placeholder="Agent name"]')!, "Renamed agent"));
     await flushReact();
     await clickByText(result.container, "Upgrade runner");
@@ -756,7 +757,7 @@ describe("AgentConfigForm environment selector", () => {
     mockAdaptersApi.list.mockResolvedValueOnce([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "paperclip" }]);
     const result = await renderForm([]);
     roots.push(result.root);
-    result.onSave.mockRejectedValueOnce(new Error("Paperclip Runner cannot honor these settings: extraArgs."));
+    result.onSave.mockRejectedValueOnce(new Error("SocialAgent Runner cannot honor these settings: extraArgs."));
     await clickByText(result.container, "Upgrade runner");
     expect(result.container.querySelector('[role="alert"]')?.textContent).toContain("extraArgs");
     expect(result.onSave).toHaveBeenLastCalledWith({ runner: "paperclip" });
@@ -785,23 +786,23 @@ describe("AgentConfigForm environment selector", () => {
     await act(async () => changeAgent());
     await act(async () => finishUpgrade());
     await flushReact();
-    expect(container.textContent).not.toContain("Upgraded to Paperclip Runner.");
+    expect(container.textContent).not.toContain("Upgraded to SocialAgent Runner.");
     expect(findButton(container, "Upgrade runner")).toBeDefined();
   });
 
-  it("switches a saved legacy Claude agent to Paperclip Runner on a Runner-only environment", async () => {
+  it("switches a saved legacy Claude agent to SocialAgent Runner on a Runner-only environment", async () => {
     mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["paperclip"], defaultRunner: "paperclip" }]);
     try {
       const result = await renderForm([], { adapterType: "claude_local", adapterConfig: { model: "claude-opus-5-5" } });
       roots.push(result.root);
       await clickByText(result.container, "Advanced");
-      expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain("Paperclip Runner");
+      expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain("SocialAgent Runner");
       await clickByText(result.container, "Save");
       expect(result.onSave).toHaveBeenCalledWith(expect.objectContaining({ runner: "paperclip" }));
     } finally { mockAdaptersApi.list.mockResolvedValue([{ type: "codex_local", supportedRunners: ["legacy", "paperclip"], defaultRunner: "legacy" }]); }
   });
 
-  it("switches a new agent's Legacy choice to Paperclip Runner on a Runner-only environment", async () => {
+  it("switches a new agent's Legacy choice to SocialAgent Runner on a Runner-only environment", async () => {
     mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["paperclip"], defaultRunner: "paperclip" }]);
     try {
       const result = await renderCreateForm([], { ...defaultCreateValues, adapterType: "claude_local", runner: "legacy" });
@@ -811,7 +812,7 @@ describe("AgentConfigForm environment selector", () => {
   });
 
   it.each(["explicit", "instance", "managed", "env-draft"])("qualifies a saved Daytona Claude agent and upgrades with its legacy turn limit (%s environment)", async mode => {
-    const environment = makeEnvironment({ id: "daytona-computer", name: "Paperclip Computer", driver: "sandbox", status: "active",
+    const environment = makeEnvironment({ id: "daytona-computer", name: "SocialAgent Computer", driver: "sandbox", status: "active",
       config: { provider: "daytona", snapshot: "managed-snapshot" }, metadata: { managedByPaperclip: true } });
     const inventory = (qualified: boolean) => [
       { type: "claude_local", supportedRunners: qualified ? ["paperclip", "legacy"] : ["legacy"], defaultRunner: qualified ? "paperclip" : "legacy" },
@@ -828,7 +829,7 @@ describe("AgentConfigForm environment selector", () => {
       adapterConfig: { model: "claude-opus-5-5", effort: "high", maxTurnsPerRun: 1000, dangerouslySkipPermissions: true } },
       { environmentVariablesPlacement: "configuration" });
     roots.push(result.root);
-    expect(result.container.textContent).toContain("Upgrade to Paperclip Runner");
+    expect(result.container.textContent).toContain("Upgrade to SocialAgent Runner");
     expect(result.container.textContent).toContain("Max turns per run");
     expect(mockAgentsApi.qualifyRunner).not.toHaveBeenCalled();
     if (mode === "env-draft") {
@@ -869,7 +870,7 @@ describe("AgentConfigForm environment selector", () => {
   });
 
   it.each(["probe", "unsupported", "settings-changed"])("does not save after Daytona %s", async failure => {
-    const environment = makeEnvironment({ id: "daytona-computer", name: "Paperclip Computer", driver: "sandbox", status: "active",
+    const environment = makeEnvironment({ id: "daytona-computer", name: "SocialAgent Computer", driver: "sandbox", status: "active",
       config: { provider: "daytona", snapshot: "managed-snapshot" } });
     mockAdaptersApi.list.mockResolvedValue([{ type: "claude_local", supportedRunners: ["legacy"], defaultRunner: "legacy" }, { type: "paperclip_runner", supportedRunners: ["legacy"], defaultRunner: "legacy" }]);
     let finish!: () => void;
@@ -958,7 +959,7 @@ describe("AgentConfigForm environment selector", () => {
     ], { adapterType, adapterConfig, defaultEnvironmentId: "sandbox-1" }, { showAdapterTypeField: true });
     roots.push(result.root);
     await clickByText(result.container, "Advanced");
-    const runnerLabel = adapterType === "paperclip_runner" ? "Paperclip Runner" : "Legacy runner";
+    const runnerLabel = adapterType === "paperclip_runner" ? "SocialAgent Runner" : "Legacy runner";
 
     await selectEnvironment(result.container, "sandbox-2");
     expect(result.container.querySelector('[aria-label="Environment override"]')?.textContent).toContain("Daytona Two");
@@ -1014,7 +1015,7 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
     expect(result.container.querySelector('[aria-label="Harness"]')?.textContent).toContain("Claude");
     await clickByText(result.container, "Advanced");
-    expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain("Paperclip Runner");
+    expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain("SocialAgent Runner");
     const labels = Array.from(result.container.querySelectorAll("label")).map(label => label.textContent?.trim());
     expect(labels).not.toContain("Command");
     expect(labels).not.toContain("Extra args (comma-separated)");
@@ -1031,7 +1032,7 @@ describe("AgentConfigForm environment selector", () => {
     if (adapterConfig.provider === "opencode" || adapterConfig.acpxAgent === "pi") {
       expect(result.container.querySelector('[aria-label="Harness"]')?.textContent).toContain(adapterConfig.provider === "opencode" ? "OpenCode" : "Pi");
       await clickByText(result.container, "Advanced");
-      expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain("Paperclip Runner");
+      expect(result.container.querySelector('[aria-label="Runner"]')?.textContent).toContain("SocialAgent Runner");
     } else expect(result.container.querySelector('[aria-label="Runner"]')).toBeNull();
     if (adapterConfig.acpxAgent === "pi") {
       expect(result.container.querySelector('[aria-label="Pi thinking level"]')).not.toBeNull();
@@ -1286,7 +1287,7 @@ describe("AgentConfigForm environment selector", () => {
       await vi.waitFor(() => expect(mockAgentsApi.adapterModels).toHaveBeenCalledTimes(2));
       expect(mockAgentsApi.adapterModels).toHaveBeenLastCalledWith("company-1", "paperclip_runner", expect.objectContaining({ provider: "acpx", acpxAgent: "copilot", aiConnection: binding }));
       await flushReact();
-      expect(result.container.textContent).toContain("New token model");
+      expect(result.container.textContent).toContain(modelDisplayName("gpt-5.6-luna"));
     } finally { accountList.mockRestore(); reconnect.mockRestore(); }
   });
 
@@ -1306,7 +1307,8 @@ describe("AgentConfigForm environment selector", () => {
     );
     roots.push(result.root);
 
-    expect(result.container.textContent).toContain("gpt-6-astra");
+    expect(result.container.textContent).toContain(modelDisplayName("gpt-6-astra"));
+    expect(result.container.textContent).not.toContain("gpt-6-astra");
     const effortButton = Array.from(result.container.querySelectorAll("button"))
       .find((button) => button.textContent?.trim() === "Ultra");
     expect(effortButton).not.toBeUndefined();
@@ -1340,7 +1342,7 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
 
     const modelButton = Array.from(result.container.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "gpt-5.6-sol");
+      .find((button) => button.textContent?.trim() === modelDisplayName("gpt-5.6-sol"));
     expect(modelButton).not.toBeUndefined();
     await act(async () => {
       modelButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1348,7 +1350,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushReact();
 
     const astraOption = Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "gpt-6-astra");
+      .find((button) => button.textContent?.trim() === modelDisplayName("gpt-6-astra"));
     expect(astraOption).not.toBeUndefined();
     await act(async () => {
       astraOption!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1387,7 +1389,7 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
 
     const modelButton = Array.from(result.container.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "claude-opus-5-5");
+      .find((button) => button.textContent?.trim() === modelDisplayName("claude-opus-5-5"));
     expect(modelButton).not.toBeUndefined();
     await act(async () => {
       modelButton!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1395,7 +1397,7 @@ describe("AgentConfigForm environment selector", () => {
     await flushReact();
 
     const astraOption = Array.from(document.body.querySelectorAll("button"))
-      .find((button) => button.textContent?.trim() === "claude-haiku-4-5");
+      .find((button) => button.textContent?.trim() === modelDisplayName("claude-haiku-4-5"));
     expect(astraOption).not.toBeUndefined();
     await act(async () => {
       astraOption!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1421,8 +1423,8 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(existing.root);
     const created = await renderCreateForm(environments, { adapterType: "claude_local", model: "" });
     roots.push(created.root);
-    expect(existing.container.textContent).toContain("Default (claude-opus-5-5)");
-    expect(created.container.textContent).toContain("Default (claude-opus-5-5)");
+    expect(existing.container.textContent).toContain(`Default (${modelDisplayName("claude-opus-5-5")})`);
+    expect(created.container.textContent).toContain(`Default (${modelDisplayName("claude-opus-5-5")})`);
     expect(existing.onSave).not.toHaveBeenCalled();
   });
 
@@ -1511,7 +1513,7 @@ describe("AgentConfigForm environment selector", () => {
     const result = await renderForm([
       makeEnvironment({
         id: "managed-1",
-        name: "Paperclip Computer",
+        name: "SocialAgent Computer",
         driver: "sandbox",
         config: { provider: "daytona" },
         metadata: { managedByPaperclip: true },
@@ -1521,8 +1523,8 @@ describe("AgentConfigForm environment selector", () => {
 
     const selector = await environmentOptions(result.container);
 
-    expect(selector?.textContent).toContain("Default: Paperclip Computer");
-    expect(selector?.textContent).toContain("Paperclip Computer");
+    expect(selector?.textContent).toContain("Default: SocialAgent Computer");
+    expect(selector?.textContent).toContain("SocialAgent Computer");
     expect(selector?.textContent).not.toContain("(sandbox)");
     expect(selector?.textContent).not.toContain("· sandbox");
   });
@@ -1555,7 +1557,7 @@ describe("AgentConfigForm environment selector", () => {
     roots.push(result.root);
 
     const modelButton = Array.from(result.container.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "gpt-5.4",
+      (button) => button.textContent?.trim() === modelDisplayName("gpt-5.4"),
     );
     expect(modelButton).toBeTruthy();
 
@@ -1712,11 +1714,11 @@ describe("AgentConfigForm environment selector", () => {
       </TooltipProvider>));
       const search = document.body.querySelector("input")!;
       await act(() => { search.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true })); });
-      expect(document.activeElement?.textContent).toBe(curated[0].label);
+      expect(document.activeElement?.textContent).toBe(modelDisplayName(curated[0].id));
       await act(() => { document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true })); });
-      expect(document.activeElement?.textContent).toBe(curated.at(-1)?.label);
+      expect(document.activeElement?.textContent).toBe(modelDisplayName(curated.at(-1)!.id));
       await act(() => { document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true })); });
-      expect(document.activeElement?.textContent).toBe(curated[0].label);
+      expect(document.activeElement?.textContent).toBe(modelDisplayName(curated[0].id));
     } finally {
       await act(() => root.unmount());
       container.remove();

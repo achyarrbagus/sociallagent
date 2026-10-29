@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TranscriptEntry } from "../../adapters";
 import type { ToolRunDecision } from "@paperclipai/shared";
@@ -691,7 +692,7 @@ export function normalizeTranscript(entries: TranscriptEntry[], streaming: boole
         ts: entry.ts,
         label: "init",
         tone: "info",
-        text: `model ${entry.model}${entry.sessionId ? ` • session ${entry.sessionId}` : ""}`,
+        text: `model ${modelDisplayName(entry.model)}${entry.sessionId ? ` • session ${entry.sessionId}` : ""}`,
       });
       continue;
     }
@@ -863,6 +864,13 @@ function transcriptBlockIdentity(block: TranscriptBlock): string {
 
 function TranscriptProviderActivity({ block, density }: { block: Extract<TranscriptBlock, { type: "provider_activity" }>; density: TranscriptDensity }) {
   const [open, setOpen] = useState(block.status === "running");
+  const displayActivityText = (text: string) => {
+    if (block.family !== "model_identity") return text;
+    const modelIds = [block.payload.requestedModel, block.payload.effectiveModel, block.payload.fromModel]
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .sort((left, right) => right.length - left.length);
+    return modelIds.reduce((display, modelId) => display.replaceAll(modelId, modelDisplayName(modelId)), text);
+  };
   const steps = Array.isArray(block.payload.steps) ? block.payload.steps.map(asRecord).filter((value): value is Record<string, unknown> => value !== null) : [];
   const children = Array.isArray(block.payload.children) ? block.payload.children.map(asRecord).filter((value): value is Record<string, unknown> => value !== null) : [];
   const sources = Array.isArray(block.payload.sources) ? block.payload.sources.map(asRecord).filter((value): value is Record<string, unknown> => value !== null) : [];
@@ -870,8 +878,8 @@ function TranscriptProviderActivity({ block, density }: { block: Extract<Transcr
   return <div className={cn("rounded-xl border p-2", block.status === "failed" ? "border-red-500/30 bg-red-500/[0.05]" : "border-border/70 bg-muted/20")} data-provider-family={block.family}>
     <button type="button" className="flex min-h-8 w-full items-center gap-2 text-left" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
       <span aria-hidden="true">{block.status === "running" ? "⏳" : block.status === "failed" ? "✕" : block.status === "interrupted" ? "■" : "✓"}</span>
-      <strong className={cn("font-mono", density === "compact" ? "text-(length:--text-micro)" : "text-xs")}>{block.title}</strong>
-      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{block.summary}</span>
+      <strong className={cn("font-mono", density === "compact" ? "text-(length:--text-micro)" : "text-xs")}>{displayActivityText(block.title)}</strong>
+      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{displayActivityText(block.summary)}</span>
       {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
     </button>
     {open ? <div className="mt-2 space-y-2 border-l border-border pl-5 text-xs">
@@ -880,7 +888,7 @@ function TranscriptProviderActivity({ block, density }: { block: Extract<Transcr
       {sources.length > 0 ? <ul className="space-y-1">{sources.map((source, index) => { const url = typeof source.url === "string" && /^https?:\/\//.test(source.url) ? source.url : null; return <li key={String(source.sourceId ?? index)}>{url ? <a className="underline" href={url} target="_blank" rel="noreferrer">{String(source.title ?? url)}</a> : String(source.title ?? "Unavailable source")} <span className="text-muted-foreground">Provider-reported</span></li>; })}</ul> : null}
       {output ? <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-background p-2 font-mono">{output}</pre> : null}
       {block.family === "provider_notice" && Array.isArray(block.payload.details) ? <dl className="space-y-1">{block.payload.details.slice(0, 64).map((value, index) => { const detail = asRecord(value); return detail && typeof detail.name === "string" && typeof detail.value === "string" ? <div key={index}><dt className="text-muted-foreground">{detail.name}</dt><dd className="whitespace-pre-wrap break-words">{detail.value}</dd></div> : null; })}</dl> : null}
-      {block.family === "model_identity" ? <div><span className="text-muted-foreground">Requested</span> {String(block.payload.requestedModel ?? "—")} · <span className="text-muted-foreground">Effective</span> {String(block.payload.effectiveModel ?? "—")}</div> : null}
+      {block.family === "model_identity" ? <div><span className="text-muted-foreground">Requested</span> {modelDisplayName(typeof block.payload.requestedModel === "string" ? block.payload.requestedModel : null)} · <span className="text-muted-foreground">Effective</span> {modelDisplayName(typeof block.payload.effectiveModel === "string" ? block.payload.effectiveModel : null)}</div> : null}
     </div> : null}
   </div>;
 }

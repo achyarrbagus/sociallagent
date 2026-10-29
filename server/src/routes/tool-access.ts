@@ -194,7 +194,7 @@ export function connectionIntentOAuthOutcomeHtml(input: {
     }
   })();
   const targetOrigin = JSON.stringify(openerOrigin ?? "");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Connection authorization</title></head><body><p>Returning to Paperclip…</p><script>const message=${message};const targetOrigin=${targetOrigin}||window.location.origin;if(window.opener&&window.opener!==window){window.opener.postMessage(message,targetOrigin);window.close();}else{window.location.replace(${fallback});}</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Connection authorization</title></head><body><p>Returning to SocialAgent…</p><script>const message=${message};const targetOrigin=${targetOrigin}||window.location.origin;if(window.opener&&window.opener!==window){window.opener.postMessage(message,targetOrigin);window.close();}else{window.location.replace(${fallback});}</script></body></html>`;
 }
 
 function normalizeCloudConnectorEnrollmentReturnTo(returnTo?: string | null): string | null {
@@ -220,7 +220,7 @@ export function cloudConnectorEnrollmentOutcomeHtml(issuePrefix: string, returnT
   const fallback = JSON.stringify(fallbackPath).replaceAll("<", "\\u003c");
   // This document is served only after server-verified enrollment. The parent
   // independently re-reads enrollment status; browser messages grant no access.
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Paperclip connected</title></head><body><p>Paperclip is connected. Return to your task to finish connecting the app.</p><script>if(window.opener&&window.opener!==window){window.close();}else{const link=document.createElement("a");link.href=${fallback};link.textContent=${JSON.stringify(issueId ? "Return to task" : "Continue setup")};document.body.append(link);}</script></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>SocialAgent connected</title></head><body><p>SocialAgent is connected. Return to your task to finish connecting the app.</p><script>if(window.opener&&window.opener!==window){window.close();}else{const link=document.createElement("a");link.href=${fallback};link.textContent=${JSON.stringify(issueId ? "Return to task" : "Continue setup")};document.body.append(link);}</script></body></html>`;
 }
 
 export function cloudConnectorEnrollmentReturnPath(issuePrefix: string, returnTo?: string | null): string {
@@ -421,7 +421,7 @@ export function toolAccessRoutes(
       ?? requestLoopbackBaseUrl(req, forInitiation);
     if (!baseUrl) {
       throw unprocessable(
-        "This Paperclip needs a browser-reachable HTTPS address (or loopback HTTP) before browser sign-in can start.",
+        "This SocialAgent needs a browser-reachable HTTPS address (or loopback HTTP) before browser sign-in can start.",
         { code: "oauth_redirect_origin_unsupported" },
       );
     }
@@ -848,7 +848,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
             ? vercelConnect.configured
               ? null
               : "Vercel Connect needs workload OIDC or PAPERCLIP_VERCEL_CONNECT_ACCESS_TOKEN."
-            : "Vercel Connect setup is disabled on this Paperclip instance.",
+            : "Vercel Connect setup is disabled on this SocialAgent instance.",
         },
       },
       apps: [...APP_STORE_DEFINITIONS.filter((app) => (settings.enableMemoryConnectors || !isMemoryConnectorId(app.slug))
@@ -867,13 +867,13 @@ function connectorEnrollmentPrincipal(req: Request): string {
   });
 
   /**
-   * Paperclip's Client ID Metadata Document (PAP-17087).
+   * SocialAgent's Client ID Metadata Document (PAP-17087).
    *
-   * The document's own URL is the `client_id` Paperclip presents to an
+   * The document's own URL is the `client_id` SocialAgent presents to an
    * authorization server that supports CIMD, so this endpoint has to be publicly
    * readable — an authorization server fetches it server-to-server with no
-   * Paperclip session. It contains only this deployment's callback and the
-   * grant/response/auth methods Paperclip uses: no company, connection or secret
+   * SocialAgent session. It contains only this deployment's callback and the
+   * grant/response/auth methods SocialAgent uses: no company, connection or secret
    * data of any kind.
    */
   router.get(OAUTH_CLIENT_ID_METADATA_DOCUMENT_PATH.replace(/^\/api/, ""), (_req, res) => {
@@ -1336,7 +1336,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
     const code = typeof req.query.code === "string" ? req.query.code : null;
     const error = typeof req.query.error === "string" ? req.query.error : null;
     // `error_description` / `error_uri` are read from neither the query nor the
-    // provider's body: they are provider-authored prose, and Paperclip maps the
+    // provider's body: they are provider-authored prose, and SocialAgent maps the
     // `error` code to its own copy instead of reflecting them (PAP-17108).
     const iss = typeof req.query.iss === "string" ? req.query.iss : null;
     const pendingState = state ? await svc.peekOAuthState(state) : null;
@@ -1396,7 +1396,7 @@ function connectorEnrollmentPrincipal(req: Request): string {
         details: {
           code: callbackFailureCode,
           status: callbackError instanceof HttpError ? callbackError.status : 500,
-          // HttpError messages are Paperclip-authored. Provider-authored
+          // HttpError messages are SocialAgent-authored. Provider-authored
           // error_description/error_uri values are never read above and cannot
           // be reflected into the activity stream.
           message: callbackError instanceof HttpError

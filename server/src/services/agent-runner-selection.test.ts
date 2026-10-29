@@ -191,7 +191,7 @@ describe("server-owned Codex runner selection", () => {
   it.each(qualifiedTargets)("automatically keeps unsupported targets and active external overrides legacy on $platform/$architecture", target => {
     const input = { adapterType: "codex_local", target: { driver: "local", platform: "win32", architecture: "x64" } };
     expect(resolveNewAgentRunner(input).adapterType).toBe("codex_local");
-    expect(() => resolveNewAgentRunner({ ...input, runner: "paperclip" })).toThrow("unavailable");
+    expect(() => resolveNewAgentRunner({ ...input, runner: "paperclip" })).toThrow("SocialAgent Runner is unavailable for this harness and environment. Select Legacy runner in Advanced.");
     state.overridden.add("codex_local");
     expect(agentRunnerAvailability("codex_local", target).defaultRunner).toBe("legacy");
     expect(resolveNewAgentRunner({ adapterType: "codex_local", target }).adapterType).toBe("codex_local");

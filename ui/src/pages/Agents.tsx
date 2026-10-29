@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { PrimaryAgentIndicator } from "@/components/primary-agent/PrimaryAgentPresentation";
 import { AgentBulkRoster } from "@/components/agents/AgentBulkRoster";
 import { AgentAvatar } from "@/components/AgentAvatar";
@@ -58,8 +59,8 @@ interface EnvironmentDescriptor {
 
 const localEnvironmentDescriptor: EnvironmentDescriptor = {
   label: "Local",
-  detail: "Paperclip host",
-  title: "Local - Paperclip host",
+  detail: "SocialAgent host",
+  title: "Local - SocialAgent host",
 };
 
 const loadingEnvironmentDescriptor: EnvironmentDescriptor = {
@@ -126,11 +127,11 @@ function describeEnvironment(
   capabilities?: EnvironmentCapabilities | null,
 ): EnvironmentDescriptor {
   const detail = isPlatformManagedEnvironment(environment)
-    ? "Managed by Paperclip"
+    ? "Managed by SocialAgent"
     : environment.driver === "sandbox"
       ? `${getSandboxProviderLabel(environment, capabilities)} sandbox provider`
       : environment.driver === "local"
-        ? "Paperclip host"
+        ? "SocialAgent host"
         : formatEnvironmentDriver(environment.driver);
 
   return {
@@ -623,9 +624,9 @@ function AgentMetaColumns({
       <div className="w-44 min-w-0 leading-tight">
         <div
           className="truncate font-mono text-xs text-muted-foreground"
-          title={model ?? undefined}
+          title={modelDisplayName(model)}
         >
-          {model ?? "—"}
+          {modelDisplayName(model)}
         </div>
         <div className="truncate font-mono text-(length:--text-micro) text-muted-foreground/70" title={adapterLabel}>
           {adapterLabel}

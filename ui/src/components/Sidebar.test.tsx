@@ -48,7 +48,7 @@ vi.mock("../context/DialogContext", () => ({
 vi.mock("../context/CompanyContext", () => ({
   useCompany: () => ({
     selectedCompanyId: "company-1",
-    selectedCompany: { id: "company-1", issuePrefix: "PAP", name: "Paperclip" },
+    selectedCompany: { id: "company-1", issuePrefix: "PAP", name: "SocialAgent" },
   }),
 }));
 
@@ -314,6 +314,7 @@ describe("Sidebar", () => {
     expect(labels).toEqual(expect.arrayContaining(["Org", "Connectors", "Timeline", "Costs", "Activity", "Settings"]));
     expect(labels).not.toContain("Audit");
     expect(labels).not.toContain("Projects");
+    expect(container.querySelector('a[href="/skills"]')).toBeNull();
     expect(container.querySelector('a[href="/agents"]')).toBeNull();
     expect(container.querySelector("aside")?.classList).toContain("border-r");
 
@@ -517,8 +518,9 @@ describe("Sidebar", () => {
     const labels = (section: Element | undefined) => [...(section?.querySelectorAll("a") ?? [])]
       .map((anchor) => anchor.textContent?.trim());
 
-    expect(labels(workSection)).toEqual(["Tasks", "Projects", "Routines", "Artifacts"]);
-    expect(labels(orgSection)).toEqual(["Agents", "Skills", "Connectors", "Audit"]);
+    expect(labels(workSection)).toEqual(["Tasks", "Projects", "Clients & Brands", "Content & Review", "Routines", "Artifacts"]);
+    expect(labels(orgSection)).toEqual(["Agents", "Connectors", "Audit"]);
+    expect(container.querySelector('a[href="/skills"]')).toBeNull();
     expect(sections.indexOf(workSection!)).toBeLessThan(sections.indexOf(orgSection!));
     expect(
       workSection?.querySelector('a[href="/issues"] svg')?.classList.contains("lucide-circle-check"),
@@ -616,7 +618,7 @@ describe("Sidebar", () => {
     expect(link?.getAttribute("href")).toBe("/apps");
     expect(link?.querySelector("svg")?.classList).toContain("lucide-unplug");
     expect(links.findIndex((anchor) => anchor.textContent === "Connectors")).toBeGreaterThan(
-      links.findIndex((anchor) => anchor.textContent === "Skills"),
+      links.findIndex((anchor) => anchor.textContent === "Agents"),
     );
     expect(links.findIndex((anchor) => anchor.textContent === "Connectors")).toBeLessThan(
       links.findIndex((anchor) => anchor.textContent === "Audit"),

@@ -2,8 +2,171 @@
   "schemaVersion": 1,
   "packageName": "@paperclipai/teams-catalog",
   "packageVersion": "0.1.0",
-  "generatedAt": "2026-10-08T10:35:56.448Z",
+  "generatedAt": "2026-10-27T08:00:05.951Z",
   "teams": [
+    {
+      "id": "paperclipai:bundled:company-defaults:agency-core",
+      "key": "paperclipai/bundled/company-defaults/agency-core",
+      "kind": "bundled",
+      "category": "company-defaults",
+      "slug": "agency-core",
+      "name": "Agency Core",
+      "description": "Default creative agency team for a new Paperclip company, with an Agency Director leading an account manager, strategy group, and production group, plus a recurring director review task.",
+      "path": "catalog/bundled/company-defaults/agency-core",
+      "entrypoint": "TEAM.md",
+      "schema": "agentcompanies/v1",
+      "defaultInstall": true,
+      "recommendedForCompanyTypes": [
+        "agency",
+        "marketing",
+        "content"
+      ],
+      "tags": [
+        "default",
+        "agency",
+        "creative",
+        "social-media"
+      ],
+      "counts": {
+        "agents": 12,
+        "projects": 1,
+        "tasks": 0,
+        "routines": 1,
+        "localSkills": 0,
+        "catalogSkills": 0,
+        "externalSkillSources": 0
+      },
+      "rootAgentSlugs": [
+        "agency-director"
+      ],
+      "agentSlugs": [
+        "account-manager",
+        "agency-director",
+        "content-strategist",
+        "copywriter",
+        "creative-director",
+        "creative-strategist",
+        "designer",
+        "marketing-strategist",
+        "performance-analyst",
+        "publishing-coordinator",
+        "scriptwriter",
+        "seo-specialist"
+      ],
+      "projectSlugs": [
+        "agency-operations"
+      ],
+      "requiredSkills": [],
+      "envInputs": [],
+      "sourceRefs": [],
+      "files": [
+        {
+          "path": "TEAM.md",
+          "kind": "team",
+          "sizeBytes": 2237,
+          "sha256": "c4edce906452c087302312ed6aad5bf744fb20d8885d38dfaa2dba90879f86c3"
+        },
+        {
+          "path": "agents/account-manager/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3141,
+          "sha256": "0ce63326ef2e72ec8d97d13bace5766244f16acd2c8a9565d6d693e0b1cd576b"
+        },
+        {
+          "path": "agents/agency-director/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3180,
+          "sha256": "43bd745555f66ed231b425edead7fe2f19af9a6014bf5318ebc174bd49e70ed2"
+        },
+        {
+          "path": "agents/content-strategist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3012,
+          "sha256": "49bf0bdc413fa31b3f546f1291598e51c1e29eebcdc707f10bc9d7d9a9bf1b47"
+        },
+        {
+          "path": "agents/copywriter/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2909,
+          "sha256": "e4baeb112e1fc3a44af851d6ac011e4267b58ccf1fd0bceb1fb4fcc7b86cdba8"
+        },
+        {
+          "path": "agents/creative-director/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3118,
+          "sha256": "abd802fe8bf7a6a165d0ece5707110f3de74287fbc6385df68e5cae1ede20597"
+        },
+        {
+          "path": "agents/creative-strategist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3638,
+          "sha256": "9f301733c4d9a0598d6837adebceb24501103250de0388aa3871e0b30120c774"
+        },
+        {
+          "path": "agents/designer/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3024,
+          "sha256": "8c1813fc5d4bd92ce17fc0647b31855404ff73284cb5a22634493406d7a4486a"
+        },
+        {
+          "path": "agents/marketing-strategist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2990,
+          "sha256": "ad96e2a62fe66b35c5b9f56c1a749618967eece1b0271cdc0801b9292e3aa0e6"
+        },
+        {
+          "path": "agents/performance-analyst/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2928,
+          "sha256": "ea1435262ed18270cc1a476cc6dd177d4fa7602fb5a80e14a6c28ffd01abe622"
+        },
+        {
+          "path": "agents/publishing-coordinator/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3234,
+          "sha256": "e98273c6dba8c5288ca53bca27258cde10f666a249a98507414ab98567d0a4cd"
+        },
+        {
+          "path": "agents/scriptwriter/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3044,
+          "sha256": "9bc84e35305358d1387d17edc99325db6406045fa857d7df619d9977b8073e52"
+        },
+        {
+          "path": "agents/seo-specialist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3102,
+          "sha256": "162cc815b03e18f923e1d5171509e51cc5a783ef72954e06207c6ac2da6a588a"
+        },
+        {
+          "path": "LICENSE",
+          "kind": "other",
+          "sizeBytes": 1069,
+          "sha256": "7f8a27f0979bded50e240caa8c8c29f3088ddf87032cb83e5a9732bff91d18b4"
+        },
+        {
+          "path": "projects/agency-operations/PROJECT.md",
+          "kind": "project",
+          "sizeBytes": 422,
+          "sha256": "d9030d048fcfbd4cea3f7c9ce3de4be2f8cc7db5237bea6b041ad4ded1daa24a"
+        },
+        {
+          "path": "projects/agency-operations/tasks/director-review/TASK.md",
+          "kind": "task",
+          "sizeBytes": 349,
+          "sha256": "c1c80c1f13ae9e14e9a2aba290f3783be6afef24cc4cbee20dbb82b33d36d014"
+        },
+        {
+          "path": "README.md",
+          "kind": "readme",
+          "sizeBytes": 1352,
+          "sha256": "cf5f3721e4dbfc959407cde7b0ceb971201351501c8b7c42a29a08ac52e598f2"
+        }
+      ],
+      "trustLevel": "assets",
+      "compatibility": "compatible",
+      "contentHash": "sha256:af989d822aa860a4372b8c2a9e9912a110ebe7725f5c5c8b1ddf7bdb6fe287d3"
+    },
     {
       "id": "paperclipai:bundled:company-defaults:core-exec-team",
       "key": "paperclipai/bundled/company-defaults/core-exec-team",
@@ -11,11 +174,11 @@
       "category": "company-defaults",
       "slug": "core-exec-team",
       "name": "Core Exec Team",
-      "description": "Default leadership and engineering team for bootstrapping a Paperclip company with a CEO, CTO, QA Engineer, starter project, and a recurring CEO heartbeat review task.",
+      "description": "Default leadership and engineering team for bootstrapping a Paperclip company with an Agency Director, CTO, QA Engineer, starter project, and a recurring Agency Director heartbeat review task.",
       "path": "catalog/bundled/company-defaults/core-exec-team",
       "entrypoint": "TEAM.md",
       "schema": "agentcompanies/v1",
-      "defaultInstall": true,
+      "defaultInstall": false,
       "recommendedForCompanyTypes": [
         "startup",
         "software",
@@ -96,14 +259,14 @@
         {
           "path": "TEAM.md",
           "kind": "team",
-          "sizeBytes": 2014,
-          "sha256": "e0c38e9af1a5dd1888fb81a72feba75a9ab1be4c78d8ceb658e2e5cd621c5096"
+          "sizeBytes": 2080,
+          "sha256": "183a4df1e0c34511ecb848f6ff730897c80315e4d92f9c7508ad38ab6c634006"
         },
         {
           "path": "agents/ceo/AGENTS.md",
           "kind": "agent",
-          "sizeBytes": 263,
-          "sha256": "75848c6f794646a93e23bc73b80d31ef0eb8b83c105423eb98ea29e7685d2fd0"
+          "sizeBytes": 279,
+          "sha256": "8597d9a52f5d678654049df0c5fab5e6488df8e8e4e93f431c543c27b1df62b5"
         },
         {
           "path": "agents/cto/AGENTS.md",
@@ -120,8 +283,8 @@
         {
           "path": "projects/first-project/PROJECT.md",
           "kind": "project",
-          "sizeBytes": 364,
-          "sha256": "1f457ae956da52ff83adc1cf63a3fb84337a4afb25bd43f0d123902d75e871cc"
+          "sizeBytes": 376,
+          "sha256": "786ee426cc734c559eda20392cfc42c154b6abf4d28dc012d9808233756a5f76"
         },
         {
           "path": "projects/first-project/tasks/first-heartbeat/TASK.md",
@@ -132,7 +295,7 @@
       ],
       "trustLevel": "markdown_only",
       "compatibility": "compatible",
-      "contentHash": "sha256:9d0416ebc0a81585dc51b73efb25decba9e1e3f3741940fc9fca74f3238f344d"
+      "contentHash": "sha256:d83e025b7dbcbf2335fc8398a4f0019a9748756cd546a19bc45679d5bba40226"
     },
     {
       "id": "paperclipai:bundled:product:product-design",
@@ -331,8 +494,8 @@
         {
           "path": "TEAM.md",
           "kind": "team",
-          "sizeBytes": 2583,
-          "sha256": "7204eeef78a48714dd3f82b82e171a4039adc6325e91a6bdf51a442105ee33b0"
+          "sizeBytes": 2598,
+          "sha256": "b8a55f8ac7a5b21e48af444441ec76e6e3edfb852fb07f0398049d197eca1999"
         },
         {
           "path": ".paperclip.yaml",
@@ -373,7 +536,7 @@
       ],
       "trustLevel": "assets",
       "compatibility": "compatible",
-      "contentHash": "sha256:b9076b17a551b704a97df2e0204cefb83edfda4d36e909889071bb02d251e5ea"
+      "contentHash": "sha256:f8d778231467078ae95193aa2280e2c019aa9e2471ac86eab108b506af2b69fb"
     },
     {
       "id": "paperclipai:optional:communications:speko-company-phone-agent",
@@ -446,6 +609,135 @@
       "trustLevel": "assets",
       "compatibility": "compatible",
       "contentHash": "sha256:e723a036948dcb292382fbcb116c68500c2247b004d0a8d8ef818b6725f91215"
+    },
+    {
+      "id": "paperclipai:optional:content:agency-studio",
+      "key": "paperclipai/optional/content/agency-studio",
+      "kind": "optional",
+      "category": "content",
+      "slug": "agency-studio",
+      "name": "Agency Studio",
+      "description": "Optional creative agency team for owner-directed brand insights, SEO, marketing, content production and publication preparation.",
+      "path": "catalog/optional/content/agency-studio",
+      "entrypoint": "TEAM.md",
+      "schema": "agentcompanies/v1",
+      "defaultInstall": false,
+      "recommendedForCompanyTypes": [
+        "agency",
+        "marketing",
+        "content"
+      ],
+      "tags": [
+        "agency",
+        "creative",
+        "seo",
+        "marketing",
+        "social-media"
+      ],
+      "counts": {
+        "agents": 9,
+        "projects": 0,
+        "tasks": 0,
+        "routines": 0,
+        "localSkills": 0,
+        "catalogSkills": 0,
+        "externalSkillSources": 0
+      },
+      "rootAgentSlugs": [
+        "account-manager"
+      ],
+      "agentSlugs": [
+        "account-manager",
+        "analyst",
+        "content-strategist",
+        "copywriter",
+        "creative-strategist",
+        "designer",
+        "marketing-strategist",
+        "publisher",
+        "seo-specialist"
+      ],
+      "projectSlugs": [],
+      "requiredSkills": [],
+      "envInputs": [],
+      "sourceRefs": [],
+      "files": [
+        {
+          "path": "TEAM.md",
+          "kind": "team",
+          "sizeBytes": 1710,
+          "sha256": "d1896d423cfeec59bbf693732f9717dcab48e0f37c8e5efd1fe8546f10985fbe"
+        },
+        {
+          "path": "agents/account-manager/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3084,
+          "sha256": "1d85b550184a81990847d21cc400a738ab5c5049934329cb7da4a47aaceb1d7e"
+        },
+        {
+          "path": "agents/analyst/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2916,
+          "sha256": "e9ac405efc18abc4b345a71cafdd7eb246b8a4dc9c1ef817e0e729a47a222e9c"
+        },
+        {
+          "path": "agents/content-strategist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2947,
+          "sha256": "4ca32d8fc4022434a6ee7af87224045124a99d72a3e5b189b0077fe483ee35f2"
+        },
+        {
+          "path": "agents/copywriter/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2863,
+          "sha256": "3fe4ff8e59ab20ff46134d341a17501275aeb8a238ec7a0e1f2796490c2efa13"
+        },
+        {
+          "path": "agents/creative-strategist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3501,
+          "sha256": "d74270ff7edb352d7e0e78d262c772ed3304b762f729b3562b102837d3f901e2"
+        },
+        {
+          "path": "agents/designer/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2976,
+          "sha256": "a7e77d51a9e143517cba9e5e75c06fc8b16440ac95c1d68507c403691fa12bb6"
+        },
+        {
+          "path": "agents/marketing-strategist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 2986,
+          "sha256": "53e901ccea616a457067e48cf07557e1a826cdceb38cd73e0ddcb2b765dc2343"
+        },
+        {
+          "path": "agents/publisher/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3221,
+          "sha256": "b4d55efe8a7493886169133f13269406ec7d5d6f8bac527cd1a3c6c7bdcfb0e3"
+        },
+        {
+          "path": "agents/seo-specialist/AGENTS.md",
+          "kind": "agent",
+          "sizeBytes": 3074,
+          "sha256": "d1c501c073b49ef8c8bdf762cc5f1167d0bfc4a24f0f761671748d2020118014"
+        },
+        {
+          "path": "LICENSE",
+          "kind": "other",
+          "sizeBytes": 1069,
+          "sha256": "7f8a27f0979bded50e240caa8c8c29f3088ddf87032cb83e5a9732bff91d18b4"
+        },
+        {
+          "path": "README.md",
+          "kind": "readme",
+          "sizeBytes": 2094,
+          "sha256": "3d391a7b531541a0b562a85f8d549d759b55556f2c0d4f3f5d9c6f83474a0433"
+        }
+      ],
+      "trustLevel": "assets",
+      "compatibility": "compatible",
+      "contentHash": "sha256:ebcbbfdbe353fb8a4a7da13f751a9977b54e9fc1850fe2e541616ee8b39feb96"
     },
     {
       "id": "paperclipai:optional:content:content-machine",

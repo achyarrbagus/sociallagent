@@ -8,11 +8,56 @@ import { aiConnectionsApi } from "@/api/ai-connections";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { aiProviderSetupPreset } from "@paperclipai/shared";
 import type { AiConnectionCredentialStep } from "./AiConnectionCredentialStep";
+import { OnboardingGatewaySetup } from "../onboarding/OnboardingGatewaySetup";
 
 let credentialProps: ComponentProps<typeof AiConnectionCredentialStep> | undefined;
 vi.mock("@/api/ai-connections", () => ({ aiConnectionsApi: { create: vi.fn(async () => ({ connectionId: "connection", grantId: "grant" })), list: vi.fn(async () => ({ currentUserId: "owner", connections: [], canManageConnections: true })) } }));
 vi.mock("@/api/agents", () => ({ agentsApi: { list: vi.fn(async () => []) } }));
 vi.mock("./AiConnectionCredentialStep", () => ({ AiConnectionCredentialStep: (props: ComponentProps<typeof AiConnectionCredentialStep>) => { credentialProps = props; return <div>Existing credential flow</div>; } }));
+
+it.each([
+  ["codex_local", "responses", "openai", "OpenAI Responses"],
+  ["claude_local", "messages", "anthropic", "Anthropic Messages"],
+] as const)("connects 9Router with an editable endpoint and the correct API format for %s", async (adapterType, protocol, provider, format) => {
+  vi.mocked(aiConnectionsApi.create).mockClear();
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  client.setQueryData(["ai-connections", "company", undefined], { canManageConnections: true, connections: [] });
+  client.setQueryData(["agents", "company", "provider-access"], []);
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const onComplete = vi.fn();
+  const inputValue = async (input: HTMLInputElement, value: string) => act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  try {
+    await act(async () => root.render(<QueryClientProvider client={client}><TooltipProvider><OnboardingGatewaySetup companyId="company" adapterType={adapterType} onComplete={onComplete} /></TooltipProvider></QueryClientProvider>));
+    const shortcut = Array.from(container.querySelectorAll("button")).find(button => button.textContent === "Connect 9Router");
+    expect(shortcut).toBeDefined();
+    await act(async () => shortcut!.click());
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("Connect 9Router");
+    const endpoint = dialog.querySelector<HTMLInputElement>('input[aria-label="Provider URL"]')!;
+    expect(endpoint.value).toBe("https://9router.amifish.com/v1");
+    const apiFormat = dialog.querySelector('[aria-label="API format"]')!;
+    expect(apiFormat.textContent).toContain(format);
+    expect(apiFormat.hasAttribute("disabled")).toBe(true);
+    const key = dialog.querySelector<HTMLInputElement>('input[aria-label="API key"]')!;
+    expect(key.type).toBe("password");
+    await inputValue(endpoint, "https://router.example.com/v1");
+    await inputValue(key, "fixture-9router-key");
+    await act(async () => dialog.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(aiConnectionsApi.create).toHaveBeenCalledWith("company", expect.objectContaining({
+      provider, name: "Company 9Router", method: "api_key", ownership: "shared", allAgents: true,
+      apiKey: "fixture-9router-key", routing: { kind: "gateway", protocol, auth: "bearer", baseUrl: "https://router.example.com/v1", models: [] },
+    }));
+    expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({ provider, mode: "shared", connectionId: "connection", grantId: "grant" }));
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  } finally {
+    await act(async () => root.unmount()); container.remove(); client.clear();
+  }
+});
 
 it("reconnects an older OpenRouter account without adding routing metadata", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

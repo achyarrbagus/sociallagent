@@ -4,26 +4,23 @@ const CHARS = [" ", ".", "·", "▪", "▫", "○"] as const;
 const TARGET_FPS = 24;
 const FRAME_INTERVAL_MS = 1000 / TARGET_FPS;
 
+// Conversation sprites echo the SocialAgent mark on the sign-in screen.
 const PAPERCLIP_SPRITES = [
   [
-    "  ╭────╮ ",
-    " ╭╯╭──╮│ ",
-    " │ │  ││ ",
-    " │ │  ││ ",
-    " │ │  ││ ",
-    " │ │  ││ ",
-    " │ ╰──╯│ ",
-    " ╰─────╯ ",
+    " ╭──────╮ ",
+    " │ ╭──╮ │ ",
+    " │ ╰─╮  │ ",
+    " │ ╰─╯  │ ",
+    " ╰─╮ ╭──╯ ",
+    "   ╰─╯    ",
   ],
   [
-    " ╭─────╮ ",
-    " │╭──╮╰╮ ",
-    " ││  │ │ ",
-    " ││  │ │ ",
-    " ││  │ │ ",
-    " ││  │ │ ",
-    " │╰──╯ │ ",
-    " ╰────╯  ",
+    " ╭──────╮ ",
+    " │ ╭──╮ │ ",
+    " │ ╰─╮  │ ",
+    " │ ╰─╯  │ ",
+    " ╰──╮ ╭─╯ ",
+    "    ╰─╯   ",
   ],
 ] as const;
 

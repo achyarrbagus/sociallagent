@@ -3,7 +3,7 @@ import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { StatusIcon } from "@/components/StatusIcon";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import type { DirectionKit, LabArtifact } from "../kit";
-import { CEO, DESIGNER, TASKS, THREAD_ATTACHMENTS, THREAD_WORK_PRODUCTS } from "../fixtures";
+import { AGENCY_DIRECTOR, DESIGNER, TASKS, THREAD_ATTACHMENTS, THREAD_WORK_PRODUCTS } from "../fixtures";
 import { SupportButton } from "./AppShell";
 import { Slot } from "./Slot";
 import { AgentIdentity, ComposerShell, Mention, MessageFooter, Prose, ProseLink, TaskRef, WorkedRow } from "./thread-parts";
@@ -12,7 +12,7 @@ import { AgentIdentity, ComposerShell, Mention, MessageFooter, Prose, ProseLink,
  * Static mock of the task thread in the task-chat shell (the default).
  *
  * In one scroll it reproduces what the reference screenshots show across
- * three: the agent's message with its attachments block, a short CEO reply,
+ * three: the agent's message with its attachments block, a short Agency Director reply,
  * then a run of "Worked" rows interleaved with work-product rows. The kit
  * supplies only the attachments block and the rows.
  */
@@ -94,7 +94,7 @@ export function ThreadFrame({ kit, panelOpen }: { kit: DirectionKit; panelOpen: 
                     Applied Josh Puckett’s saved critique method and recorded{" "}
                     <ProseLink to="document-interface-craft-critique">findings and before/after changes</ProseLink>. Added a cap-led cover,
                     simplified strategy hierarchy, matched A/B comparison fields and applications, and separated founder decisions.
-                    Retained the supplied logo, Paperclip reference, proposed audience and claim labels.
+                    Retained the supplied logo, SocialAgent reference, proposed audience and claim labels.
                   </li>
                   <li>
                     Uploaded and registered <ProseLink to="work-product-ic-pptx">editable PowerPoint</ProseLink>,{" "}
@@ -109,7 +109,7 @@ export function ThreadFrame({ kit, panelOpen }: { kit: DirectionKit; panelOpen: 
                     supplied logo remains raster. Native PowerPoint rendering remains untested; PDF is the inspected reference.
                   </li>
                   <li>
-                    Next: <Mention name={CEO} /> checks coherence and claims, then presents this pass for founder acceptance through{" "}
+                    Next: <Mention name={AGENCY_DIRECTOR} /> checks coherence and claims, then presents this pass for founder acceptance through{" "}
                     <TaskRef identifier="ACM-1" status="in_review" />. Production completion does not imply founder approval or permission
                     to publish.
                   </li>
@@ -124,7 +124,7 @@ export function ThreadFrame({ kit, panelOpen }: { kit: DirectionKit; panelOpen: 
           </Item>
           <Item gap="item">
             <Bubble>
-              <AgentIdentity name={CEO} />
+              <AgentIdentity name={AGENCY_DIRECTOR} />
               <Prose>
                 <p>
                   The revised <ProseLink to="work-product-ic-pdf">deck PDF</ProseLink> is saved.{" "}
@@ -132,7 +132,7 @@ export function ThreadFrame({ kit, panelOpen }: { kit: DirectionKit; panelOpen: 
                 </p>
                 <p>
                   An ownership conflict prevented my review there. I’ve routed it to <TaskRef identifier="ACM-1" status="in_review" />;
-                  CEO review and founder acceptance remain pending.
+                  Agency Director review and founder acceptance remain pending.
                 </p>
               </Prose>
               <MessageFooter timestamp="11:12 AM" />

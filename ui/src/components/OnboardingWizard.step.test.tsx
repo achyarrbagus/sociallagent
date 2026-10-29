@@ -74,6 +74,9 @@ vi.mock("@/api/adapters", () => ({ adaptersApi: mockAdaptersApi }));
 vi.mock("../api/companies", () => ({ companiesApi: mockCompaniesApi }));
 vi.mock("../api/agents", () => ({ agentsApi: mockAgentsApi }));
 vi.mock("../api/approvals", () => ({ approvalsApi: { create: vi.fn() } }));
+vi.mock("../api/onboarding-agency-team", () => ({
+  ensureAgencyTeam: vi.fn(async () => ({ status: "installed", agentIds: [], warnings: [] })),
+}));
 vi.mock("../api/issues", () => ({ issuesApi: { create: vi.fn() } }));
 vi.mock("../api/projects", () => ({ projectsApi: { list: vi.fn(), create: vi.fn() } }));
 vi.mock("../api/environments", () => ({ environmentsApi: mockEnvironmentsApi }));
@@ -585,11 +588,9 @@ describe("OnboardingWizard — which step it lands on", () => {
       await press(tiles[0]!);
     }
 
-    it("hires under the neutral role, with the name the customer typed", async () => {
-      // The arc stopped asking for a role, so every onboarding hire is filed
-      // as `general` — and the hire guard returns *silently* when the role is
-      // missing, which is exactly how removing the picker could have shipped a
-      // Connect button that hires nobody. This is the test that catches that.
+    it("hires the Agency Director role, with the name the customer typed", async () => {
+      // The arc asks for no role: every onboarding hire is the Agency Director,
+      // filed as `ceo`, which is the only role the agency team installs under.
       await openOnAgentStep();
       await nameAgent("Ada");
 
@@ -599,7 +600,7 @@ describe("OnboardingWizard — which step it lands on", () => {
 
       expect(mockAgentsApi.hire).toHaveBeenCalled();
       const [, payload] = mockAgentsApi.hire.mock.calls.at(-1)!;
-      expect(payload.role).toBe("general");
+      expect(payload.role).toBe("ceo");
       expect(payload.name).toBe("Ada");
       expect(payload.setupAgentId).toBe(mockAgentsApi.create.mock.calls[0]?.[1].setupId);
     });

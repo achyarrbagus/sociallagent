@@ -246,7 +246,7 @@ export function resolveTestDriveBootstrap(
   }
 
   const companyName = (options.companyName ?? "Test Company").trim();
-  const agentName = (options.agentName ?? "CEO").trim();
+  const agentName = (options.agentName ?? "Agency Director").trim();
   if (!companyName) throw new Error("--company-name cannot be empty.");
   if (!agentName) throw new Error("--agent-name cannot be empty.");
 
@@ -384,7 +384,7 @@ export async function bootstrapTestDrive(input: {
         adapterType: resolved.adapterType,
         adapterConfig,
       }),
-      "creating the CEO agent",
+      "creating the Agency Director agent",
     );
 
     if (input.linkedWorktree) {
@@ -465,7 +465,7 @@ export async function testDriveCommand(
           );
         } else {
           p.log.success(
-            `Created ${pc.cyan(result.company.name)} with agent ${pc.cyan(result.agent?.name ?? "CEO")}.`,
+            `Created ${pc.cyan(result.company.name)} with agent ${pc.cyan(result.agent?.name ?? "Agency Director")}.`,
           );
         }
         if (linkedWorktree) {
@@ -496,7 +496,7 @@ export function registerTestDriveCommand(program: Command): void {
     .description("Start an isolated, initialized Paperclip instance for manual testing")
     .option("-d, --data-dir <path>", "Paperclip data directory to create or reuse")
     .option("--company-name <name>", "Initial company name", "Test Company")
-    .option("--agent-name <name>", "Initial CEO agent name", "CEO")
+    .option("--agent-name <name>", "Initial Agency Director agent name", "Agency Director")
     .addOption(
       new Option("--harness <harness>", "Initial agent harness")
         .choices(TEST_DRIVE_HARNESSES)

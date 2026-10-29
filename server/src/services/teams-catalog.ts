@@ -54,6 +54,8 @@ export interface CatalogTeamActorContext {
 export interface CatalogTeamImportOptions {
   targetManagerAgentId?: string | null;
   targetManagerSlug?: string | null;
+  /** Existing active Agency Director that takes the team's manager slot instead of a new agent. */
+  adoptManagerAgentId?: string | null;
   include?: Partial<CompanyPortabilityInclude>;
   agents?: CompanyPortabilityAgentSelection;
   collisionStrategy?: CompanyPortabilityCollisionStrategy;
@@ -87,8 +89,16 @@ export interface CatalogTeamPreparedSource {
   team: CatalogTeam;
   source: CompanyPortabilitySource & { type: "inline" };
   skillPreparations: CatalogTeamSkillPreparation[];
+  adoptAgents?: Record<string, string>;
   warnings: string[];
   errors: string[];
+}
+
+const INACTIVE_AGENT_LIFECYCLE_STATES = new Set(["terminating", "cleaning_up", "terminated", "rejected"]);
+
+function isActiveAgent(agent: { status: string; lifecycleState?: string | null }) {
+  return agent.status !== "terminated"
+    && !INACTIVE_AGENT_LIFECYCLE_STATES.has(agent.lifecycleState ?? "");
 }
 
 interface CatalogTargetManagerReference {
@@ -766,6 +776,49 @@ export function teamsCatalogService(db: Db) {
     };
   }
 
+  async function resolveAdoptedManager(
+    companyId: string,
+    team: CatalogTeam,
+    options: CatalogTeamImportOptions,
+  ): Promise<Record<string, string> | undefined> {
+    if (!options.adoptManagerAgentId) return undefined;
+    if (options.targetManagerAgentId || options.targetManagerSlug) {
+      throw unprocessable("Adopting a manager cannot be combined with a target manager.");
+    }
+    const invalid = () => unprocessable("Adopted manager must be an active Agency Director in this company.");
+    const managerSlug = team.rootAgentSlugs[0];
+    if (!managerSlug) throw invalid();
+    const manager = await agents.getById(options.adoptManagerAgentId);
+    if (
+      !manager
+      || manager.companyId !== companyId
+      || manager.role !== "ceo"
+      || !isActiveAgent(manager)
+      // A Director still waiting for approval cannot lead a team yet.
+      || manager.status === "pending_approval"
+      || manager.lifecycleState === "pending_approval"
+    ) {
+      throw invalid();
+    }
+    return { [managerSlug]: manager.id };
+  }
+
+  async function warnIfSecondDirector(
+    companyId: string,
+    team: CatalogTeam,
+    files: Record<string, CompanyPortabilityFileEntry>,
+  ): Promise<string | null> {
+    const managerSlug = team.rootAgentSlugs[0];
+    const managerFile = managerSlug ? files[`agents/${managerSlug}/AGENTS.md`] : null;
+    if (typeof managerFile !== "string") return null;
+    if (parseFrontmatterMarkdown(managerFile).frontmatter.role !== "ceo") return null;
+    const existing = (await agents.list(companyId)).find(
+      (agent) => agent.role === "ceo" && isActiveAgent(agent),
+    );
+    if (!existing) return null;
+    return `This team adds another Agency Director; the company already has one (${existing.name}).`;
+  }
+
   async function prepareCatalogTeamSource(
     companyId: string,
     catalogRef: string,
@@ -789,8 +842,13 @@ export function teamsCatalogService(db: Db) {
     warnings.push(...skillPrep.warnings);
     errors.push(...skillPrep.errors);
 
+    const adoptAgents = await resolveAdoptedManager(companyId, team, options);
     const targetManager = await resolveTargetManagerReference(companyId, options);
     const files = await readCatalogTeamSourceFiles(team);
+    if (!adoptAgents) {
+      const secondDirector = await warnIfSecondDirector(companyId, team, files);
+      if (secondDirector) warnings.push(secondDirector);
+    }
     const existingExtension =
       typeof files[".paperclip.yaml"] === "string"
         ? parseYamlDocument(files[".paperclip.yaml"])
@@ -806,6 +864,7 @@ export function teamsCatalogService(db: Db) {
         files,
       },
       skillPreparations: skillPrep.preparations,
+      adoptAgents,
       warnings,
       errors,
     };
@@ -848,6 +907,7 @@ export function teamsCatalogService(db: Db) {
     const portabilityPreview = await portability.previewImport(previewInput, {
       mode: "agent_safe",
       sourceCompanyId: companyId,
+      ...(prepared.adoptAgents ? { adoptAgents: prepared.adoptAgents } : {}),
     });
     portabilityPreview.warnings.push(...prepared.warnings);
     portabilityPreview.errors.push(...prepared.errors);
@@ -910,23 +970,27 @@ export function teamsCatalogService(db: Db) {
     }
 
     const defaultAdapterType = defaultSafeCatalogAdapterType();
+    const adoptedSlugs = Object.keys(prepared.adoptAgents ?? {});
+    const createdAgentSlugs = prepared.team.agentSlugs.filter((slug) => !adoptedSlugs.includes(slug));
+    const portabilityOptions = {
+      mode: "agent_safe" as const,
+      sourceCompanyId: companyId,
+      ...(prepared.adoptAgents ? { adoptAgents: prepared.adoptAgents } : {}),
+    };
     const importInput: CompanyPortabilityImport = {
       ...buildPortabilityInput(companyId, prepared.source, options),
       adapterOverrides: withSafeCatalogAdapterDefaults(
-        prepared.team.agentSlugs,
+        createdAgentSlugs,
         options.adapterOverrides,
         defaultAdapterType,
       ),
       secretValues: options.secretValues,
     };
-    const importPreview = await portability.previewImport(importInput, {
-      mode: "agent_safe",
-      sourceCompanyId: companyId,
-    });
+    const importPreview = await portability.previewImport(importInput, portabilityOptions);
     if (importPreview.errors.length > 0) {
       throw unprocessable(`Catalog team import preview has errors: ${importPreview.errors.join("; ")}`);
     }
-    const defaultedAdapterSlugs = prepared.team.agentSlugs.filter(
+    const defaultedAdapterSlugs = createdAgentSlugs.filter(
       (slug) => !options.adapterOverrides?.[slug],
     );
     const warnings = [
@@ -941,16 +1005,13 @@ export function teamsCatalogService(db: Db) {
     const result = await portability.importBundle(
       importInput,
       options.actor?.userId ?? (options.actor?.actorType === "user" ? options.actor.actorId : null),
-      {
-        mode: "agent_safe",
-        sourceCompanyId: companyId,
-      },
+      portabilityOptions,
     );
     warnings.push(...await prepareSkillInstalls(companyId, prepared));
     result.warnings.push(...warnings);
     await logCatalogEvent("company.team_catalog_installed", companyId, prepared.team, options.actor, {
       warningCount: result.warnings.length,
-      agentCount: result.agents.length,
+      agentCount: result.agents.filter((agent) => !adoptedSlugs.includes(agent.slug)).length,
       projectCount: result.projects.length,
       skillPreparationCount: prepared.skillPreparations.length,
     });

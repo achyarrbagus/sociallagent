@@ -1240,3 +1240,38 @@ human's decision to leave a pending request in history. They are independent of
 The board-only dismissal path locks the task then interaction, checks audience,
 and never enqueues a continuation. Ordinary deferred requests are excluded from
 completion arbitration; protected authorization gates remain active.
+
+## Agency profiles (2026-10-25)
+
+`agency_clients` stores company-owned customer/contact profiles.
+`agency_brands` stores brand briefs, audience, tone, website and timezone, linked
+to a client by `(company_id, client_id)`. Both retain `archived_at` history and
+cascade with company deletion. Profiles contain no provider credentials.
+
+`projects.brand_id` is nullable, preserving existing projects and allowing a
+project to represent a brand campaign. The compound project-brand foreign key
+enforces company consistency. New bindings validate active brand/client state
+within the project mutation transaction; archiving and binding therefore serialize.
+There is no inferred migration of existing projects or tasks to brands.
+
+Migration `0378_perpetual_colonel_america.sql` adds the two profile tables, project
+reference, indexes and relational constraints. Agency data is not yet included in
+company portability exports; do not treat a company export as its brand backup.
+
+
+## Agency content persistence (2026-10-25)
+
+Migration `0379_glamorous_sleeper.sql` adds `agency_content_items`,
+`agency_content_revisions`, `agency_content_decisions` and `agency_content_tasks`.
+Items bind one company/brand/campaign; compound keys reject cross-company links.
+Revisions append complete JSON snapshots with captured parent context and asset
+identities/digests. Owner decisions reference a real revision through a compound
+foreign key. Current revision and approved revision/status checks protect item state.
+
+Task links retain logical issue identities without cascading away on issue deletion.
+Distinct historical asset IDs remain on the item; missing/revoked sources fail
+closed when reading any content version. Explicit project deletion cascades its
+content/revisions/decisions/task links. Company deletion still removes issues and
+assets before projects and then company data. Agency content is not included in
+portability exports. See [the content contract](agency-content.md) for limits and
+transaction/authorization semantics.

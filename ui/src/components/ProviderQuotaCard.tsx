@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { AccountQuotaPanels } from "./AccountQuotaPanels";
 import { quotaUnavailableMessage } from "@/lib/quota-refresh";
 import { useMemo } from "react";
@@ -281,7 +282,7 @@ export function ProviderQuotaCard({
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <span className="text-xs text-muted-foreground truncate font-mono block">
-                          {row.model}
+                          {modelDisplayName(row.model)}
                         </span>
                         <span className="text-(length:--text-micro) text-muted-foreground truncate block">
                           {providerDisplayName(row.biller)} · {billingTypeDisplayName(row.billingType)}

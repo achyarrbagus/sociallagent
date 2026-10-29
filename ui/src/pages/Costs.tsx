@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { FastResponseHistory } from "../components/fast-responses/FastResponseHistory";
 import { DecisionHistory } from "../components/decision-models/DecisionHistory";
 import { SubscriptionCostCard, SubscriptionTokenUsage } from "../components/SubscriptionCostCard";
@@ -611,7 +612,7 @@ export function Costs({
       )}
       {museUsageUnavailable && (
         <p role="status" className="text-sm text-muted-foreground">
-          {scopedAgent.name}'s Muse activity has no reported usage or cost. Totals below show recorded organization charges only. Paperclip cannot enforce a Muse spend ceiling.
+          {scopedAgent.name}'s Muse activity has no reported usage or cost. Totals below show recorded organization charges only. SocialAgent cannot enforce a Muse spend ceiling.
         </p>
       )}
       {showSummaryChrome ? (
@@ -778,7 +779,7 @@ export function Costs({
                           const isExpanded = expandedAgents.has(row.agentId);
                           const hasBreakdown = modelRows.length > 0;
                           return (
-                            <div key={row.agentId ?? "services"} role="group" aria-label={`${row.agentName ?? row.agentId ?? "Paperclip services"} costs`} className="border border-border px-4 py-3">
+                            <div key={row.agentId ?? "services"} role="group" aria-label={`${row.agentName ?? row.agentId ?? "SocialAgent services"} costs`} className="border border-border px-4 py-3">
                               <div
                                 className={cn("flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", hasBreakdown ? "cursor-pointer select-none" : "")}
                                 onClick={() => hasBreakdown && toggleAgent(row.agentId)}
@@ -791,7 +792,7 @@ export function Costs({
                                   ) : (
                                     <span className="h-3 w-3 shrink-0" />
                                   )}
-                                  {row.agentId ? <AgentIdentity agent={{ id: row.agentId, name: row.agentName ?? row.agentId, appearance: row.agentAppearance }} size="sm" /> : <span className="font-medium">Paperclip services</span>}
+                                  {row.agentId ? <AgentIdentity agent={{ id: row.agentId, name: row.agentName ?? row.agentId, appearance: row.agentAppearance }} size="sm" /> : <span className="font-medium">SocialAgent services</span>}
                                   {row.agentStatus === "terminated" ? <StatusBadge status="terminated" /> : null}
                                 </div>
                                 <div className="text-right text-sm tabular-nums">
@@ -825,7 +826,7 @@ export function Costs({
                                           <div className="truncate font-medium text-foreground">
                                             {providerDisplayName(modelRow.provider)}
                                             <span className="mx-1 text-border">/</span>
-                                            <span className="font-mono">{modelRow.model}</span>
+                                            <span className="font-mono">{modelDisplayName(modelRow.model)}</span>
                                           </div>
                                           <div className="truncate text-muted-foreground">
                                             {providerDisplayName(modelRow.biller)} · {billingTypeDisplayName(modelRow.billingType)}

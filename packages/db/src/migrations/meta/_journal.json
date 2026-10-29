@@ -2633,6 +2633,20 @@
       "when": 1792790134086,
       "tag": "0377_clear_settled_native_run_process_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1792905739912,
+      "tag": "0378_perpetual_colonel_america",
+      "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1792907838841,
+      "tag": "0379_glamorous_sleeper",
+      "breakpoints": true
     }
   ]
 }

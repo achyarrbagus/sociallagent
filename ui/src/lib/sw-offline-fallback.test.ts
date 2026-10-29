@@ -83,7 +83,7 @@ describe("sw.js offline fallback", () => {
     expect(response!.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response!.headers.get("cache-control")).toBe("no-store");
     const body = await response!.text();
-    expect(body).toContain("Paperclip is offline");
+    expect(body).toContain("SocialAgent is offline");
     expect(body).toContain("Reload page");
     expect(body).toContain("<style>");
     expect(body).toContain(".paperclip-offline");
@@ -109,7 +109,7 @@ describe("sw.js offline fallback", () => {
     expect(response!.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response!.headers.get("cache-control")).toBe("no-store");
     const body = await response!.text();
-    expect(body).toContain("Paperclip is offline");
+    expect(body).toContain("SocialAgent is offline");
     expect(body).toContain("Reload page");
     expect(body).not.toContain("<html>app shell</html>");
   });

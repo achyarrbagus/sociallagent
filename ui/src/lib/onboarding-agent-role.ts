@@ -1,22 +1,22 @@
 import { AGENT_ROLE_LABELS, type AgentRole } from "@paperclipai/shared";
 
 /**
- * The name the wizard offers before the customer picks a role. It is a job
- * title rather than a role label because it reads as a person on the very
- * first screen where the agent appears.
- */
-/**
  * The role every onboarding hire is filed under.
  *
- * The arc asks for a name, not a role: someone naming their first agent is
- * describing what it should do, and the placeholder carries the range of
- * answers that fit. `general` is the honest filing for that — it claims
- * nothing the customer did not say — and the role can be set later, in the
- * app, where the agent's work gives the choice meaning.
+ * The first agent is the Agency Director: it leads the agency and the agency
+ * team is installed under it right after the hire, which the server only does
+ * for an agent filed as `ceo`. The wizard therefore asks for a name and never
+ * a role. `ceo` is an internal enum value; the owner only ever sees
+ * "Agency Director".
  */
-export const DEFAULT_AGENT_ROLE = "general" as const;
+export const DEFAULT_AGENT_ROLE = "ceo" as const;
 
-export const DEFAULT_AGENT_NAME = "Chief of staff";
+/**
+ * The name the wizard offers for the first agent. It is a job title rather
+ * than a role label because it reads as a person on the very first screen
+ * where the agent appears.
+ */
+export const DEFAULT_AGENT_NAME = "Agency Director";
 
 /**
  * Names the wizard put there itself, and may therefore replace. Anything the
@@ -29,6 +29,9 @@ export const DEFAULT_AGENT_NAME = "Chief of staff";
  */
 const WIZARD_SUPPLIED_NAMES: ReadonlySet<string> = new Set([
   DEFAULT_AGENT_NAME,
+  // The previous default. A run restored from a draft saved by an earlier
+  // build may still hold it, and it was never the customer's choice.
+  "Chief of staff",
   ...Object.values(AGENT_ROLE_LABELS),
 ]);
 

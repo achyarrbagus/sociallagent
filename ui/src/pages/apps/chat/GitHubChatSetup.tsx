@@ -409,7 +409,7 @@ export function GitHubChatSetup() {
             <>
               <p className="text-sm">
                 Connect GitHub account <strong>{state.identity.login}</strong>{" "}
-                to your Paperclip account.
+                to your SocialAgent account.
               </p>
               {footer("Confirm my account", async () => {
                 await githubChatApi.confirmIdentity(
@@ -422,7 +422,7 @@ export function GitHubChatSetup() {
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Link your GitHub account so your mentions use your Paperclip
+                Link your GitHub account so your mentions use your SocialAgent
                 permissions.
               </p>
               {(accounts.data?.length ?? 0) > 0 && (

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="-1.00 -1.00 26.00 26.00"
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
      style="transform:rotate(0deg);transform-origin:50% 50%;">
   <defs></defs>
   <style>
@@ -12,6 +12,6 @@
 }
     .p { animation: draw 1s linear infinite; }
   </style>
-  <path class="p" d="M16 6 l-8.414 8.586 a2.000 2.000 0 0 0 2.828 2.828 l8.414 -8.586 a4.000 4.000 0 1 0 -5.657 -5.657 l-8.379 8.551 a6.000 6.000 0 1 0 8.485 8.485 l8.379 -8.551" fill="none" stroke="#ffffff"
+  <path class="p" d="M7 3h10a4 4 0 0 1 4 4v7a4 4 0 0 1-4 4h-4l-5 3v-3H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Z M15 7h-4.5a2 2 0 0 0 0 4h3a2 2 0 0 1 0 4H9" fill="none" stroke="#ffffff"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

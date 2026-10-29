@@ -104,7 +104,7 @@ describe("actionable cost notices", () => {
     });
     await render(); await click("16 run costs unavailable"); await loaded();
     const groups = [...container.querySelectorAll('[aria-label="Cost details by agent"] > li')];
-    expect(groups.map(group => group.querySelector("h3")!.textContent)).toEqual(["Codie", "Codie", "fry", "Leela", "Paperclip services"]);
+    expect(groups.map(group => group.querySelector("h3")!.textContent)).toEqual(["Codie", "Codie", "fry", "Leela", "SocialAgent services"]);
     const codieItems = groups[0].querySelectorAll("li");
     expect(codieItems).toHaveLength(2);
     expect(codieItems[0].textContent).toContain("Ready to record");

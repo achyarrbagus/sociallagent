@@ -589,7 +589,7 @@ export const runnerApiReference: Record<string, { section: string; description?:
   },
   "POST /api/companies/{}/openclaw/invite-prompt": {
     "section": "Companies, Projects, Goals",
-    "description": "Generate OpenClaw invite prompt (CEO/board only)",
+    "description": "Generate OpenClaw invite prompt (Agency Director/board only)",
     "examples": [
       {
         "body": {

@@ -1,50 +1,21 @@
-<p align="center">
-  <img src="doc/assets/banner.jpg" alt="Paperclip is the app people use to manage AI agents for work." width="720" />
-</p>
+# SocialAgent
 
-<p align="center">
-  <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
-  <a href="https://docs.paperclip.ing"><strong>Docs</strong></a> &middot;
-  <a href="https://github.com/paperclipai/paperclip"><strong>GitHub</strong></a> &middot;
-  <a href="https://discord.gg/paperclipai"><strong>Discord</strong></a> &middot;
-  <a href="https://x.com/papercliping"><strong>Twitter</strong></a> &middot;
-  <a href="https://paperclip.ing"><strong>Website</strong></a>
-</p>
+SocialAgent is an AI creative agency workspace for managing clients, brands,
+campaigns, and content with a team of AI agents. Plan work, review creative
+output, approve revisions, and track tasks and costs from one dashboard.
 
-<p align="center">
-  <a href="https://github.com/paperclipai/paperclip/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" /></a>
-  <a href="https://github.com/paperclipai/paperclip/stargazers"><img src="https://img.shields.io/github/stars/paperclipai/paperclip?style=flat" alt="Stars" /></a>
-  <a href="https://discord.gg/paperclipai"><img src="https://img.shields.io/badge/discord-join-7289da" alt="Discord" /></a>
-  <a href="https://superagent.sh"><picture><source media="(prefers-color-scheme: dark)" srcset="https://www.superagent.sh/api/badge/paperclipai/paperclip/shield.svg?theme=dark&accent=teal&variant=scanned" /><img src="https://www.superagent.sh/api/badge/paperclipai/paperclip/shield.svg?theme=light&accent=teal&variant=scanned" alt="Security posture verified by Superagent" /></picture></a>
-</p>
+Built on [Paperclip](https://github.com/paperclipai/paperclip), with its agent
+orchestration, budgets, governance, and company isolation. The sections below
+retain upstream setup instructions and capability reference material; some
+upstream capabilities are experimental or require configuration.
 
-<p align="center">
-  <a href="https://www.star-history.com/paperclipai/paperclip"><img src="https://api.star-history.com/badge?repo=paperclipai/paperclip" alt="Star History Rank" /></a>
-</p>
-
-<br/>
-
-<div align="center">
-  <video src="https://github.com/user-attachments/assets/773bdfb2-6d1e-4e30-8c5f-3487d5b70c8f" width="600" controls></video>
-</div>
-
-<p align="center">
-  <a href="https://paperclip.ing/waitlist/"><strong>Sign up for the Paperclip Cloud waitlist →</strong></a>
-</p>
-
-<br/>
-
-# Paperclip is the app people use to manage AI agents for work.
-
-Open-source orchestration for teams of AI agents.
-
-**If OpenClaw is an _employee_, Paperclip is the _company_.**
-
-Paperclip is a Node.js server and React UI that orchestrates a team of AI agents to run a business. Bring your own agents, assign goals, and track work and costs from one dashboard. Choose models and harnesses per agent while keeping your team's tasks, skills, permissions, and history in one place.
-
-It looks like a task manager. Under the hood: org charts, budgets, governance, goal alignment, and agent coordination.
-
-**Manage business goals, not pull requests.**
+The application displays **SocialAgent**. Technical compatibility identifiers
+remain unchanged: `@paperclipai/*` packages, the `paperclipai` CLI,
+`PAPERCLIP_*` environment variables, existing `.paperclip` state paths, auth
+cookie prefixes, API headers, and protocol/schema identifiers. Use these
+existing names when following setup instructions; no data migration is required
+for the display rebrand. Paperclip Cloud and Paperclip ID remain the names of
+upstream services.
 
 |        | Step            | Example                                                            |
 | ------ | --------------- | ------------------------------------------------------------------ |

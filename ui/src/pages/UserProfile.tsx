@@ -1,3 +1,4 @@
+import { modelDisplayName } from "@/lib/model-display";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, UserRound, UserRoundPen } from "lucide-react";
@@ -238,7 +239,7 @@ export function UserProfile() {
     () =>
       (data?.topAgents ?? []).map((row) => ({
         key: row.agentId ?? "unknown",
-        label: row.agentName ?? (row.agentId ? row.agentId.slice(0, 8) : "Paperclip services"),
+        label: row.agentName ?? (row.agentId ? row.agentId.slice(0, 8) : "SocialAgent services"),
         sublabel: "Task-linked usage",
         costCents: row.costCents,
         inputTokens: row.inputTokens,
@@ -252,7 +253,7 @@ export function UserProfile() {
     () =>
       (data?.topProviders ?? []).map((row) => ({
         key: `${row.provider}:${row.biller}:${row.model}`,
-        label: `${providerDisplayName(row.provider)} / ${row.model}`,
+        label: `${providerDisplayName(row.provider)} / ${modelDisplayName(row.model)}`,
         sublabel: `Billed through ${providerDisplayName(row.biller)}`,
         costCents: row.costCents,
         inputTokens: row.inputTokens,
