@@ -42,6 +42,8 @@ import { cloudStackCreateUrl } from "./lib/cloudLinks";
 import { navigateTopLevel } from "@/lib/browserNavigation";
 
 const AuthPage = lazy(() => import("./pages/Auth").then((module) => ({ default: module.AuthPage })));
+const ForgotPasswordPage = lazy(() => import("./pages/PasswordReset").then((module) => ({ default: module.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import("./pages/PasswordReset").then((module) => ({ default: module.ResetPasswordPage })));
 const BoardClaimPage = lazy(() => import("./pages/BoardClaim").then((module) => ({ default: module.BoardClaimPage })));
 const CliAuthPage = lazy(() => import("./pages/CliAuth").then((module) => ({ default: module.CliAuthPage })));
 const InviteLandingPage = lazy(() => import("./pages/InviteLanding").then((module) => ({ default: module.InviteLandingPage })));
@@ -786,6 +788,8 @@ export function App() {
       <Suspense fallback={<PaperclipLoading />}><Routes>
         <Route path="oauth-handoff" element={<PaperclipCloudOAuthHandoffPage />} />
         <Route path="auth" element={<AuthPage />} />
+        <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="auth/reset-password" element={<ResetPasswordPage />} />
         <Route path="board-claim/:token" element={<BoardClaimPage />} />
         <Route path="mcp-connect/:id" element={<McpConnectPage />} />
         <Route path="dot-connect/:id" element={<McpConnectPage agentPairingOnly />} />

@@ -179,6 +179,15 @@ export const authApi = {
     await authPost("/sign-up/email", input);
   },
 
+  /** Emails a reset link when the account exists; the response never says whether it does. */
+  requestPasswordReset: async (input: { email: string; redirectTo: string }) => {
+    await authPost("/request-password-reset", input);
+  },
+
+  resetPassword: async (input: { token: string; newPassword: string }) => {
+    await authPost("/reset-password", input);
+  },
+
   getProfile: async (): Promise<CurrentUserProfile> => {
     const res = await fetch("/api/auth/profile", {
       credentials: "include",

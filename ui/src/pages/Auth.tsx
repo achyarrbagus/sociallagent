@@ -117,7 +117,7 @@ export function AuthPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "sign_in"
               ? "Use your email and password to access this instance."
-              : "Create an account for this instance. Email confirmation is not required in v1."}
+              : "Create an account for SocialAgent."}
           </p>
 
           <form
@@ -185,6 +185,13 @@ export function AuthPage() {
                 aria-describedby={error ? errorId : undefined}
               />
             </div>
+            {mode === "sign_in" && (
+              <div className="-mt-2 text-right">
+                <button type="button" className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground" onClick={() => navigate("/auth/forgot-password")}>
+                  Forgot password?
+                </button>
+              </div>
+            )}
             {error && (
               <p id={errorId} role="alert" className="text-xs text-destructive">
                 {error}

@@ -1,4 +1,5 @@
 import type { Request, RequestHandler } from "express";
+import { mailerConfigured, passwordResetEmail, sendAccountEmail, verificationEmail } from "../services/mailer.js";
 import type { IncomingHttpHeaders } from "node:http";
 import { betterAuth, type Auth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -273,8 +274,21 @@ export function createBetterAuthInstance(db: Db, config: Config, trustedOrigins:
     }),
     emailAndPassword: {
       enabled: true,
-      requireEmailVerification: false,
+      // Required only when the operator asks for it and email can be sent;
+      // otherwise new accounts could never sign in.
+      requireEmailVerification: process.env.SOCIALAGENT_REQUIRE_EMAIL_VERIFICATION === "true" && mailerConfigured(),
       disableSignUp: config.authDisableSignUp,
+      resetPasswordTokenExpiresIn: 60 * 60,
+      sendResetPassword: async ({ user, url }: { user: { email: string; name?: string | null }; url: string }) => {
+        await sendAccountEmail(passwordResetEmail(user.email, user.name, url));
+      },
+    },
+    emailVerification: {
+      sendOnSignUp: mailerConfigured() || process.env.NODE_ENV !== "production",
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }: { user: { email: string; name?: string | null }; url: string }) => {
+        await sendAccountEmail(verificationEmail(user.email, user.name, url));
+      },
     },
     rateLimit: buildBetterAuthRateLimitOptions({
       deploymentMode: config.deploymentMode,

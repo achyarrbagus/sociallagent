@@ -43,6 +43,8 @@ With the managed gateway configured, SocialAgent runs as a SaaS: only an instanc
 
 - **Self-serve sign-up:** in SaaS mode a user who signs up without an invite can create their own agency (`POST /api/companies`), up to `SOCIALAGENT_MAX_COMPANIES_PER_USER` owned companies (default 1). `GET /api/cli-auth/me` reports `canCreateCompany`, so the app opens onboarding instead of "No organization access". The new company gets the admin's default budget; a budget in the request is ignored. Without the managed gateway only instance admins create companies.
 
+- **Account email:** "Forgot password?" on the sign-in page sends a one-hour, single-use reset link (`/auth/forgot-password`, `/auth/reset-password`). New sign-ups get a confirmation email. Configure SMTP with `SOCIALAGENT_SMTP_URL` and `SOCIALAGENT_MAIL_FROM` (any provider); without it, development logs the links and production sends nothing. `SOCIALAGENT_REQUIRE_EMAIL_VERIFICATION=true` blocks sign-in until the email is confirmed, and only takes effect when SMTP is set.
+
 Admin endpoints: `GET`/`PUT /api/instance/settings/ai-models`, `GET`/`PUT /api/instance/settings/connectors`, `POST /api/instance/ai-models/adopt`, `GET /api/instance/ai-models/catalog` (fetched server-side with the operator key) and `GET /api/instance/ai-models/agents`.
 
 Company imports and team catalog installs put their new agents on SocialAgent AI with the model for each agent's role. Built-in, plugin and remote agents keep their own setup.

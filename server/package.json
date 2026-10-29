@@ -67,6 +67,7 @@
     "@openrouter/ai-sdk-provider": "3.1.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/otlp-transformer": "0.221.0",
+    "@opentelemetry/resources": "2.10.0",
     "@paperclipai/adapter-claude-local": "workspace:*",
     "@paperclipai/adapter-codex-local": "workspace:*",
     "@paperclipai/adapter-cursor-cloud": "workspace:*",
@@ -106,6 +107,7 @@
     "multer": "^2.4.0",
     "nice-grpc": "2.1.17",
     "nice-grpc-common": "2.0.4",
+    "nodemailer": "^7",
     "open": "^11.0.4",
     "opencode-ai": "1.18.34",
     "pino": "^10.0.0",
@@ -116,8 +118,7 @@
     "ssh2": "^1.17.0",
     "svix": "1.76.1",
     "ws": "^8.22.0",
-    "zod": "^4.4.3",
-    "@opentelemetry/resources": "2.10.0"
+    "zod": "^4.4.3"
   },
   "bundleDependencies": [
     "@agentclientprotocol/claude-agent-acp",
@@ -140,16 +141,17 @@
     "@types/jsdom": "^30.0.0",
     "@types/multer": "^2.2.0",
     "@types/node": "^24.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/sharp": "^0.32.0",
     "@types/supertest": "^7.2.1",
     "@types/ws": "^8.18.2",
     "cross-env": "^10.1.0",
+    "protobufjs": "7.6.6",
     "supertest": "^7.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vitest": "^5.0.3",
-    "protobufjs": "7.6.6"
+    "vitest": "^5.0.3"
   },
   "peerDependencies": {
     "@opentelemetry/auto-instrumentations-node": "0.79.0",
