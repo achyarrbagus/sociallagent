@@ -693,7 +693,7 @@ async function readPackageJson(
 function buildLocalPluginBuildCommand(pkgJson: Record<string, unknown>): string | null {
   const packageName = pkgJson["name"];
   if (typeof packageName !== "string" || packageName.trim().length === 0) return null;
-  return `pnpm --filter ${packageName} build`;
+  return `bun run --filter ${packageName} build`;
 }
 
 function readPackageDependencyNames(

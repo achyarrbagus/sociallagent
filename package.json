@@ -105,9 +105,10 @@
     "vitest": "^5.0.3"
   },
   "engines": {
-    "node": ">=24.11.0"
+    "node": ">=24.11.0",
+    "bun": ">=1.4.4"
   },
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "bun@1.4.4",
   "pnpm": {
     "patchedDependencies": {
       "embedded-postgres@18.1.0-beta.16": "patches/embedded-postgres@18.1.0-beta.16.patch",

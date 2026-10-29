@@ -383,7 +383,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("does not appear to be a Paperclip plugin (no manifest found)");
-    expect(res.body.error).toContain(`pnpm --filter ${fixture.packageName} build`);
+    expect(res.body.error).toContain(`bun run --filter ${fixture.packageName} build`);
     expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(false);
     expect(mockLifecycle.load).not.toHaveBeenCalled();
   }, 20_000);
