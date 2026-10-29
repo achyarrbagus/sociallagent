@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { ContentSchedule } from "../components/agency/ContentSchedule";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText } from "lucide-react";
 import { AGENCY_CONTENT_STATUSES, createAgencyContentSchema, type AgencyContentDetail, type AgencyContentRevision, type DecideAgencyContent, type ListAgencyContent, type ReviseAgencyContent } from "@paperclipai/shared";
@@ -101,6 +102,7 @@ function ContentDetailView({ data }: { data: AgencyContentDetail }) {
     <ContentReview data={data} preview={preview} pending={action.isPending || oldRevision.isPending} onLatest={() => { setPreview(data.currentRevision); action.reset(); }} onDecide={decision => action.mutate({ kind: "decision", decision })} />
     {data.canEdit && <div className="flex flex-wrap items-center justify-between gap-3"><Button variant="outline" disabled={action.isPending || !current} onClick={() => { action.reset(); setEditorToken(token => token + 1); setEditor(data.currentRevision); }}>Edit as new revision</Button>{data.status === "in_production" && <Button disabled={action.isPending || !current || !data.contextCurrent} onClick={() => action.mutate({ kind: "submit" })}>Submit to owner</Button>}</div>}
     {editor && (attachments.isLoading ? <PageSkeleton variant="list" /> : <ContentEditor seed={editor} currentNumber={data.revisionNumber} attachments={attachments.data ?? []} attachmentsError={attachments.error?.message} pending={action.isPending} onCancel={() => setEditor(null)} onSave={revision => action.mutate({ kind: "revision", revision })} />)}
+    {data.canManage && data.status === "approved" && data.approvalValid && <ContentSchedule data={data} />}
     <ContentTasks data={data} onChanged={refresh} />
     <section className="space-y-3 rounded-lg border p-4"><h2 className="text-lg font-semibold">Revision history</h2>{history.error && <p role="alert" className="text-sm text-destructive">{history.error.message}</p>}
       <div className="flex flex-wrap gap-2">{history.data?.pages.flatMap(page => page.revisions).map(r => <Button key={r.revisionNumber} size="sm" variant={preview.revisionNumber === r.revisionNumber ? "secondary" : "outline"} disabled={oldRevision.isPending || action.isPending} onClick={() => oldRevision.mutate(r.revisionNumber)}>Revision {r.revisionNumber}</Button>)}</div>

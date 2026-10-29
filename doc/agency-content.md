@@ -110,3 +110,26 @@ token and type checks are recorded in the implementation plan.
 No live agent/provider execution or browser journey is implied by those tests.
 Scheduling, actual social account bindings and provider publication remain later
 PRD slices.
+
+
+## Content calendar (SocialAgent)
+
+Owners schedule an approved revision on a platform (Instagram, Facebook,
+TikTok, LinkedIn, X, YouTube or other) from the content page, and see every
+post on **Calendar** (`/calendar`). A publication stores the approved
+revision number and a copy of its snapshot (caption, script, assets), so it
+posts exactly what the owner approved.
+
+- `POST /api/companies/:companyId/agency/publications` (owner) schedules
+  approved content. `dispatch: "agent"` creates a one-off routine in the
+  brand's timezone for the Publishing Coordinator (or the Agency Director when
+  there is none); `dispatch: "manual"` leaves the post to the owner.
+- At the scheduled time the agent gets a task with the publication API. It
+  reads `GET .../publications/:id`, posts only when `approvalCurrent` is true,
+  through the company's connectors (for example Composio's Instagram, TikTok
+  or LinkedIn toolkits), and reports `POST .../publications/:id/complete` with
+  `published` and the post URL, or `failed` and a reason.
+- A new revision or withdrawn approval makes `approvalCurrent` false; marking
+  such a post published returns 409.
+- `POST .../publications/:id/cancel` (owner) cancels a scheduled post.
+  Completing or cancelling archives the routine so it never fires again.

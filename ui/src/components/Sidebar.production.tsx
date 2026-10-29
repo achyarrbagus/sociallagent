@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   Inbox,
   Users,
   ListChecks,
@@ -210,6 +211,7 @@ export function Sidebar() {
           ) : null}
           <SidebarNavItem to="/agency" label="Clients & Brands" icon={Users} />
           <SidebarNavItem to="/content" label="Content & Review" icon={SquarePen} />
+          <SidebarNavItem to="/calendar" label="Calendar" icon={CalendarDays} />
           {!saasUser && <PluginSlotOutlet
             errorBehavior="hidden"
             slotTypes={["sidebar"]}

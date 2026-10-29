@@ -77,6 +77,7 @@ const apiPrefixes: Record<string, string> = {
   "onboarding-seed.ts": "/api",
   "managed-ai-admin.ts": "/api",
   "project-files.ts": "/api",
+  "agency-publications.ts": "/api",
   "openapi.ts": "/api",
   "plugin-ui-static.ts": "/api",
   "plugins.ts": "/api",

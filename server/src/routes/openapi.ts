@@ -1,6 +1,6 @@
 import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestationSchema, createGrokInvitationSchema, configureGrokRoutineSchema, verifyGrokRoutineSchema, recoverGrokRoutineSchema, pairGrokBindingSchema, stopGrokWorkSchema, retryGrokDeliverySchema, updateFastResponseSchema } from "@paperclipai/shared";
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@paperclipai/shared";
-import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema, updateAllowedConnectorsSchema, updateTenantBudgetSchema } from "@paperclipai/shared";
+import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema, updateAllowedConnectorsSchema, updateTenantBudgetSchema, createAgencyPublicationSchema, completeAgencyPublicationSchema } from "@paperclipai/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
 import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema } from "@paperclipai/shared";
 import { createAgencyContentSchema, reviseAgencyContentSchema, decideAgencyContentSchema, linkAgencyContentTaskSchema, contentRevisionExpectationSchema, listAgencyContentSchema } from "@paperclipai/shared";
@@ -6976,6 +6976,51 @@ registry.registerPath({
   tags: ["instance"],
   summary: "Get general instance settings",
   responses: { 200: r.ok(), 401: r.unauthorized },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/companies/{companyId}/agency/publications",
+  tags: ["agency"],
+  summary: "List scheduled, published, failed and cancelled posts between from and to",
+  request: { params: z.object({ companyId: z.string() }), query: z.object({ from: z.string(), to: z.string(), brandId: z.string().optional() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/agency/publications",
+  tags: ["agency"],
+  summary: "Schedule approved content on a platform (owner)",
+  request: { params: z.object({ companyId: z.string() }), body: jsonBody(createAgencyPublicationSchema) },
+  responses: { 201: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/companies/{companyId}/agency/publications/{publicationId}",
+  tags: ["agency"],
+  summary: "Get one scheduled post with its approved caption and assets",
+  request: { params: z.object({ companyId: z.string(), publicationId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/agency/publications/{publicationId}/cancel",
+  tags: ["agency"],
+  summary: "Cancel a scheduled post (owner)",
+  request: { params: z.object({ companyId: z.string(), publicationId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/agency/publications/{publicationId}/complete",
+  tags: ["agency"],
+  summary: "Record that a scheduled post was published or failed (assigned agent or owner)",
+  request: { params: z.object({ companyId: z.string(), publicationId: z.string() }), body: jsonBody(completeAgencyPublicationSchema) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });
 
 registry.registerPath({

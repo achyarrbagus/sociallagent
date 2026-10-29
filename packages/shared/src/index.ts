@@ -2875,3 +2875,15 @@ export * from "./types/agency.js";
 export * from "./validators/agency.js";
 export * from "./types/agency-content.js";
 export * from "./validators/agency-content.js";
+export {
+  AGENCY_PUBLICATION_PLATFORMS,
+  AGENCY_PUBLICATION_STATUSES,
+  type AgencyPublicationPlatform,
+  type AgencyPublicationStatus,
+  createAgencyPublicationSchema,
+  type CreateAgencyPublication,
+  completeAgencyPublicationSchema,
+  type CompleteAgencyPublication,
+  listAgencyPublicationsSchema,
+  type AgencyPublication,
+} from "./validators/agency-publications.js";
