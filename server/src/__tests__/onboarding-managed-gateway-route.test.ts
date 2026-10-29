@@ -1,12 +1,13 @@
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { activityLog, agents, budgetPolicies, companies, connectionGrants, instanceSettings, toolConnections } from "@paperclipai/db";
+import { activityLog, agents, budgetPolicies, companies, connectionGrants, instanceSettings, issues, toolConnections } from "@paperclipai/db";
 import { agentRoutes } from "../routes/agents.js";
 import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { managedAiAdminRoutes } from "../routes/managed-ai-admin.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
 import { costRoutes } from "../routes/costs.js";
+import { issueService } from "../services/issues.js";
 import { randomUUID } from "node:crypto";
 import { companyMemberships } from "@paperclipai/db";
 import { companyRoutes } from "../routes/companies.js";
@@ -471,5 +472,18 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     const other: BoardActor = { ...newcomer, userId: `user-${randomUUID()}` };
     const lockedOut = await request(routeApp(ctx.db, other, (db) => companyRoutes(db, {} as never))).post("/api/").send({ name: "No SaaS" });
     expect(lockedOut.status).toBe(403);
+  });
+
+  it("keeps the gateway and model ids out of agent replies but leaves people's comments alone", async () => {
+    enable();
+    const { companyId } = await seed();
+    const [agent] = await ctx.db.insert(agents).values({ companyId, name: "Jamal", role: "ceo", adapterType: "codex_local", adapterConfig: {}, runtimeConfig: {} }).returning();
+    const [issue] = await ctx.db.insert(issues).values({ companyId, title: "Chat", status: "todo", assigneeAgentId: agent!.id }).returning();
+    const svc = issueService(ctx.db);
+
+    const reply = await svc.addComment(issue!.id, "Saya memakai model cx/gpt-6.1-terra lewat 9Router (claude-sonnet-5-5).", { agentId: agent!.id });
+    expect(reply.body).toBe("Saya memakai model SocialAgent AI lewat SocialAgent AI.");
+    const person = await svc.addComment(issue!.id, "Kenapa pakai cx/gpt-6.1-terra?", { userId: "owner" });
+    expect(person.body).toBe("Kenapa pakai cx/gpt-6.1-terra?");
   });
 });

@@ -9,7 +9,6 @@ import { tenantSignInReturnPath } from "@/lib/cloudLinks";
 import { queryKeys } from "../lib/queryKeys";
 import { getRememberedInvitePath } from "../lib/invite-memory";
 import { Button } from "@/components/ui/button";
-import { AsciiArtAnimation } from "@/components/AsciiArtAnimation";
 import { PaperclipLoading } from "@/components/AnimatedPaperclipIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PaperclipLockup } from "../components/PaperclipLockup";
@@ -100,7 +99,7 @@ export function AuthPage() {
   }
 
   return (
-    <div className="fixed inset-0 flex bg-background">
+    <div className="socialagent-auth fixed inset-0 flex bg-background">
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
@@ -227,10 +226,16 @@ export function AuthPage() {
         </div>
       </div>
 
-      {/* Right half — ASCII art animation (hidden on mobile) */}
-      <div className="hidden md:block w-1/2 overflow-hidden">
-        <AsciiArtAnimation />
-      </div>
+      <aside className="socialagent-auth-story hidden md:flex" aria-label="Tentang SocialAgent">
+        <span className="socialagent-auth-tag">Ruang untuk ide besar.</span>
+        <h2>Dari ide pertama,<br />sampai siap tayang<span>.</span></h2>
+        <p>Satu ruang kerja untuk brand, konten, dan tim AI kamu.</p>
+        <ol className="socialagent-auth-flow" aria-label="Alur kerja agensi">
+          <li><span>01</span><strong>Brief yang jelas</strong><p>Satukan konteks dan arah setiap brand.</p></li>
+          <li><span>02</span><strong>Produksi bersama tim AI</strong><p>Ubah ide menjadi konten yang siap ditinjau.</p></li>
+          <li><span>03</span><strong>Review, lalu tayang</strong><p>Keputusan akhir tetap di tangan kamu.</p></li>
+        </ol>
+      </aside>
     </div>
   );
 }

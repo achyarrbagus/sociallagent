@@ -1,4 +1,5 @@
 import { resolveConnectionIntentContinuationSource, resolveItemVerdictContinuationWake } from "./chat-interaction-continuation.js";
+import { redactAgentText } from "./platform-confidentiality.js";
 import { insertIssueComment } from "./issue-comment-writes.js";
 import { measureRunTransaction } from "./execution-transaction-timing.js";
 import { readNativeMonitorSource } from "./native-runtime/native-monitor-delivery.js";
@@ -12565,6 +12566,8 @@ export function issueService(db: Db) {
       },
       dbOrTx: any = db,
     ): Promise<IssueComment> {
+      // SocialAgent SaaS mode: agent replies never name the operator's gateway or models.
+      if (actor.agentId && dbOrTx === db) body = await redactAgentText(db, body);
       if (dbOrTx === db && (actor.runId || actor.userId)) {
         const append = () =>
           measureRunTransaction(db, "response", async (tx) => {

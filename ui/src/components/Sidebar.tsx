@@ -1,3 +1,5 @@
+import { Link } from "@/lib/router";
+import { PaperclipLockup } from "./PaperclipLockup";
 import {
   BarChart3,
   CalendarDays,
@@ -144,6 +146,9 @@ export function Sidebar({ children }: { children?: ReactNode }) {
           the header's spare width goes to the workspace/organization name,
           which is the user's orientation anchor and truncates otherwise.
           Search is the first nav item below instead. */}
+      <Link to="/dashboard" className="socialagent-brand-home" aria-label="SocialAgent — Hari ini" data-rail={rail}>
+        <PaperclipLockup decorative />
+      </Link>
       <div className="flex h-(--sz-60px) shrink-0 items-center gap-1 px-3">
         <SidebarCompanyMenu />
       </div>
@@ -179,7 +184,7 @@ export function Sidebar({ children }: { children?: ReactNode }) {
               collapsed rail, where the old header icon was dropped entirely.
               Cmd/Ctrl+K remains the keyboard path (command palette). */}
           <SidebarNavItem to="/search" label="Search" icon={Search} />
-          <SidebarNavItem to="/dashboard" label="Dashboard" icon={LayoutDashboard} liveCount={liveRunCount} />
+          <SidebarNavItem to="/dashboard" label="Hari ini" icon={LayoutDashboard} liveCount={liveRunCount} />
           {!combinedInboxTasks ? (
             <SidebarNavItem
               to="/inbox"

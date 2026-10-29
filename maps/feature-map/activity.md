@@ -25,7 +25,7 @@ Agent access: [companion](../agent-access-map/activity.md).
 
 ### `dashboard`
 
-Open `/dashboard` or `/dashboard/live`.
+Open **Hari ini** (`/dashboard`) for the agency daily overview, or `/dashboard/live` for live execution. Hari ini shows pending owner review, seven local calendar days of scheduled publications, active brand campaigns, and task progress. Review totals with a plus suffix indicate another page of results; unavailable requests show errors and retry controls.
 
 ### `activity-audit`
 
@@ -39,7 +39,7 @@ Preconditions: follow the [baseline](./README.md#before-driving-a-journey). Prep
 
 Automated: [dashboard service](../../server/src/__tests__/dashboard-service.test.ts) covers server aggregation; [dashboard helpers](../../ui/src/pages/Dashboard.test.ts) is narrower UI helper coverage.
 
-Manual: Compare the dashboard with the known fixture tasks and runs. Start and finish a small task, refresh/reload, and verify the summary changes and links reach the right records. Exercise empty data and a failed fetch.
+Manual: Check review links, scheduled posts within the displayed seven-day range, brand-linked planned/in-progress campaigns and accessible noncancelled task progress. Exercise search, empty results, failed fetch/retry, company switching, and narrow widths. Compare the live dashboard with the known fixture tasks and runs. Start and finish a small task, refresh/reload, and verify the summary changes and links reach the right records. Exercise empty data and a failed fetch.
 
 ### `activity-audit`
 

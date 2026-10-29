@@ -2876,7 +2876,7 @@ function OnboardingWizardInner({
             mean rather than depending on whatever happens to render. */}
         <div
           data-testid="onboarding-wizard"
-          className="fixed inset-0 z-50 flex"
+          className="socialagent-onboarding fixed inset-0 z-50 flex"
           onKeyDown={handleKeyDown}
         >
           {/* Form column — the wizard opens directly on step 1, so there is no

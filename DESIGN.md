@@ -972,3 +972,26 @@ a visible Reload page action. Keep the character inline and embed the marked
 `offline-recovery` section from `ui/src/index.css` at build time so the page needs
 no network requests or cached assets. Preserve the supplied character palette
 through the offline tokens.
+
+## SocialAgent daily overview (2026-10-29)
+
+The `/dashboard` page is **Hari ini**, an agency work overview. Its scoped
+`.today-canvas` tokens in `ui/src/index.css` follow the user's supplied
+`design (1).md`: periwinkle frame, warm light canvas, outlined white panels,
+blue/yellow/teal summary cards, coral pill actions and small offset shadows.
+The shared SocialAgent foundation applies this visual language to all application
+routes, including the surrounding shell, forms, dialogs, tables and tabs. Light
+mode follows the supplied palette; dark mode adapts the surfaces and text while
+retaining the brand accents and outlined geometry. React implements the reference's visual rules;
+its Dioxus example does not change the application's technology.
+
+Prioritize pending owner review, seven local calendar days of scheduled posts,
+and planned/in-progress brand campaigns. Show unavailable data explicitly;
+never substitute zero for a failed request. Paginated review totals use a plus
+suffix. Campaign progress counts accessible noncancelled tasks, not publication
+success. Keep onboarding, agent pause and budget notices, and plugin widgets.
+The global shell uses a periwinkle outer frame, rounded content surface, branded
+sidebar, coral primary actions and pill navigation. Page-specific workflows and
+route permissions remain owned by their existing pages. The theme toggle stays
+functional; light and dark use the same component geometry. On mobile the outer
+frame collapses to keep the full content width and existing fixed navigation.

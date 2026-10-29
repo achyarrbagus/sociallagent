@@ -89,7 +89,7 @@ export function BreadcrumbBar() {
         {menuButton}
         <div className="min-w-0 overflow-hidden flex-1">
           {breadcrumbs[0].leading || breadcrumbs[0].identifier ? (
-            <h1 className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider">
+            <h1 className="flex items-center gap-1.5 text-sm font-semibold">
               {breadcrumbs[0].leading && (
                 <span className="flex shrink-0 items-center">{breadcrumbs[0].leading}</span>
               )}
@@ -97,7 +97,7 @@ export function BreadcrumbBar() {
               <span className="truncate">{breadcrumbs[0].label}</span>
             </h1>
           ) : (
-            <h1 className="text-sm font-semibold uppercase tracking-wider truncate">
+            <h1 className="text-sm font-semibold truncate">
               {breadcrumbs[0].label}
             </h1>
           )}

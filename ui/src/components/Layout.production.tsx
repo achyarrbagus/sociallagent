@@ -590,7 +590,7 @@ export function Layout() {
     <ChatSetupSidebarProvider>
       <div
         className={cn(
-          "bg-background text-foreground pt-(--sz-safe-top)",
+          "socialagent-shell bg-background text-foreground pt-(--sz-safe-top)",
           // overflow-x-clip on mobile keeps a stray wide descendant from making the
           // whole viewport scroll horizontally. clip (not hidden) leaves overflow-y
           // computed as visible, so native body scroll + the sticky breadcrumb keep
@@ -610,7 +610,7 @@ export function Layout() {
         <DevRestartBanner devServer={health?.devServer} />
         <div
           className={cn(
-            "min-h-0 flex-1",
+            "socialagent-shell-frame min-h-0 flex-1",
             isMobile ? "w-full" : "flex overflow-clip",
           )}
         >

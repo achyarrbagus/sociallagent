@@ -7,6 +7,12 @@ import {
 } from "./company-routes";
 
 describe("company routes", () => {
+  it.each(["agency", "content", "calendar", "reports"])("keeps %s navigation inside the active company", route => {
+    expect(isBoardPathWithoutPrefix(`/${route}`)).toBe(true);
+    expect(extractCompanyPrefixFromPath(`/${route}/item`)).toBeNull();
+    expect(applyCompanyPrefix(`/${route}/item?view=all`, "TES")).toBe(`/TES/${route}/item?view=all`);
+    expect(toCompanyRelativePath(`/TES/${route}/item`)).toBe(`/${route}/item`);
+  });
   it("keeps public Dot consent outside company-prefixed routes", () => {
     const path = `/dot-connect/pcmcp_request_${"a".repeat(43)}`;
     expect(extractCompanyPrefixFromPath(path)).toBeNull();

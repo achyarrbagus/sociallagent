@@ -34,6 +34,8 @@ credentials/run context; inspect its result and applicable persistence/attributi
 Assert the relevant denied actor, owner, company or mode from Policy. Review the
 remaining operations before qualifying the whole capability.
 
+The board Hari ini page also composes existing company-scoped content-items, agency publications, projects, tasks and agency directory reads. This presentation adds no agent API or permissions; the operations above still describe the dashboard-summary API.
+
 Gaps: Dashboard data is accessible; live-work rendering and event streaming are separate
 surfaces.
 
