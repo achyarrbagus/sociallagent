@@ -1,4 +1,5 @@
 import { importProviderDailyCosts } from "../services/provider-billing-import.js";
+import { aiModelsLockedFor } from "./managed-ai-lock.js";
 import { subscriptionPriceSchema, mergeSubscriptionsSchema } from "@paperclipai/shared";
 import { subscriptionService } from "../services/subscriptions.js";
 import { subscriptionCostReport } from "../services/subscription-report.js";
@@ -71,6 +72,13 @@ export function costRoutes(
   options: { pluginWorkerManager?: PluginWorkerManager } = {},
 ) {
   const router = Router();
+  const BILLING_PATH = /^\/(companies\/[^/]+\/(costs|cost-events|finance-events|budgets|accounting)|agents\/[^/]+\/budgets)(\/|$)/;
+  // SaaS mode: SocialAgent AI spend and budgets are the admin's. Company users
+  // read their costs; budget and accounting changes are refused.
+  router.use((req, _res, next) => {
+    if (req.method === "GET" || req.actor?.type !== "board" || !BILLING_PATH.test(req.path) || !aiModelsLockedFor(req)) return next();
+    next(forbidden("Budgets and billing are managed by your SocialAgent administrator.", { code: "billing_managed" }));
+  });
   const heartbeat = heartbeatService(db, {
     pluginWorkerManager: options.pluginWorkerManager,
   });

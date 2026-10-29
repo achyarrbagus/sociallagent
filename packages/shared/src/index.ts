@@ -2121,6 +2121,8 @@ export {
   type EnsureManagedGatewayResult,
   managedAdapterModelPolicySchema,
   managedAiModelPolicySchema,
+  managedAiBillingSchema,
+  type ManagedAiBilling,
   type ManagedAdapterModelPolicy,
   type ManagedAiModelPolicy,
   type ManagedAiAdminSettings,

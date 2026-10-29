@@ -100,9 +100,29 @@ export const managedAdapterModelPolicySchema = z.object({
  * instance admin reads or writes it; every agent on the managed connection
  * runs the model for its role.
  */
+/**
+ * What SocialAgent AI usage costs, set by the admin. Runs on the managed
+ * gateway are priced from their tokens at these rates, and every company gets
+ * a monthly hard-stop budget of `companyMonthlyBudgetCents` (0 = no limit).
+ */
+export const managedAiBillingSchema = z.object({
+  inputCentsPerMillionTokens: z.number().int().min(0).max(1_000_000).default(300),
+  cachedInputCentsPerMillionTokens: z.number().int().min(0).max(1_000_000).default(30),
+  outputCentsPerMillionTokens: z.number().int().min(0).max(1_000_000).default(1500),
+  companyMonthlyBudgetCents: z.number().int().min(0).max(100_000_000).default(2000),
+}).strict();
+
+export type ManagedAiBilling = z.infer<typeof managedAiBillingSchema>;
+
 export const managedAiModelPolicySchema = z.object({
   claude_local: managedAdapterModelPolicySchema.default({ defaultModel: null, roles: {} }),
   codex_local: managedAdapterModelPolicySchema.default({ defaultModel: null, roles: {} }),
+  billing: managedAiBillingSchema.default({
+    inputCentsPerMillionTokens: 300,
+    cachedInputCentsPerMillionTokens: 30,
+    outputCentsPerMillionTokens: 1500,
+    companyMonthlyBudgetCents: 2000,
+  }),
 }).strict();
 
 export type ManagedAdapterModelPolicy = z.infer<typeof managedAdapterModelPolicySchema>;
@@ -137,6 +157,8 @@ export interface ManagedAiAgentRow {
 export interface UpdateManagedAiModelsResult {
   settings: ManagedAiAdminSettings;
   updatedAgents: number;
+  /** Companies whose monthly budget was set from the admin default. */
+  budgetedCompanies: number;
 }
 
 /** Result of moving existing agents onto SocialAgent AI. */

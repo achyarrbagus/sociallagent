@@ -1,6 +1,7 @@
 import { and, eq, ne, sql } from "drizzle-orm";
 import {
   agents,
+  budgetPolicies,
   companies,
   companyMemberships,
   connectionGrants,
@@ -29,6 +30,7 @@ import { conflict, unprocessable } from "../errors.js";
 import { agentService } from "./agents.js";
 import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { aiConnectionService } from "./ai-connections.js";
+import { budgetService } from "./budgets.js";
 
 export const MANAGED_GATEWAY_NAME = "9Router";
 export const MANAGED_GATEWAY_DEFAULT_BASE_URL = "https://9router.amifish.com/v1";
@@ -236,6 +238,44 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     }));
   }
 
+  /**
+   * Gives companies the admin's monthly SocialAgent AI budget as a company
+   * hard stop. `onlyMissing` leaves companies that already have a monthly
+   * company policy alone (used for a new company during onboarding).
+   */
+  async function applyCompanyBudgets(companyIds?: string[], options: { onlyMissing?: boolean; actorUserId?: string | null } = {}) {
+    if (!readConfig()) return 0;
+    const { billing } = await getPolicy();
+    const targets = companyIds ?? (await db.select({ id: companies.id }).from(companies)).map((row) => row.id);
+    const budgets = budgetService(db);
+    let applied = 0;
+    for (const companyId of targets) {
+      if (options.onlyMissing) {
+        const [existing] = await db.select({ id: budgetPolicies.id }).from(budgetPolicies).where(and(
+          eq(budgetPolicies.companyId, companyId),
+          eq(budgetPolicies.scopeType, "company"),
+          eq(budgetPolicies.scopeId, companyId),
+          eq(budgetPolicies.windowKind, "calendar_month_utc"),
+        ));
+        if (existing) continue;
+      }
+      await budgets.upsertPolicy(companyId, {
+        scopeType: "company",
+        scopeId: companyId,
+        windowKind: "calendar_month_utc",
+        amount: billing.companyMonthlyBudgetCents,
+        hardStopEnabled: true,
+        // Live estimates of gateway models are unpriced; the admin rate card
+        // prices the run when it is accounted, so they must not trip the stop.
+        unpricedUsagePolicy: "allow",
+        notifyEnabled: true,
+        isActive: billing.companyMonthlyBudgetCents > 0,
+      }, options.actorUserId ?? null);
+      applied += 1;
+    }
+    return applied;
+  }
+
   /** Onboarding: the Director's binding and model. */
   async function ensure(
     companyId: string,
@@ -243,6 +283,7 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     adapterType: ManagedGatewayAdapterType,
   ): Promise<EnsureManagedGatewayResult> {
     const binding = await connectionFor(companyId, adapterType, userId);
+    await applyCompanyBudgets([companyId], { onlyMissing: true, actorUserId: userId });
     return { binding, model: await modelFor(adapterType, "ceo") };
   }
 
@@ -430,10 +471,11 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     return { enabled: Boolean(config), baseUrl: config?.baseUrl ?? null, adapterType, policy, effective };
   }
 
-  async function updatePolicy(input: ManagedAiModelPolicy) {
+  async function updatePolicy(input: ManagedAiModelPolicy, actorUserId: string | null = null) {
     await savePolicy(managedAiModelPolicySchema.parse(input));
     const updatedAgents = await applyPolicyEverywhere();
-    return { settings: await adminSettings(), updatedAgents };
+    const budgetedCompanies = await applyCompanyBudgets(undefined, { actorUserId });
+    return { settings: await adminSettings(), updatedAgents, budgetedCompanies };
   }
 
   /** Models the gateway offers, fetched with the operator key on the server. */
@@ -491,5 +533,6 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     managedConnectionIds,
     adoptAllAgents,
     adoptCompanyAgents,
+    applyCompanyBudgets,
   };
 }

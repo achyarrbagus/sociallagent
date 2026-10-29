@@ -1,16 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot } from "lucide-react";
-import { AGENT_ROLES, AGENT_ROLE_LABELS, type AgentRole, type ManagedAdapterModelPolicy } from "@paperclipai/shared";
+import { AGENT_ROLES, AGENT_ROLE_LABELS, type AgentRole, type ManagedAdapterModelPolicy, type ManagedAiBilling } from "@paperclipai/shared";
 import { managedAiApi } from "@/api/managed-ai";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/select";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
 import { queryKeys } from "../lib/queryKeys";
 
 const EMPTY_POLICY: ManagedAdapterModelPolicy = { defaultModel: null, roles: {} };
+
+type BillingDraft = Record<keyof ManagedAiBilling, string>;
+const BILLING_FIELDS: { key: keyof ManagedAiBilling; label: string; hint: string }[] = [
+  { key: "inputCentsPerMillionTokens", label: "Input price", hint: "USD per 1M input tokens" },
+  { key: "cachedInputCentsPerMillionTokens", label: "Cached input price", hint: "USD per 1M cached input tokens" },
+  { key: "outputCentsPerMillionTokens", label: "Output price", hint: "USD per 1M output tokens" },
+  { key: "companyMonthlyBudgetCents", label: "Monthly budget per company", hint: "USD; agents pause when it is used up. 0 = no limit" },
+];
+const toDollars = (cents: number) => (cents / 100).toFixed(2);
+const toCents = (dollars: string) => Math.max(0, Math.round(Number(dollars || "0") * 100));
 
 function ModelSelect({ id, label, value, options, placeholder, onChange, disabled }: {
   id: string;
@@ -52,10 +63,15 @@ export function InstanceAiModelsSettings() {
 
   const adapterType = settings.data?.adapterType ?? "claude_local";
   const [draft, setDraft] = useState<ManagedAdapterModelPolicy>(EMPTY_POLICY);
+  const [billing, setBilling] = useState<BillingDraft | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   useEffect(() => {
-    if (settings.data) setDraft(settings.data.policy[settings.data.adapterType] ?? EMPTY_POLICY);
+    if (!settings.data) return;
+    setDraft(settings.data.policy[settings.data.adapterType] ?? EMPTY_POLICY);
+    const current = settings.data.policy.billing;
+    setBilling(Object.fromEntries(BILLING_FIELDS.map(({ key }) => [key, toDollars(current[key])])) as BillingDraft);
   }, [settings.data]);
+  const billingInvalid = billing !== null && Object.values(billing).some((value) => value.trim() === "" || !Number.isFinite(Number(value)) || Number(value) < 0);
 
   // A gateway lists every provider's models; show the ones that fit the agent first.
   const options = useMemo(() => {
@@ -66,13 +82,17 @@ export function InstanceAiModelsSettings() {
 
   const save = useMutation({
     mutationFn: () => {
-      const policy = { ...settings.data!.policy, [adapterType]: draft };
+      const policy = {
+        ...settings.data!.policy,
+        [adapterType]: draft,
+        ...(billing ? { billing: Object.fromEntries(BILLING_FIELDS.map(({ key }) => [key, toCents(billing[key])])) as ManagedAiBilling } : {}),
+      };
       return managedAiApi.updatePolicy(policy);
     },
     onSuccess: (result) => {
       queryClient.setQueryData(queryKeys.instance.aiModels, result.settings);
       void queryClient.invalidateQueries({ queryKey: queryKeys.instance.aiModelAgents });
-      setSavedMessage(`Saved. ${result.updatedAgents} ${result.updatedAgents === 1 ? "agent was" : "agents were"} moved to the new models.`);
+      setSavedMessage(`Saved. ${result.updatedAgents} ${result.updatedAgents === 1 ? "agent was" : "agents were"} moved to the new models; ${result.budgetedCompanies} ${result.budgetedCompanies === 1 ? "company has" : "companies have"} the new monthly budget.`);
     },
     onError: () => setSavedMessage(null),
   });
@@ -139,10 +159,29 @@ export function InstanceAiModelsSettings() {
                   onChange={(value) => setRole(role, value)} />
               ))}
             </div>
+            {billing && (
+              <div className="space-y-3 border-t border-border pt-4">
+                <div>
+                  <h2 className="text-sm font-semibold">Usage and limits</h2>
+                  <p className="text-xs text-muted-foreground">What SocialAgent AI costs you, used to price every run, and the monthly hard limit each company gets. Saving applies the budget to every company.</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {BILLING_FIELDS.map(({ key, label, hint }) => (
+                    <label key={key} htmlFor={`ai-billing-${key}`} className="block space-y-1.5 text-sm">
+                      <span className="font-medium">{label}</span>
+                      <Input id={`ai-billing-${key}`} inputMode="decimal" value={billing[key]} disabled={save.isPending}
+                        onChange={(event) => { setSavedMessage(null); setBilling((current) => current && { ...current, [key]: event.target.value }); }} />
+                      <span className="block text-xs text-muted-foreground">{hint}</span>
+                    </label>
+                  ))}
+                </div>
+                {billingInvalid && <p role="alert" className="text-sm text-destructive">Enter amounts in USD, 0 or more.</p>}
+              </div>
+            )}
             <div className="flex items-center justify-end gap-3">
               {save.error && <p role="alert" className="text-sm text-destructive">{save.error instanceof Error ? save.error.message : "Could not save."}</p>}
               {savedMessage && <p role="status" className="text-sm text-muted-foreground">{savedMessage}</p>}
-              <Button type="button" disabled={save.isPending} onClick={() => save.mutate()}>
+              <Button type="button" disabled={save.isPending || billingInvalid} onClick={() => save.mutate()}>
                 {save.isPending ? "Saving…" : "Save and apply"}
               </Button>
             </div>

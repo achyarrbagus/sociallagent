@@ -1,11 +1,13 @@
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { activityLog, agents, connectionGrants, instanceSettings, toolConnections } from "@paperclipai/db";
+import { activityLog, agents, budgetPolicies, connectionGrants, instanceSettings, toolConnections } from "@paperclipai/db";
 import { agentRoutes } from "../routes/agents.js";
 import { aiConnectionRoutes } from "../routes/ai-connections.js";
 import { managedAiAdminRoutes } from "../routes/managed-ai-admin.js";
 import { toolAccessRoutes } from "../routes/tool-access.js";
+import { costRoutes } from "../routes/costs.js";
+import { managedAiCostUsd, managedRunPricing } from "../services/managed-ai-pricing.js";
 import { onboardingSeedRoutes } from "../routes/onboarding-seed.js";
 import { managedGatewayService, managedHarnessOf, readManagedGatewayConfig } from "../services/managed-gateway.js";
 import { coerceManagedAgentPatch } from "../routes/managed-ai-lock.js";
@@ -34,6 +36,13 @@ it("reads the managed gateway from the server environment", () => {
     SOCIALAGENT_9ROUTER_ADAPTER: "codex_local",
     SOCIALAGENT_9ROUTER_CODEX_MODEL: "gpt-5.5",
   })).toMatchObject({ baseUrl: "http://localhost:20128/v1", defaultAdapterType: "codex_local", models: { codex_local: "gpt-5.5" } });
+});
+
+it("prices gateway tokens at the admin's rates", () => {
+  const billing = { inputCentsPerMillionTokens: 300, cachedInputCentsPerMillionTokens: 30, outputCentsPerMillionTokens: 1500, companyMonthlyBudgetCents: 2000 };
+  // 1M fresh input = $3, 1M cached = $0.30, 1M output = $15.
+  expect(managedAiCostUsd(billing, { inputTokens: 2_000_000, cachedInputTokens: 1_000_000, outputTokens: 1_000_000 })).toBeCloseTo(18.3);
+  expect(managedAiCostUsd(billing, {})).toBe(0);
 });
 
 it("keeps the adapter, model and AI connection when a locked caller patches an agent", () => {
@@ -367,5 +376,37 @@ describeEmbeddedPostgres("onboarding managed 9Router gateway", () => {
     const adminTools = routeApp(ctx.db, adminActor(companyId, actor.userId!), (db) => toolAccessRoutes(db));
     const adminConnections = await request(adminTools).get(`/api/companies/${companyId}/tools/connections`);
     expect(adminConnections.body.connections.some((connection: { connectionPurpose: string }) => connection.connectionPurpose === "ai")).toBe(true);
+  });
+
+  it("sets company budgets from the admin default, prices managed runs, and refuses budget changes from users", async () => {
+    enable();
+    const { companyId, actor, app } = await seed();
+    const ensure = await request(app).post(`/api/companies/${companyId}/onboarding/managed-gateway`).send({ adapterType: "claude_local" });
+    const policy = async () => (await ctx.db.select().from(budgetPolicies).where(eq(budgetPolicies.companyId, companyId)))
+      .find((row) => row.scopeType === "company" && row.windowKind === "calendar_month_utc");
+    // Onboarding gives a new company the default budget.
+    expect(await policy()).toMatchObject({ amount: 2000, hardStopEnabled: true, unpricedUsagePolicy: "allow", isActive: true });
+
+    const adminApp = routeApp(ctx.db, adminActor(companyId, actor.userId!), managedAiAdminRoutes);
+    const saved = await request(adminApp).put("/api/instance/settings/ai-models").send({
+      billing: { inputCentsPerMillionTokens: 100, cachedInputCentsPerMillionTokens: 10, outputCentsPerMillionTokens: 500, companyMonthlyBudgetCents: 5000 },
+    });
+    expect(saved.status, JSON.stringify(saved.body)).toBe(200);
+    expect(saved.body.budgetedCompanies).toBeGreaterThan(0);
+    expect(await policy()).toMatchObject({ amount: 5000 });
+
+    const priced = await managedRunPricing(ctx.db, {
+      companyId,
+      contextSnapshot: { aiConnection: ensure.body.binding },
+      usageJson: { inputTokens: 1_000_000, outputTokens: 1_000_000 },
+    });
+    expect(priced).toEqual({ costUsd: 6, billingType: "metered_api" });
+    expect(await managedRunPricing(ctx.db, { companyId, contextSnapshot: {}, usageJson: {} })).toBeNull();
+
+    const costsApp = routeApp(ctx.db, actor, (db) => costRoutes(db));
+    const raise = await request(costsApp).patch(`/api/companies/${companyId}/budgets`).send({ budgetMonthlyCents: 999999 });
+    expect(raise.status).toBe(403);
+    expect(raise.body.details).toMatchObject({ code: "billing_managed" });
+    expect((await request(costsApp).get(`/api/companies/${companyId}/budgets/overview`)).status).toBe(200);
   });
 });

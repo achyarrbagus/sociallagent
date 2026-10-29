@@ -9,6 +9,7 @@ import { budgetServiceInTransaction, type BudgetServiceHooks } from "./budgets.j
 import { logger } from "../middleware/logger.js";
 import { promises as fs } from "node:fs";
 import { replayUsageReceipts, indexPendingUsageReceipts, recoverPendingRunUsageReceipts, type UsageReceiptIndex } from "./usage-receipts.js";
+import { managedRunPricing } from "./managed-ai-pricing.js";
 
 const terminalStatuses = ["succeeded", "failed", "timed_out", "cancelled", "interrupted"];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -88,8 +89,11 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
         if (!linked) scope[key] = null;
       }
     }
-    const costUsd = amount(usage.cacheAdjustedCostUsd) ?? text(usage.costUsdExact) ?? amount(usage.costUsd);
-    const billingType = text(usage.billingType) ?? "unknown";
+    // SocialAgent: runs on the operator's managed gateway are priced from
+    // their tokens at the admin's rates (see managed-ai-pricing.ts).
+    const managed = await managedRunPricing(tx, run);
+    const costUsd = managed ? managed.costUsd : amount(usage.cacheAdjustedCostUsd) ?? text(usage.costUsdExact) ?? amount(usage.costUsd);
+    const billingType = managed ? managed.billingType : text(usage.billingType) ?? "unknown";
     const costUnits = billingType === "subscription_included" ? 0n : usdToUnits(costUsd ?? 0);
     const costCents = unitsToCents(costUnits);
     const [agent] = await tx.select({ adapterType: agents.adapterType }).from(agents).where(eq(agents.id, run.agentId));
@@ -104,7 +108,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
       providerRequestId: text(usage.providerRequestId),
       pricingProvenance: object(usage.pricingProvenance),
       model: text(usage.model) ?? "unknown", billingType,
-      costStatus: (costUsd === null || usage.costStatus === "unpriced") && billingType !== "subscription_included" && hasBillableEvidence ? "unpriced" : usage.costStatus === "estimated" ? "estimated" : "reported",
+      costStatus: managed ? "estimated" : (costUsd === null || usage.costStatus === "unpriced") && billingType !== "subscription_included" && hasBillableEvidence ? "unpriced" : usage.costStatus === "estimated" ? "estimated" : "reported",
       inputTokens: amount(usage.inputTokens) ?? 0, cachedInputTokens: amount(usage.cachedInputTokens) ?? 0, outputTokens: amount(usage.outputTokens) ?? 0,
       costCents, occurredAt: run.finishedAt ?? run.createdAt,
     };
@@ -112,7 +116,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
     const tokensMatch = ["inputTokens", "cachedInputTokens", "outputTokens"].every((key) =>
       parts.reduce((sum, part) => sum + (amount(object(part.usage)[key]) ?? 0), 0) === (amount(usage[key]) ?? 0));
     const costMatches = costUsd !== null && parts.reduce((sum, part) => sum + usdToUnits(amount(part.costUsd) ?? 0), 0n) === usdToUnits(costUsd);
-    const validParts = parts.length > 0 && tokensMatch && costMatches
+    const validParts = !managed && parts.length > 0 && tokensMatch && costMatches
       && parts.every((part) => text(part.model) && amount(part.costUsd) !== null)
       && new Set(parts.map((part) => part.model)).size === parts.length;
     if (validParts) {

@@ -30,8 +30,8 @@ export function managedAiAdminRoutes(db: Db, options: { managedGateway?: ReturnT
 
   router.put("/instance/settings/ai-models", validate(managedAiModelPolicySchema), async (req, res) => {
     assertInstanceAdmin(req);
-    const result = await managedGateway.updatePolicy(req.body);
     const actor = getActorInfo(req);
+    const result = await managedGateway.updatePolicy(req.body, actor.actorType === "user" ? actor.actorId : null);
     const companyRows = await db.select({ id: companies.id }).from(companies);
     await Promise.all(companyRows.map(({ id }) => logActivity(db, {
       companyId: id,
@@ -42,7 +42,7 @@ export function managedAiAdminRoutes(db: Db, options: { managedGateway?: ReturnT
       action: "instance.settings.ai_models_updated",
       entityType: "instance_settings",
       entityId: "ai-models",
-      details: { policy: result.settings.policy, updatedAgents: result.updatedAgents },
+      details: { policy: result.settings.policy, updatedAgents: result.updatedAgents, budgetedCompanies: result.budgetedCompanies },
     })));
     res.json(result);
   });
