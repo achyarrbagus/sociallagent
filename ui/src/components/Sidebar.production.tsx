@@ -21,6 +21,7 @@ import {
   GanttChartSquare,
   LayoutGrid,
 } from "lucide-react";
+import { useManagedAiLock } from "@/hooks/useManagedAiLock";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
@@ -51,6 +52,10 @@ export function Sidebar() {
   const [workOpen, setWorkOpen] = useState(true);
   const [companyOpen, setCompanyOpen] = useState(true);
   const { selectedCompanyId, selectedCompany } = useCompany();
+  // SaaS mode: company users get the agency workflow only; technical and
+  // operator surfaces stay with the instance admin.
+  const { locked: saasLocked, canManage: saasCanManage } = useManagedAiLock(selectedCompanyId);
+  const saasUser = saasLocked && !saasCanManage;
   const { collapsed, peeking } = useSidebar();
   const rail = collapsed && !peeking;
   const inboxBadge = useInboxBadge(selectedCompanyId);
@@ -170,21 +175,21 @@ export function Sidebar() {
               badgeLabel="decisions"
             />
           ) : null}
-          {showStatusCards ? (
+          {!saasUser && showStatusCards ? (
             <SidebarNavItem to="/status" label="Status" icon={LayoutGrid} textBadge="beta" />
           ) : null}
-          {conferenceRoomChatEnabled ? (
+          {!saasUser && conferenceRoomChatEnabled ? (
             <SidebarNavItem to="/board-chat" label="Conference Room" icon={MessagesSquare} />
           ) : null}
         </div>
 
-        <SidebarSection label="Work" collapsible={{ open: workOpen, onOpenChange: setWorkOpen }}>
+        <SidebarSection label={saasUser ? "Agency" : "Work"} collapsible={{ open: workOpen, onOpenChange: setWorkOpen }}>
           <SidebarNavItem to="/issues" label="Tasks" icon={CircleDot} />
-          {showCases ? (
+          {!saasUser && showCases ? (
             <SidebarNavItem to="/cases" label="Cases" icon={Layers} textBadge="beta" />
           ) : null}
-          <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
-          {showGoalsLink ? (
+          {!saasUser && (<SidebarNavItem to="/routines" label="Routines" icon={Repeat} />)}
+          {!saasUser && showGoalsLink ? (
             <SidebarNavItem to="/goals" label="Goals" icon={Target} />
           ) : goalsLinkPending ? (
             <div
@@ -193,11 +198,11 @@ export function Sidebar() {
               aria-hidden="true"
             />
           ) : null}
-          <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
-          {showWorkspacesLink ? (
+          {!saasUser && (<SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />)}
+          {!saasUser && showWorkspacesLink ? (
             <SidebarNavItem to="/workspaces" label="Workspaces" icon={GitBranch} />
           ) : null}
-          {streamlined ? (
+          {streamlined || saasUser ? (
             <>
               <SidebarNavItem to="/projects" label="Projects" icon={FolderOpen} />
               <SidebarStarredProjects />
@@ -205,36 +210,36 @@ export function Sidebar() {
           ) : null}
           <SidebarNavItem to="/agency" label="Clients & Brands" icon={Users} />
           <SidebarNavItem to="/content" label="Content & Review" icon={SquarePen} />
-          <PluginSlotOutlet
+          {!saasUser && <PluginSlotOutlet
             errorBehavior="hidden"
             slotTypes={["sidebar"]}
             context={pluginContext}
             className="flex flex-col gap-0.5"
             itemClassName="text-(length:--text-compact) font-medium"
             missingBehavior="placeholder"
-          />
-          <PluginLauncherOutlet
+          />}
+          {!saasUser && <PluginLauncherOutlet
             errorBehavior="hidden"
             placementZones={["sidebar"]}
             context={pluginContext}
             className="flex flex-col gap-0.5"
             itemClassName="text-(length:--text-compact) font-medium"
-          />
+          />}
         </SidebarSection>
 
         {/* Classic mode restores the per-project collapsible below Work. */}
-        {streamlined ? null : <SidebarProjects />}
+        {streamlined || saasUser ? null : <SidebarProjects />}
 
         <SidebarAgents streamlined={streamlined} />
 
         <SidebarSection label="Company" collapsible={{ open: companyOpen, onOpenChange: setCompanyOpen }}>
-          <SidebarNavItem to="/org" label="Org" icon={Network} />
+          {!saasUser && (<SidebarNavItem to="/org" label="Org" icon={Network} />)}
           {showApps ? <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} /> : null}
-          <SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />
-          <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
+          {!saasUser && (<SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />)}
+          {!saasUser && (<SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />)}
           {/* One entry — /audit merged into the rich Activity feed (PAP-16302). */}
           <SidebarNavItem to="/activity" label="Activity" icon={History} />
-          <SidebarNavItem to="/activity/commentary" label="Commentary" icon={History} />
+          {!saasUser && (<SidebarNavItem to="/activity/commentary" label="Commentary" icon={History} />)}
           <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
         </SidebarSection>
 

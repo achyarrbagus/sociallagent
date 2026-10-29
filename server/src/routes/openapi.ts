@@ -6980,6 +6980,14 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
+  path: "/api/instance/managed-ai/status",
+  tags: ["instance"],
+  summary: "Report whether SaaS mode (managed 9Router gateway) is on and whether the caller manages it",
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "get",
   path: "/api/instance/settings/ai-models",
   tags: ["instance"],
   summary: "Get the admin-managed model policy for the 9Router gateway",

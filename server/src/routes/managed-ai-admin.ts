@@ -5,7 +5,7 @@ import { validate } from "../middleware/validate.js";
 import { logActivity } from "../services/activity-log.js";
 import { managedGatewayService } from "../services/managed-gateway.js";
 import { connectorPolicyCatalog, connectorPolicyService } from "../services/connector-policy.js";
-import { assertInstanceAdmin, getActorInfo } from "./authz.js";
+import { assertBoard, assertInstanceAdmin, getActorInfo, isInstanceAdminRequest } from "./authz.js";
 
 /**
  * Instance-admin control of the managed 9Router gateway: the model each agent
@@ -15,6 +15,13 @@ import { assertInstanceAdmin, getActorInfo } from "./authz.js";
 export function managedAiAdminRoutes(db: Db, options: { managedGateway?: ReturnType<typeof managedGatewayService> } = {}) {
   const router = Router();
   const managedGateway = options.managedGateway ?? managedGatewayService(db);
+
+  // Whether SaaS mode is on for the caller. Instance-wide (no company), so the
+  // UI can shape navigation before a company is chosen. Never carries the key.
+  router.get("/instance/managed-ai/status", (req, res) => {
+    assertBoard(req);
+    res.json(managedGateway.status(isInstanceAdminRequest(req)));
+  });
 
   router.get("/instance/settings/ai-models", async (req, res) => {
     assertInstanceAdmin(req);

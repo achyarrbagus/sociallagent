@@ -22,6 +22,7 @@ import {
   LayoutGrid,
   Users,
 } from "lucide-react";
+import { useManagedAiLock } from "@/hooks/useManagedAiLock";
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SidebarSection } from "./SidebarSection";
@@ -57,6 +58,10 @@ export function Sidebar({ children }: { children?: ReactNode }) {
   const [workOpen, setWorkOpen] = useState(true);
   const [organizationOpen, setOrganizationOpen] = useState(true);
   const { selectedCompanyId, selectedCompany } = useCompany();
+  // SaaS mode: company users get the agency workflow only; technical and
+  // operator surfaces stay with the instance admin.
+  const { locked: saasLocked, canManage: saasCanManage } = useManagedAiLock(selectedCompanyId);
+  const saasUser = saasLocked && !saasCanManage;
   const { collapsed, peeking } = useSidebar();
   const { enabled: streamlinedUiEnabled } = useStreamlinedUiEnabled();
   const rail = collapsed && !peeking;
@@ -194,15 +199,15 @@ export function Sidebar({ children }: { children?: ReactNode }) {
               badgeLabel="decisions"
             />
           ) : null}
-          {showStatusCards ? (
+          {!saasUser && showStatusCards ? (
             <SidebarNavItem to="/status" label="Status" icon={LayoutGrid} textBadge="beta" />
           ) : null}
-          {conferenceRoomChatEnabled ? (
+          {!saasUser && conferenceRoomChatEnabled ? (
             <SidebarNavItem to="/board-chat" label="Conference Room" icon={MessagesSquare} />
           ) : null}
         </div>
 
-        <SidebarSection label="Work" collapsible={{ open: workOpen, onOpenChange: setWorkOpen }}>
+        <SidebarSection label={saasUser ? "Agency" : "Work"} collapsible={{ open: workOpen, onOpenChange: setWorkOpen }}>
           {/* Agent Chat: Chat leads the Work group as a single row — the
               agents you talk to live in the Chat surface's own secondary rail
               (ChatContextualSidebar), not in the primary nav. */}
@@ -224,7 +229,7 @@ export function Sidebar({ children }: { children?: ReactNode }) {
           ) : (
             <SidebarNavItem to="/issues" label="Tasks" icon={CircleCheck} />
           )}
-          {streamlinedUiEnabled ? (
+          {streamlinedUiEnabled || saasUser ? (
             <>
               <SidebarNavItem to="/projects" label="Projects" icon={FolderOpen} />
               <SidebarStarredProjects />
@@ -232,12 +237,12 @@ export function Sidebar({ children }: { children?: ReactNode }) {
           ) : null}
           <SidebarNavItem to="/agency" label="Clients & Brands" icon={Users} />
           <SidebarNavItem to="/content" label="Content & Review" icon={SquarePen} />
-          <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />
-          <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />
-          {showCases ? (
+          {!saasUser && <SidebarNavItem to="/routines" label="Routines" icon={Repeat} />}
+          {!saasUser && <SidebarNavItem to="/artifacts" label="Artifacts" icon={Package} />}
+          {!saasUser && showCases ? (
             <SidebarNavItem to="/cases" label="Cases" icon={Layers} textBadge="beta" />
           ) : null}
-          {showGoalsLink ? (
+          {!saasUser && showGoalsLink ? (
             <SidebarNavItem to="/goals" label="Goals" icon={Target} />
           ) : goalsLinkPending ? (
             <div
@@ -246,24 +251,24 @@ export function Sidebar({ children }: { children?: ReactNode }) {
               aria-hidden="true"
             />
           ) : null}
-          {showWorkspacesLink ? (
+          {!saasUser && showWorkspacesLink ? (
             <SidebarNavItem to="/workspaces" label="Workspaces" icon={GitBranch} />
           ) : null}
-          <PluginSlotOutlet
+          {!saasUser && <PluginSlotOutlet
             errorBehavior="hidden"
             slotTypes={["sidebar"]}
             context={pluginContext}
             className="flex flex-col gap-0.5"
             itemClassName="text-(length:--text-compact) font-medium"
             missingBehavior="placeholder"
-          />
-          <PluginLauncherOutlet
+          />}
+          {!saasUser && <PluginLauncherOutlet
             errorBehavior="hidden"
             placementZones={["sidebar"]}
             context={pluginContext}
             className="flex flex-col gap-0.5"
             itemClassName="text-(length:--text-compact) font-medium"
-          />
+          />}
         </SidebarSection>
 
         {streamlinedUiEnabled ? (
@@ -273,7 +278,7 @@ export function Sidebar({ children }: { children?: ReactNode }) {
           >
             <SidebarNavItem to="/agents" label="Agents" icon={Users} />
             <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} />
-            <SidebarNavItem to="/activity" label="Audit" icon={History} />
+            <SidebarNavItem to="/activity" label={saasUser ? "Activity" : "Audit"} icon={History} />
           </SidebarSection>
         ) : null}
 
@@ -283,18 +288,18 @@ export function Sidebar({ children }: { children?: ReactNode }) {
           <SidebarRecentTasks companyId={selectedCompanyId} liveIssueIds={liveIssueIds} />
         ) : (
           <>
-            <SidebarProjects />
+            {!saasUser && <SidebarProjects />}
             <SidebarAgents />
             <SidebarSection
               label="Organization"
               collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
             >
-              <SidebarNavItem to="/org" label="Org" icon={Network} />
+              {!saasUser && <SidebarNavItem to="/org" label="Org" icon={Network} />}
               <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} />
-              <SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />
-              <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />
+              {!saasUser && <SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />}
+              {!saasUser && <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />}
               <SidebarNavItem to="/activity" label="Activity" icon={History} />
-              <SidebarNavItem to="/activity/commentary" label="Commentary" icon={History} />
+              {!saasUser && <SidebarNavItem to="/activity/commentary" label="Commentary" icon={History} />}
               <SidebarNavItem to="/company/settings" label="Settings" icon={Settings} />
             </SidebarSection>
           </>
