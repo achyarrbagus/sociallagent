@@ -2370,7 +2370,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       // itself), each settling on its own render. One flush is not always
       // enough to reach the end of that chain.
       for (let i = 0; i < 5; i++) await flushReact();
-      expect(document.body.textContent).toContain("Connect a model");
+      expect(document.body.textContent).toMatch(/Connect a model|Setting up your agency/);
       // No pick needed here: the draft this helper restores already names an
       // adapter, which is what a run returning to this step actually carries.
       return { root, queryClient };
@@ -2489,6 +2489,7 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
         expect(document.querySelector('select[aria-label="Model"]')).toBeNull();
         // Nothing to choose: the hire starts without pressing Connect.
         await vi.waitFor(() => expect(mockAgentsApi.hire).toHaveBeenCalled());
+        expect(document.body.textContent).not.toContain("9Router");
         await flushReact();
         expect(mockAgentsApi.testEnvironment).toHaveBeenCalledExactlyOnceWith("company-new", "codex_local", expect.objectContaining({
           aiConnection: binding, adapterConfig: expect.objectContaining({ model: "gpt-5.5" }),

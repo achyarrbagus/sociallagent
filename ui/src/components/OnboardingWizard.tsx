@@ -872,11 +872,13 @@ function OnboardingWizardInner({
     setSelectedSavedKey(null);
     setApiKey("");
     setGatewayConnection({ companyId: createdCompanyId, adapterType: managedConnection.adapterType, binding: managedConnection.result.binding });
+    // The administrator's model for the Director; the server applies it on hire.
+    if (managedConnection.result.model) setModel(managedConnection.result.model);
     setConnectPhase("collapsing");
   }, [step, managedActive, managedConnection, connectPhase, createdCompanyId, adapterType]);
   // Pick the operator's model when the gateway offers it, otherwise its first.
   useEffect(() => {
-    if (!managedActive || !hasGatewaySelection || !connectionModels || connectionModels.models.length === 0) return;
+    if (!managedActive || managedConnection?.result.model || !hasGatewaySelection || !connectionModels || connectionModels.models.length === 0) return;
     if (model.trim() && connectionModels.models.some((entry) => entry.id === model.trim())) return;
     // A gateway lists every provider's models; without the operator's choice,
     // prefer one that matches the agent so Claude is not handed a GPT model.
@@ -1374,7 +1376,7 @@ function OnboardingWizardInner({
   const restoredApiCredential = restoredSetup?.companyId === createdCompanyId
     && agentHarnessType(restoredSetup.adapterType, restoredSetup.adapterConfig) === agentHarnessType(adapterType, isCopilot ? { provider: "acpx", acpxAgent: "copilot" } : {})
     && !selectedSavedKey && (restoredSetup.adapterConfig.env as Record<string, unknown> | undefined)?.[apiKeyEnvKeyFor(adapterType)];
-  const connectStepReady = Boolean(setupPrepared || createdAgentId) && sourceSelected && !adapterEnvLoading && !savedKeys.loading && runnerDiscoveryReady && (!isCopilot || copilotModelReady) && connectionModelReady;
+  const connectStepReady = Boolean(setupPrepared || createdAgentId) && sourceSelected && !adapterEnvLoading && !savedKeys.loading && runnerDiscoveryReady && (!isCopilot || copilotModelReady) && (managedActive || connectionModelReady);
 
   useEffect(() => {
     if (step !== 4 || !createdCompanyId || !agentName.trim() || !adapterRegistryLoaded
@@ -3026,7 +3028,7 @@ function OnboardingWizardInner({
                             : step === 3
                               ? "Create your first agent"
                               : step === 4
-                                ? "Connect a model"
+                                ? managedGatewayEnabled ? "Setting up your agency" : "Connect a model"
                                 : "Let's get started..."}
                         </motion.span>
                       }
@@ -3049,7 +3051,9 @@ function OnboardingWizardInner({
                       <p className="pt-2 text-base leading-relaxed text-muted-foreground">
                         <motion.span key={step} {...titleSwapMotion} className="inline-block">
                           {step === 4
-                            ? "SocialAgent works with your subscription or API keys."
+                            ? managedGatewayEnabled
+                              ? `Hiring ${agentName.trim() || "your Agency Director"} and the agency team…`
+                              : "SocialAgent works with your subscription or API keys."
                             : `${agentName.trim() || "Your first agent"} is ready to work!`}
                         </motion.span>
                       </p>
@@ -3149,7 +3153,7 @@ function OnboardingWizardInner({
                       <Button type="button" variant="outline" onClick={() => setManagedGatewayAttempt((value) => value + 1)}>
                         Retry connecting SocialAgent AI
                       </Button>
-                    </div> : <p role="status" className="mb-4 text-sm text-muted-foreground">Connecting SocialAgent AI…</p>)}
+                    </div> : <p role="status" className="mb-4 text-sm text-muted-foreground">Getting your agency ready…</p>)}
                     {!managedGatewayEnabled && (
                     <ModelSourceTiles
                       label="Model source"
@@ -3283,7 +3287,7 @@ function OnboardingWizardInner({
                       </OnboardingLoginCard>
                     ) : credentialMode === "api" ? (
                       <OnboardingLoginCard
-                        instruction={managedActive && hasGatewaySelection ? "SocialAgent AI is ready. No API key needed." : hasGatewaySelection || connectionModels ? "Choose a model for your saved connection" : savedKeys.options.length ? "Choose a saved API key or enter a new one" : `Provide your ${
+                        instruction={managedActive && hasGatewaySelection ? "Getting your agency ready" : hasGatewaySelection || connectionModels ? "Choose a model for your saved connection" : savedKeys.options.length ? "Choose a saved API key or enter a new one" : `Provide your ${
                           CONNECT_SOURCE_NAMES[adapterType] ?? adapterType
                         } API key to connect`}
                       >
@@ -3316,13 +3320,8 @@ function OnboardingWizardInner({
                         </> : <p role="status" className="text-sm text-muted-foreground">{connectionModelState.refreshing
                           ? "Loading your saved gateway connection…"
                           : managedActive
-                            ? "Your agents use SocialAgent AI through 9Router. Press Connect to finish setting up your agent."
+                            ? "This takes a moment. No setup is needed on your side."
                             : "Gateway connection saved. Choose a model, then Connect to test it and finish setting up your agent."}</p>)}
-                        {managedActive && hasGatewaySelection && <p className="text-sm">
-                          <span className="text-muted-foreground">Model: </span>
-                          <span className="font-mono">{model || "Choosing…"}</span>
-                          <span className="text-muted-foreground"> · set by your administrator</span>
-                        </p>}
                         {connectionModels && !managedActive && <ModelDropdown models={connectionModels.models} value={model}
                           onChange={setModel} open={modelOpen} onOpenChange={setModelOpen}
                           allowDefault={false} required groupByProvider={false}
