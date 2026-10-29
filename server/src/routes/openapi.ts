@@ -7025,6 +7025,15 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
+  path: "/api/companies/{companyId}/agency/reports/brands",
+  tags: ["agency"],
+  summary: "Per-brand report for a period: content, posts and SocialAgent AI cost",
+  request: { params: z.object({ companyId: z.string() }), query: z.object({ from: z.string(), to: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "get",
   path: "/api/instance/tenants",
   tags: ["instance"],
   summary: "List every company with members, agents, this month's SocialAgent AI spend and budget",

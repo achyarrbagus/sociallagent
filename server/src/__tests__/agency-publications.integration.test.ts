@@ -2,7 +2,7 @@ import express from "express";
 import request from "supertest";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { agencyBrands, agencyClients, agencyPublications, agents, companies, companyMemberships, createDb, issues, projects, routines, routineTriggers } from "@paperclipai/db";
+import { agencyBrands, agencyClients, agencyPublications, agents, companies, companyMemberships, costEvents, createDb, issues, projects, routines, routineTriggers } from "@paperclipai/db";
 import { agencyContentRoutes } from "../routes/agency-content.js";
 import { agencyPublicationRoutes } from "../routes/agency-publications.js";
 import { errorHandler } from "../middleware/error-handler.js";
@@ -117,5 +117,31 @@ suite("agency content calendar", () => {
     expect(response.status).toBe(403);
     const rows = await db.select().from(agencyPublications).where(and(eq(agencyPublications.companyId, f.companyId)));
     expect(rows).toHaveLength(0);
+  });
+
+  it("reports content, posts and AI cost per brand for a period", async () => {
+    const f = await fixture();
+    const item = await f.approvedContent();
+    const scheduled = await request(f.app()).post(f.calendar).send({ contentId: item.id, platform: "tiktok", scheduledAt: inAnHour(), dispatch: "manual" });
+    await request(f.app()).post(`${f.calendar}/${scheduled.body.id}/complete`).send({ status: "published", externalUrl: "https://tiktok.com/@coffee/video/1" });
+    await db.insert(costEvents).values({
+      companyId: f.companyId, agentId: f.publisher.id, projectId: f.project.id, provider: "anthropic", model: "claude", costCents: 1234, occurredAt: new Date(),
+    } as never);
+
+    const from = new Date(Date.now() - 86_400_000).toISOString();
+    const to = new Date(Date.now() + 2 * 86_400_000).toISOString();
+    const report = await request(f.app()).get(`/api/companies/${f.companyId}/agency/reports/brands`).query({ from, to });
+    expect(report.status, JSON.stringify(report.body)).toBe(200);
+    expect(report.body).toEqual([expect.objectContaining({
+      brandName: "Coffee",
+      clientName: "Client",
+      contentByStatus: { approved: 1 },
+      approvedInPeriod: 1,
+      posts: { scheduled: 0, published: 1, failed: 0, cancelled: 0 },
+      publishedByPlatform: { tiktok: 1 },
+      aiCostCents: 1234,
+    })]);
+    expect(report.body[0].recentPosts[0]).toMatchObject({ contentTitle: "Coffee story", externalUrl: "https://tiktok.com/@coffee/video/1" });
+    expect((await request(f.app("writer")).get(`/api/companies/${f.companyId}/agency/reports/brands`).query({ from, to })).status).toBe(403);
   });
 });

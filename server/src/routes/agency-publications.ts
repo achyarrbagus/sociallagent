@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { Db } from "@paperclipai/db";
-import { completeAgencyPublicationSchema, createAgencyPublicationSchema, listAgencyPublicationsSchema } from "@paperclipai/shared";
+import { brandReportRangeSchema, completeAgencyPublicationSchema, createAgencyPublicationSchema, listAgencyPublicationsSchema } from "@paperclipai/shared";
 import { badRequest, forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { isAgencyOwner } from "../services/agency-access.js";
@@ -57,6 +57,12 @@ export function agencyPublicationRoutes(db: Db) {
     }
     owner(req);
     res.json(await service.complete(companyId, publicationId, req.body, { type: "user", id: getActorInfo(req).actorId }));
+  });
+
+  router.get("/companies/:companyId/agency/reports/brands", async (req, res) => {
+    assertCompanyAccess(req, req.params.companyId as string);
+    if (req.actor.type !== "board") throw forbidden("Board access required");
+    res.json(await service.brandReports(req.params.companyId as string, brandReportRangeSchema.parse(req.query)));
   });
 
   return router;

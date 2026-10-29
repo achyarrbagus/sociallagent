@@ -18,3 +18,10 @@ export const agencyPublicationsApi = {
 export const PLATFORM_LABELS: Record<string, string> = {
   instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", linkedin: "LinkedIn", x: "X", youtube: "YouTube", other: "Other",
 };
+
+export const agencyReportsApi = {
+  brands: (companyId: string, range: { from: string; to: string }) =>
+    api.get<import("@paperclipai/shared").AgencyBrandReport[]>(
+      `/companies/${encodeURIComponent(companyId)}/agency/reports/brands?${new URLSearchParams(range)}`,
+    ),
+};

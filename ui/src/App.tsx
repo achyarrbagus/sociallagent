@@ -78,6 +78,7 @@ const Projects = lazy(() => import("./pages/Projects").then((module) => ({ defau
 const Agency = lazy(() => import("./pages/Agency").then(module => ({ default: module.Agency })));
 const AgencyContent = lazy(() => import("./pages/AgencyContent").then(module => ({ default: module.AgencyContent })));
 const AgencyCalendar = lazy(() => import("./pages/AgencyCalendar").then((module) => ({ default: module.AgencyCalendar })));
+const AgencyReports = lazy(() => import("./pages/AgencyReports").then((module) => ({ default: module.AgencyReports })));
 const ProjectDetail = lazy(() => import("./pages/ProjectDetail").then((module) => ({ default: module.ProjectDetail })));
 const ProjectWorkspaceDetail = lazy(() => import("./pages/ProjectWorkspaceDetail").then((module) => ({ default: module.ProjectWorkspaceDetail })));
 const Workspaces = lazy(() => import("./pages/Workspaces").then((module) => ({ default: module.Workspaces })));
@@ -306,6 +307,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="agency" element={<Agency />} />
       <Route path="content" element={<AgencyContent />} />
       <Route path="calendar" element={<AgencyCalendar />} />
+      <Route path="reports" element={<AgencyReports />} />
       <Route path="content/:contentId" element={<AgencyContent />} />
       <Route path="projects/:projectId" element={<ProjectDetail />} />
       <Route path="projects/:projectId/overview" element={<ProjectDetail />} />
@@ -863,6 +865,7 @@ export function App() {
           <Route path="agency" element={<UnprefixedBoardRedirect />} />
           <Route path="content" element={<UnprefixedBoardRedirect />} />
           <Route path="calendar" element={<UnprefixedBoardRedirect />} />
+          <Route path="reports" element={<UnprefixedBoardRedirect />} />
           <Route path="content/:contentId" element={<UnprefixedBoardRedirect />} />
           <Route path="projects/:projectId" element={<UnprefixedBoardRedirect />} />
           <Route path="projects/:projectId/overview" element={<UnprefixedBoardRedirect />} />

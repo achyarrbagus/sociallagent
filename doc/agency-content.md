@@ -133,3 +133,13 @@ posts exactly what the owner approved.
   such a post published returns 409.
 - `POST .../publications/:id/cancel` (owner) cancels a scheduled post.
   Completing or cancelling archives the routine so it never fires again.
+
+## Brand reports (SocialAgent)
+
+**Reports** (`/reports`) shows each active brand for a month: current content
+by status, revisions approved in the month, posts scheduled in the month by
+status, published posts by platform with links, and the SocialAgent AI cost of
+work on the brand's projects (cost events whose project belongs to the brand).
+"Copy summary for client" copies a plain-text summary with post links.
+`GET /api/companies/:companyId/agency/reports/brands?from&to` serves it to board
+members of the company; agents are refused.

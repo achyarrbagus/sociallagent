@@ -1,6 +1,7 @@
-import { and, asc, eq, gte, lt, ne } from "drizzle-orm";
+import { and, asc, eq, gte, lt, ne, sql } from "drizzle-orm";
 import {
   agencyBrands,
+  agencyClients,
   agencyContentItems,
   agencyContentRevisions,
   agencyPublications,
@@ -10,6 +11,7 @@ import {
 import {
   createRoutineSchema,
   createRoutineTriggerSchema,
+  type AgencyBrandReport,
   type AgencyContentSnapshot,
   type AgencyPublication,
   type CompleteAgencyPublication,
@@ -241,5 +243,72 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
     return toView(updated!);
   }
 
-  return { list, get, create, cancel, complete, getRow };
+  /** Per-brand results for a period: content, posts and SocialAgent AI cost. */
+  async function brandReports(companyId: string, range: { from: string; to: string }): Promise<AgencyBrandReport[]> {
+    const from = new Date(range.from);
+    const to = new Date(range.to);
+    const brands = await db.select({ id: agencyBrands.id, name: agencyBrands.name, clientName: agencyClients.name })
+      .from(agencyBrands)
+      .innerJoin(agencyClients, eq(agencyClients.id, agencyBrands.clientId))
+      .where(and(eq(agencyBrands.companyId, companyId), sql`${agencyBrands.archivedAt} is null`))
+      .orderBy(asc(agencyBrands.name));
+    const rows = (result: unknown) => result as Array<Record<string, unknown>>;
+    const content = rows(await db.execute(sql`
+      select brand_id, status, count(*)::int as n from agency_content_items
+      where company_id = ${companyId} group by brand_id, status`));
+    const approvals = rows(await db.execute(sql`
+      select i.brand_id, count(*)::int as n from agency_content_decisions d
+      join agency_content_items i on i.id = d.content_id
+      where d.company_id = ${companyId} and d.decision = 'approve'
+        and d.created_at >= ${from.toISOString()}::timestamptz and d.created_at < ${to.toISOString()}::timestamptz
+      group by i.brand_id`));
+    const posts = rows(await db.execute(sql`
+      select i.brand_id, p.status, p.platform, count(*)::int as n from agency_publications p
+      join agency_content_items i on i.id = p.content_id
+      where p.company_id = ${companyId}
+        and p.scheduled_at >= ${from.toISOString()}::timestamptz and p.scheduled_at < ${to.toISOString()}::timestamptz
+      group by i.brand_id, p.status, p.platform`));
+    const recent = rows(await db.execute(sql`
+      select p.id, i.brand_id, i.title, p.platform, p.external_url, p.published_at from agency_publications p
+      join agency_content_items i on i.id = p.content_id
+      where p.company_id = ${companyId} and p.status = 'published'
+        and p.scheduled_at >= ${from.toISOString()}::timestamptz and p.scheduled_at < ${to.toISOString()}::timestamptz
+      order by p.published_at desc nulls last limit 200`));
+    const costs = rows(await db.execute(sql`
+      select pr.brand_id, coalesce(sum(e.cost_cents), 0)::float as cents from cost_events e
+      join projects pr on pr.id = e.project_id
+      where e.company_id = ${companyId} and pr.brand_id is not null
+        and e.occurred_at >= ${from.toISOString()}::timestamptz and e.occurred_at < ${to.toISOString()}::timestamptz
+      group by pr.brand_id`));
+    return brands.map((brand) => {
+      const mine = (list: Array<Record<string, unknown>>) => list.filter((row) => row.brand_id === brand.id);
+      const contentByStatus = Object.fromEntries(mine(content).map((row) => [String(row.status), Number(row.n)]));
+      const postCounts = { scheduled: 0, published: 0, failed: 0, cancelled: 0 };
+      const publishedByPlatform: Record<string, number> = {};
+      for (const row of mine(posts)) {
+        const status = String(row.status) as keyof typeof postCounts;
+        postCounts[status] = (postCounts[status] ?? 0) + Number(row.n);
+        if (status === "published") publishedByPlatform[String(row.platform)] = (publishedByPlatform[String(row.platform)] ?? 0) + Number(row.n);
+      }
+      return {
+        brandId: brand.id,
+        brandName: brand.name,
+        clientName: brand.clientName,
+        contentByStatus,
+        approvedInPeriod: Number(mine(approvals)[0]?.n ?? 0),
+        posts: postCounts,
+        publishedByPlatform,
+        recentPosts: mine(recent).slice(0, 20).map((row) => ({
+          id: String(row.id),
+          contentTitle: String(row.title),
+          platform: String(row.platform),
+          externalUrl: row.external_url == null ? null : String(row.external_url),
+          publishedAt: row.published_at == null ? null : new Date(row.published_at as string).toISOString(),
+        })),
+        aiCostCents: Math.round(Number(mine(costs)[0]?.cents ?? 0)),
+      };
+    });
+  }
+
+  return { list, get, create, cancel, complete, getRow, brandReports };
 }

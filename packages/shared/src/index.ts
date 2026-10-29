@@ -2886,4 +2886,6 @@ export {
   type CompleteAgencyPublication,
   listAgencyPublicationsSchema,
   type AgencyPublication,
+  brandReportRangeSchema,
+  type AgencyBrandReport,
 } from "./validators/agency-publications.js";

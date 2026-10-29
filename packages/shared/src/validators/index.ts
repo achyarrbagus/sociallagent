@@ -1026,4 +1026,6 @@ export {
   type CompleteAgencyPublication,
   listAgencyPublicationsSchema,
   type AgencyPublication,
+  brandReportRangeSchema,
+  type AgencyBrandReport,
 } from "./agency-publications.js";

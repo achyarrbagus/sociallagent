@@ -58,3 +58,26 @@ export interface AgencyPublication {
   publishedAt: string | null;
   createdAt: string;
 }
+
+export const brandReportRangeSchema = z.object({
+  from: z.string().datetime({ offset: true }),
+  to: z.string().datetime({ offset: true }),
+});
+
+/** One brand's results over a period: content, posts and SocialAgent AI cost. */
+export interface AgencyBrandReport {
+  brandId: string;
+  brandName: string;
+  clientName: string;
+  /** Current content items by status. */
+  contentByStatus: Record<string, number>;
+  /** Revisions the owner approved in the period. */
+  approvedInPeriod: number;
+  /** Posts scheduled in the period, by status. */
+  posts: { scheduled: number; published: number; failed: number; cancelled: number };
+  /** Published posts in the period, by platform. */
+  publishedByPlatform: Record<string, number>;
+  recentPosts: Array<{ id: string; contentTitle: string; platform: string; externalUrl: string | null; publishedAt: string | null }>;
+  /** SocialAgent AI cost of work on the brand's projects in the period, in cents. */
+  aiCostCents: number;
+}
