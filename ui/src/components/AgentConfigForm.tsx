@@ -355,7 +355,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
   const canConfigureProviderTrace = props.canConfigureProviderTrace === true;
   const { selectedCompanyId } = useCompany();
   // Admin-managed models: adapter, model and AI connection are read-only.
-  const { locked: aiModelsLocked } = useManagedAiLock(selectedCompanyId);
+  const { locked: aiModelsLocked, canManage: canManageAiModels } = useManagedAiLock(selectedCompanyId);
   const showAdapterTypeField = showAdapterTypeFieldProp && !aiModelsLocked;
   const queryClient = useQueryClient();
   const environmentVariablesEditorRef = useRef<EnvironmentVariablesEditorHandle | null>(null);
@@ -1860,7 +1860,7 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
           )}
 
           {aiModelsLocked && (
-            <Field label="AI model" hint="Managed by your SocialAgent administrator.">
+            <Field label="AI model" hint={canManageAiModels ? "Set per role in Settings → AI models." : "Managed by your SocialAgent administrator."}>
               <p className="text-sm">
                 <span className="font-mono">{currentModelId || "Default"}</span>
                 <span className="text-muted-foreground"> · SocialAgent AI</span>
