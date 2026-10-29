@@ -123,21 +123,28 @@ if (args.has("--runtime-assets-only")) {
   process.exit(0);
 }
 
+/**
+ * Workspace packages from the root package.json `workspaces` globs (Bun is the
+ * package manager). Supports `dir/*` and `!excluded/**` entries.
+ */
 function listWorkspacePackages() {
-  const result = spawnSync("pnpm", ["ls", "-r", "--depth", "-1", "--json"], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
-
-  if (result.error) {
-    fail(`Unable to spawn pnpm to list workspace packages: ${result.error.message}`);
+  const patterns = readJson(path.join(repoRoot, "package.json")).workspaces ?? [];
+  const excluded = patterns.filter((pattern) => pattern.startsWith("!")).map((pattern) => pattern.slice(1).replace(/\/\*\*$/, ""));
+  const isExcluded = (relative) => excluded.some((prefix) => relative === prefix || relative.startsWith(`${prefix}/`));
+  const dirs = new Set();
+  for (const pattern of patterns.filter((entry) => !entry.startsWith("!"))) {
+    if (pattern.endsWith("/*")) {
+      const parent = path.join(repoRoot, pattern.slice(0, -2));
+      if (!existsSync(parent)) continue;
+      for (const entry of readdirSync(parent)) dirs.add(path.join(parent, entry));
+    } else {
+      dirs.add(path.join(repoRoot, pattern));
+    }
   }
-
-  if (result.status !== 0) {
-    fail("Unable to list pnpm workspace packages.");
-  }
-
-  return JSON.parse(result.stdout);
+  return [...dirs]
+    .filter((dir) => !isExcluded(path.relative(repoRoot, dir)) && existsSync(path.join(dir, "package.json")))
+    .map((dir) => ({ name: readJson(path.join(dir, "package.json")).name, path: dir }))
+    .filter((workspacePkg) => typeof workspacePkg.name === "string");
 }
 
 function buildSkipsTypeScript(pkg) {
@@ -176,10 +183,10 @@ console.log(
 );
 
 if (buildGapPackages.length > 0) {
-  run("pnpm", ["--filter", "@paperclipai/plugin-sdk", "ensure-build-deps"]);
+  run("bun", ["run", "--filter", "@paperclipai/plugin-sdk", "ensure-build-deps"]);
 
   for (const workspacePkg of buildGapPackages) {
-    run("pnpm", ["--filter", workspacePkg.name, "typecheck"]);
+    run("bun", ["run", "--filter", workspacePkg.name, "typecheck"]);
   }
 }
 
