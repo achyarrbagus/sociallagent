@@ -49,7 +49,7 @@
     "build": "tsc && cp src/server/codex-auth-merge-decision.cjs src/server/codex-auth-merge-extract.sh dist/server/",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
-    "probe:quota": "pnpm exec tsx src/cli/quota-probe.ts --json"
+    "probe:quota": "bunx tsx src/cli/quota-probe.ts --json"
   },
   "dependencies": {
     "@agentclientprotocol/codex-acp": "^1.6.2",

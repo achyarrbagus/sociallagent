@@ -46,13 +46,13 @@ try {
 const worktreeEnvBootstrap = bootstrapDevRunnerWorktreeEnv(repoRoot, process.env);
 if (worktreeEnvBootstrap.missingEnv) {
   console.error(
-    `[paperclip] linked git worktree at ${repoRoot} is missing ${path.relative(repoRoot, worktreeEnvBootstrap.envPath)}. Run \`paperclipai worktree init\` in this worktree before \`pnpm dev\`.`,
+    `[paperclip] linked git worktree at ${repoRoot} is missing ${path.relative(repoRoot, worktreeEnvBootstrap.envPath)}. Run \`paperclipai worktree init\` in this worktree before \`bun run dev\`.`,
   );
   process.exit(1);
 }
 if (isWorktreeSeedPending(repoRoot)) {
   console.error(
-    "[paperclip] this worktree database is seed-pending. Run `pnpm paperclipai worktree ensure-seeded` before `pnpm dev`.",
+    "[paperclip] this worktree database is seed-pending. Run `bun run paperclipai worktree ensure-seeded` before `bun run dev`.",
   );
   process.exit(1);
 }
@@ -82,6 +82,7 @@ const watchedFiles = [
   ".env",
   "package.json",
   "pnpm-workspace.yaml",
+  "bun.lock",
   "tsconfig.base.json",
   "tsconfig.json",
   "vitest.config.ts",
@@ -240,7 +241,7 @@ if (existingRunner) {
   process.exit(0);
 }
 
-const pnpmBin = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const bunBin = process.platform === "win32" ? "bun.exe" : "bun";
 let previousSnapshot = collectWatchedSnapshot();
 let dirtyPaths = new Set<string>();
 let pendingMigrations: string[] = [];
@@ -370,13 +371,13 @@ async function updateDevServiceRecord(extra?: Record<string, unknown>) {
   });
 }
 
-async function runPnpm(args: string[], options: {
+async function runBun(args: string[], options: {
   stdio?: "inherit" | ["ignore", "pipe", "pipe"];
   env?: NodeJS.ProcessEnv;
   cwd?: string;
 } = {}) {
   return await new Promise<{ code: number; signal: NodeJS.Signals | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const spawned = spawn(pnpmBin, args, {
+    const spawned = spawn(bunBin, args, {
       stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
       env: options.env ?? process.env,
       cwd: options.cwd,
@@ -412,15 +413,15 @@ async function runPnpm(args: string[], options: {
 }
 
 async function getMigrationStatusPayload() {
-  const status = await runPnpm(
-    ["--silent", "--filter", "@paperclipai/db", "exec", "tsx", "src/migration-status.ts", "--json"],
-    { env },
+  const status = await runBun(
+    ["src/migration-status.ts", "--json"],
+    { env, cwd: path.join(repoRoot, "packages/db") },
   );
   if (status.code !== 0) {
     process.stderr.write(
       status.stderr ||
         status.stdout ||
-        `[paperclip] Command failed with code ${status.code}: pnpm --filter @paperclipai/db exec tsx src/migration-status.ts --json\n`,
+        `[paperclip] Command failed with code ${status.code}: bun src/migration-status.ts --json (packages/db)\n`,
     );
     process.exit(status.code);
   }
@@ -499,7 +500,7 @@ async function maybePreflightMigrations(options: { interactive?: boolean; autoAp
     return;
   }
 
-  const exit = await runPnpm(["db:migrate"], {
+  const exit = await runBun(["run", "db:migrate"], {
     stdio: "inherit",
     env,
     cwd: repoRoot,
@@ -517,8 +518,8 @@ async function maybePreflightMigrations(options: { interactive?: boolean; autoAp
 
 async function buildPluginSdk() {
   console.log("[paperclip] building plugin sdk...");
-  const result = await runPnpm(
-    ["--filter", "@paperclipai/plugin-sdk", "build"],
+  const result = await runBun(
+    ["run", "--filter", "@paperclipai/plugin-sdk", "build"],
     { stdio: "inherit" },
   );
   if (result.signal) {
@@ -532,16 +533,9 @@ async function buildPluginSdk() {
 }
 
 async function getNativeRunnerRequired(): Promise<boolean> {
-  const status = await runPnpm(
-    [
-      "--silent",
-      "--filter",
-      "@paperclipai/server",
-      "exec",
-      "tsx",
-      "src/dev-native-runner-status.ts",
-    ],
-    { env },
+  const status = await runBun(
+    ["src/dev-native-runner-status.ts"],
+    { env, cwd: path.join(repoRoot, "server") },
   );
   if (status.signal) {
     exitForSignal(status.signal);
@@ -562,8 +556,8 @@ async function getNativeRunnerRequired(): Promise<boolean> {
 
 async function buildPaperclipRunner() {
   console.log("[paperclip] building paperclip runner...");
-  const typescriptResult = await runPnpm(
-    ["--filter", "@paperclipai/paperclip-runner", "build:typescript"],
+  const typescriptResult = await runBun(
+    ["run", "--filter", "@paperclipai/paperclip-runner", "build:typescript"],
     { stdio: "inherit" },
   );
   if (typescriptResult.signal) {
@@ -584,8 +578,8 @@ async function buildPaperclipRunner() {
     })
   ) {
     console.log("[paperclip] building paperclip runner native binary...");
-    const binaryResult = await runPnpm(
-      ["--filter", "@paperclipai/paperclip-runner", "build:binary"],
+    const binaryResult = await runBun(
+      ["run", "--filter", "@paperclipai/paperclip-runner", "build:binary"],
       { stdio: "inherit" },
     );
     if (binaryResult.signal) {
@@ -634,8 +628,8 @@ function uiBundleIsFresh(): boolean {
 
 async function buildUiBundleForManagedRuntime(): Promise<boolean> {
   console.log("[paperclip] managed runtime: building the UI bundle for static serving...");
-  const result = await runPnpm(
-    ["--filter", "@paperclipai/ui", "build"],
+  const result = await runBun(
+    ["run", "--filter", "@paperclipai/ui", "build"],
     { stdio: "inherit" },
   );
   if (result.signal) {
@@ -718,8 +712,8 @@ async function startServerChild() {
 
   const serverScript = mode === "watch" ? "dev:watch" : "dev";
   child = spawn(
-    pnpmBin,
-    ["--filter", "@paperclipai/server", serverScript, ...forwardedArgs],
+    bunBin,
+    ["run", "--filter", "@paperclipai/server", serverScript, ...forwardedArgs],
     { stdio: "inherit", env, shell: process.platform === "win32" },
   );
 
