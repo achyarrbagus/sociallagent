@@ -1,4 +1,5 @@
 import { useDesignSandbox } from "@/context/DesignSandboxContext";
+import { SaasRouteGuard } from "./SaasRouteGuard";
 import { DesignSandboxSidebar } from "./DesignSandboxSidebar";
 import { BoardDialogs } from "./BoardDialogs";
 import { ChatSetupSidebarProvider } from "@/context/ChatSetupSidebarContext";
@@ -727,7 +728,7 @@ export function Layout() {
                   />
                 ) : (
                   <RouteErrorBoundary>
-                    <Outlet />
+                    <SaasRouteGuard><Outlet /></SaasRouteGuard>
                   </RouteErrorBoundary>
                 )}
               </main>

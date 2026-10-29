@@ -1,4 +1,5 @@
 import { useDesignSandbox } from "@/context/DesignSandboxContext";
+import { SaasRouteGuard } from "./SaasRouteGuard";
 import { DesignSandboxSidebar } from "./DesignSandboxSidebar";
 import { BoardDialogs } from "./BoardDialogs";
 import { SetupWizardSidebarOutlet } from "./SetupWizard";
@@ -734,7 +735,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                 />
               ) : (
                 <RouteErrorBoundary>
-                  <Outlet />
+                  <SaasRouteGuard><Outlet /></SaasRouteGuard>
                 </RouteErrorBoundary>
               )}
               </main>
