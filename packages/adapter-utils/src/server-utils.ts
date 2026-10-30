@@ -3550,12 +3550,26 @@ export const SERVER_SECRET_ENV_PATTERNS: readonly RegExp[] = [
   /^NOVITA_API_KEY$/i,
   /^CREATEOS_API_KEY$/i,
   /^EXE_API_KEY$/i,
+];
+
+/**
+ * Additional host-inherited keys stripped only in SaaS mode. Outside SaaS mode
+ * self-hosted operators rely on inheriting these (e.g. Bedrock via AWS_*);
+ * in SaaS mode they are server credentials and an agent needing them must
+ * bind them explicitly on the agent (Ruling R1).
+ */
+export const SAAS_SERVER_SECRET_ENV_PATTERNS: readonly RegExp[] = [
   /^AWS_/i,
   /^SUPABASE_/i,
 ];
 
+function isSaasModeEnv(): boolean {
+  return process.env.SOCIALAGENT_SAAS_MODE === "true";
+}
+
 export function isServerSecretEnvKey(key: string): boolean {
-  return SERVER_SECRET_ENV_PATTERNS.some((pattern) => pattern.test(key));
+  if (SERVER_SECRET_ENV_PATTERNS.some((pattern) => pattern.test(key))) return true;
+  return isSaasModeEnv() && SAAS_SERVER_SECRET_ENV_PATTERNS.some((pattern) => pattern.test(key));
 }
 
 /** Removes only the server-held secrets from a host-inherited env. */

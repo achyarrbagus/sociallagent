@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SERVER_SECRET_ENV_PATTERNS, sanitizeInheritedPaperclipEnv, stripServerSecretEnv } from "./server-utils.js";
 
 describe("sanitizeInheritedPaperclipEnv", () => {
+  beforeEach(() => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("drops the host-only Paperclip CLI command pointer", () => {
     expect(sanitizeInheritedPaperclipEnv({
       PAPERCLIPAI_CMD: "node /missing/paperclipai/dist/index.js",
@@ -50,5 +57,37 @@ describe("sanitizeInheritedPaperclipEnv", () => {
       PATH: "/bin",
     };
     expect(stripServerSecretEnv(host)).toEqual({ PATH: "/bin" });
+  });
+});
+
+describe("server secret stripping outside SaaS mode", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("inherits AWS_* and SUPABASE_* when SaaS mode is off", () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "false");
+    expect(stripServerSecretEnv({
+      AWS_ACCESS_KEY_ID: "a", AWS_SECRET_ACCESS_KEY: "b", AWS_REGION: "us-east-1",
+      SUPABASE_URL: "u", PATH: "/bin",
+    })).toEqual({
+      AWS_ACCESS_KEY_ID: "a", AWS_SECRET_ACCESS_KEY: "b", AWS_REGION: "us-east-1",
+      SUPABASE_URL: "u", PATH: "/bin",
+    });
+  });
+
+  it("still strips the always-on server secrets when SaaS mode is off", () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "");
+    expect(stripServerSecretEnv({
+      DATABASE_URL: "x", DATABASE_MIGRATION_URL: "x", BETTER_AUTH_SECRET: "x",
+      SOCIALAGENT_9ROUTER_API_KEY: "x", PAPERCLIP_STORAGE_S3_BUCKET: "x",
+      PAPERCLIP_AGENT_JWT_SECRET: "x", DAYTONA_API_KEY: "x", PATH: "/bin",
+    })).toEqual({ PATH: "/bin" });
+  });
+
+  it("strips AWS_* and SUPABASE_* in SaaS mode", () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+    expect(stripServerSecretEnv({ AWS_SECRET_ACCESS_KEY: "b", SUPABASE_SERVICE_ROLE_KEY: "s", PATH: "/bin" }))
+      .toEqual({ PATH: "/bin" });
   });
 });

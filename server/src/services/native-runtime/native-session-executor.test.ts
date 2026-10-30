@@ -5,7 +5,7 @@ import { environmentTaskOperationSchema } from "@paperclipai/plugin-sdk";
 import { trace } from "@opentelemetry/api";
 import { InMemorySpanExporter, SimpleSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 import { configuredEnvironment, configuredEnvironmentProjection } from "../../vendor/paperclip-runner/index.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
@@ -3381,6 +3381,10 @@ describe("native provider bootstrap environment", () => {
   });
 
   it("never returns server secrets from the host env when configured is undefined", () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
     const host = {
       PATH: "/bin", OPENAI_API_KEY: "k", DATABASE_URL: "x", DATABASE_MIGRATION_URL: "x", BETTER_AUTH_SECRET: "x",
       SOCIALAGENT_9ROUTER_API_KEY: "x", PAPERCLIP_STORAGE_S3_SECRET: "x", AWS_SECRET_ACCESS_KEY: "x", SUPABASE_SERVICE_ROLE_KEY: "x",
