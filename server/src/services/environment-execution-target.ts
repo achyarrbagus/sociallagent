@@ -20,6 +20,7 @@ import { getStartupTracer } from "../instrumentation.js";
 import { resolveEnvironmentDriverConfigForRuntime } from "./environment-config.js";
 import type { EnvironmentRuntimeService } from "./environment-runtime.js";
 import { getEnvironmentDriverTraits } from "./environment-driver-traits.js";
+import { isSaasMode } from "../saas-mode.js";
 
 export const DEFAULT_SANDBOX_REMOTE_CWD = "/tmp";
 
@@ -402,8 +403,13 @@ export async function resolveEnvironmentExecutionTarget(input: {
       shellCommand,
       remoteCwd,
       enableSandboxDuplexBridge,
+      // SaaS mode leases are always ephemeral (environment-runtime.ts), so a
+      // saved warm/reuse configuration resolves to per-turn and non-reusable
+      // here; otherwise the warm lifecycle gates would reject every run.
       runnerLifecyclePolicy:
-        parsed.config.runnerLifecycleMode === "warm"
+        isSaasMode()
+          ? { mode: "per_turn", idleTimeoutMs: null }
+          : parsed.config.runnerLifecycleMode === "warm"
           ? {
               mode: "warm",
               idleTimeoutMs:
@@ -414,7 +420,7 @@ export async function resolveEnvironmentExecutionTarget(input: {
           : parsed.config.runnerLifecycleMode === "per_turn"
             ? { mode: "per_turn", idleTimeoutMs: null }
             : null,
-      reusableLeaseConfigured: parsed.config.reuseLease === true,
+      reusableLeaseConfigured: !isSaasMode() && parsed.config.reuseLease === true,
       sandboxLeaseAcquisition: sandboxLeaseAcquisitionFromMetadata(
         input.lease?.metadata?.sandboxLeaseAcquisition,
         input.lease?.providerLeaseId,

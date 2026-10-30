@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockResolveEnvironmentDriverConfigForRuntime } = vi.hoisted(() => ({
   mockResolveEnvironmentDriverConfigForRuntime: vi.fn(),
@@ -17,6 +17,7 @@ import {
   DEFAULT_SANDBOX_REMOTE_CWD,
   resolveEnvironmentExecutionTarget,
 } from "../services/environment-execution-target.js";
+import { resolveNativeSandboxLifecycle } from "../services/heartbeat/runtime-selection.js";
 
 const A = SANDBOX_STARTUP_SPAN_ATTRS;
 
@@ -1423,5 +1424,76 @@ describe("resolveEnvironmentExecutionTarget", () => {
     // copies the stale flag.
     expect(execSpan!.parent).toBe(stepSpan);
     expect(execSpan!.attributes[A.execCriticalPath]).toBe(false);
+  });
+});
+
+describe("resolveEnvironmentExecutionTarget SaaS lifecycle override", () => {
+  const warmConfig = {
+    provider: "fake-plugin",
+    reuseLease: true,
+    runnerLifecycleMode: "warm",
+    runnerIdleTimeoutMs: 120_000,
+    timeoutMs: 30_000,
+  };
+
+  beforeEach(() => {
+    mockResolveEnvironmentDriverConfigForRuntime.mockReset();
+    mockResolveEnvironmentDriverConfigForRuntime.mockResolvedValue({ driver: "sandbox", config: { ...warmConfig } });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function resolveWarmTarget() {
+    return resolveEnvironmentExecutionTarget({
+      db: {} as never,
+      companyId: "company-1",
+      adapterType: "paperclip_runner",
+      environment: { id: "env-1", driver: "sandbox", config: { ...warmConfig } },
+      leaseId: "lease-1",
+      leaseMetadata: {},
+      lease: null,
+      environmentRuntime: null,
+    });
+  }
+
+  it("resolves a warm sandbox environment to a per-turn, non-reusable target in SaaS mode", async () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+    const target = await resolveWarmTarget();
+
+    expect(target).toMatchObject({
+      kind: "remote",
+      transport: "sandbox",
+      runnerLifecyclePolicy: { mode: "per_turn", idleTimeoutMs: null },
+      reusableLeaseConfigured: false,
+    });
+    const sandboxTarget = target as Extract<NonNullable<typeof target>, { transport: "sandbox" }>;
+    // The ephemeral lease resolves reusableLeases=false; neither lifecycle
+    // gate may reject the run.
+    const ephemeralTarget = { ...sandboxTarget, effectiveCapabilities: { reusableLeases: false } };
+    const lifecycle = () => resolveNativeSandboxLifecycle({
+      adapterType: "paperclip_runner",
+      lifecyclePolicy: sandboxTarget.runnerLifecyclePolicy!,
+      target: ephemeralTarget,
+    });
+    expect(lifecycle).not.toThrow();
+    expect(lifecycle()).toMatchObject({ runnerProcess: "per_turn", sandboxResource: "destroy_after_turn" });
+  });
+
+  it("still honors the warm sandbox configuration outside SaaS mode", async () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "false");
+    const target = await resolveWarmTarget();
+
+    expect(target).toMatchObject({
+      runnerLifecyclePolicy: { mode: "warm", idleTimeoutMs: 120_000 },
+      reusableLeaseConfigured: true,
+    });
+    const sandboxTarget = target as Extract<NonNullable<typeof target>, { transport: "sandbox" }>;
+    expect(resolveNativeSandboxLifecycle({
+      adapterType: "paperclip_runner",
+      lifecyclePolicy: sandboxTarget.runnerLifecyclePolicy!,
+      target: { ...sandboxTarget, effectiveCapabilities: { reusableLeases: true } },
+    })).toMatchObject({ runnerProcess: "warm", sandboxResource: "keep_running" });
   });
 });
