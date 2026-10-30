@@ -14,7 +14,9 @@ export function createAgentAvatarPool(concurrency = 2, maxQueue = 64) {
     const source = new URL(import.meta.url).pathname.endsWith(".ts");
     const url = new URL(source ? "./agent-avatar-worker.ts" : "./agent-avatar-worker.js", import.meta.url);
     const loaderInherited = process.execArgv.some((arg) => arg.includes("tsx"));
-    const worker = source || !loaderInherited
+    // Bun loads TypeScript workers natively; its workers cannot use tsx loaders.
+    const worker = typeof process.versions.bun === "string" ? new Worker(url)
+      : source || !loaderInherited
       ? new Worker(`import(${JSON.stringify(import.meta.resolve('tsx/esm/api'))}).then(({tsImport}) => tsImport(${JSON.stringify(url.href)}, ${JSON.stringify(import.meta.url)}));`, { eval: true })
       : new Worker(url);
     workers.add(worker);

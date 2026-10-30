@@ -35,7 +35,8 @@ export async function callOnePassword(headers: Record<string, string>, tool: str
   const token = serviceAccountToken(headers.Authorization);
   const source = import.meta.url.endsWith(".ts");
   const url = new URL(source ? "./worker.ts" : "./worker.js", import.meta.url);
-  const worker = source
+  // Bun loads TypeScript workers natively; its workers cannot use tsx loaders.
+  const worker = source && typeof process.versions.bun !== "string"
     ? new Worker(`import(${JSON.stringify(import.meta.resolve("tsx/esm/api"))}).then(({tsImport}) => tsImport(${JSON.stringify(url.href)}, ${JSON.stringify(import.meta.url)}));`, {
       eval: true, workerData: { token, tool, parameters: args }, env: {}, execArgv: [], stdout: true, stderr: true,
     })
