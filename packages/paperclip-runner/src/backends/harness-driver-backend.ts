@@ -443,7 +443,10 @@ class HarnessNativeSession implements NativeSession {
     steeringSupported = false,
   ) {
     this.#steeringSupported = steeringSupported;
-    this.#input = structuredClone(input);
+    // The bootstrap signal is not session state, and AbortSignal is not
+    // structured-cloneable on every runtime (Bun throws DataCloneError).
+    const { signal: _signal, ...state } = input;
+    this.#input = structuredClone(state);
     this.#session = session;
     this.#terminal = terminal === undefined ? null : structuredClone(terminal);
   }

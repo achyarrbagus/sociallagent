@@ -97,6 +97,28 @@ const driver: HarnessDriver = {
 };
 
 describe("HarnessDriverBackend", () => {
+  it("opens a session with an abort signal on runtimes that cannot clone AbortSignal", async () => {
+    // Bun's structuredClone rejects AbortSignal; Node silently clones it to {}.
+    const original = globalThis.structuredClone;
+    const strictClone = vi.fn(<T>(value: T, options?: StructuredSerializeOptions): T => {
+      const visit = (node: unknown): void => {
+        if (node instanceof AbortSignal) throw new DOMException("The object can not be cloned.", "DataCloneError");
+        if (node && typeof node === "object") Object.values(node).forEach(visit);
+      };
+      visit(value);
+      return original(value, options);
+    });
+    vi.stubGlobal("structuredClone", strictClone);
+    try {
+      const backend = new HarnessDriverBackend(driver);
+      const identity = { runId: "run-1", sessionId: "session-1", companyId: "company-1", issueId: "issue-1", agentId: "agent-1" };
+      const opened = await backend.openSession({ identity, signal: new AbortController().signal });
+      expect(opened.identity()).toEqual(identity);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each(["default", "disabled"] as const)("rejects unsupported reasoning %s before starting provider work", async reasoningMode => {
     const startTurn = vi.fn(async () => ({ turnId: "turn-1" }));
     const session = Object.assign(new FakeHarnessSession(), { startTurn });
