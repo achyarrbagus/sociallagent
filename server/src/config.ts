@@ -58,7 +58,16 @@ const TAILSCALE_DETECT_TIMEOUT_MS = 3000;
 
 type DatabaseMode = "embedded-postgres" | "postgres";
 
+/**
+ * Multi-tenant SaaS switch (SOCIALAGENT_SAAS_MODE=true). Read from the
+ * environment at call time so code without the config object can consult it.
+ */
+export function isSaasMode(): boolean {
+  return process.env.SOCIALAGENT_SAAS_MODE === "true";
+}
+
 export interface Config {
+  saasMode: boolean;
   deploymentMode: DeploymentMode;
   deploymentExposure: DeploymentExposure;
   bind: BindMode;
@@ -377,6 +386,7 @@ export function loadConfig(): Config {
   }
 
   return {
+    saasMode: isSaasMode(),
     deploymentMode,
     deploymentExposure,
     bind: resolvedBind.bind,

@@ -717,6 +717,15 @@ orphan recovery.
 pnpm exec vitest run server/src/services/heartbeat/agent-status.test.ts server/src/__tests__/heartbeat-agent-status-recovery.test.ts
 ```
 
+## SaaS Mode
+
+Set `SOCIALAGENT_SAAS_MODE=true` to run as a multi-tenant SaaS instance
+(`config.saasMode` / `isSaasMode()` in `server/src/config.ts`). In this mode
+heartbeat environment selection behaves as if
+`experimental.enableManagedSandboxOnly` were on: runs are redirected to the
+managed sandbox and fail closed with `ManagedSandboxUnavailableError` when none
+is active. At startup the server logs an error if no managed sandbox exists.
+
 ## Test Commands
 
 The [feature map](../maps/feature-map/README.md) is an optional reference for user

@@ -30,6 +30,7 @@ import type { executionWorkspaceService } from "../execution-workspaces.js";
 import type { instanceSettingsService } from "../instance-settings.js";
 import type { TrustPresetResolution } from "../trust-preset-resolver.js";
 import { WORKSPACE_BUSY_RETRY_REASON } from "../../modules/run-dispatch/index.js";
+import { isSaasMode } from "../../config.js";
 import { WorkspaceBusyDeferral, type createHeartbeatRetries } from "./retries.js";
 import { ConfigurationIncompleteFailure } from "./run-preparation.js";
 import { resolveNativeRecoveryExecutionWorkspaceBinding, resolveExecutionWorkspaceReuseRequestForIssue } from "./workspaces.js";
@@ -180,9 +181,11 @@ export async function selectHeartbeatEnvironment(db: Db, input: HeartbeatEnviron
   // (ManagedSandboxUnavailableError) — never local. Mirrors the forced
   // kubernetes execution mode below, which takes precedence when both
   // regimes are active.
+  // SaaS mode (SOCIALAGENT_SAAS_MODE) behaves as if the flag were always on.
   const managedSandboxOnly =
+    isSaasMode() ||
     (await instanceSettings.getExperimental()).enableManagedSandboxOnly ===
-    true;
+      true;
   const managedSandboxEnvironment = managedSandboxOnly
     ? await environmentsSvc.findManagedSandboxEnvironment(agent.companyId)
     : null;

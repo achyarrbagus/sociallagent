@@ -82,6 +82,7 @@ import {
 import detectPort from "detect-port";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import { environmentService } from "./services/environments.js";
 import { logger } from "./middleware/logger.js";
 import { setStartupRecoveryPhase } from "./startup-recovery-state.js";
 import {
@@ -1035,6 +1036,15 @@ async function startServerWithDatabaseTeardown(
       return { userId: actor.userId, companyIds: actor.companyIds };
     },
   });
+
+  if (config.saasMode) {
+    const managedSandbox = await environmentService(db as any).findManagedSandboxEnvironment();
+    if (!managedSandbox) {
+      logger.error(
+        "SOCIALAGENT_SAAS_MODE is enabled but no active managed sandbox environment exists; all agent runs will fail closed until one is provisioned",
+      );
+    }
+  }
 
   setStartupRecoveryPhase("recovering");
   // Bind the shared HTTP/PRP listener before native startup recovery. A

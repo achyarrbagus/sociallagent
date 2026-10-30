@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { agents, companies, createDb, environments, heartbeatRuns, issues, projects, projectWorkspaces, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, type Db } from "@paperclipai/db";
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
 import { resolvePaperclipInstanceRoot } from "../../home-paths.js";
 import { environmentService } from "../environments.js";
@@ -12,6 +12,7 @@ import { executionWorkspaceService } from "../execution-workspaces.js";
 import { instanceSettingsService } from "../instance-settings.js";
 import { buildNativeExecutionInput } from "../native-runtime/native-execution-input.js";
 import { nativeRuntimeContextFixture } from "../native-runtime/runtime-context.test-fixture.js";
+import { ManagedSandboxUnavailableError } from "../execution-workspace-policy.js";
 import { selectHeartbeatEnvironment, type HeartbeatEnvironmentSelectionInput } from "./environment-selection.js";
 
 const restoration = vi.hoisted(() => ({ removed: false }));
@@ -184,6 +185,31 @@ describe.skipIf(!support.supported)("heartbeat environment selection boundary", 
       const result = await selectHeartbeatEnvironment(db, input);
       expect(reopen).not.toHaveBeenCalled();
       expect(result.reusableExistingExecutionWorkspace).toBeNull();
+    });
+  });
+
+  describe("SaaS mode", () => {
+    afterEach(async () => {
+      vi.stubEnv("SOCIALAGENT_SAAS_MODE", "");
+      await db.delete(environments).where(eq(environments.driver, "sandbox"));
+    });
+
+    it("selects the managed sandbox in SaaS mode even when the agent default is local", async () => {
+      vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+      const { input } = await fixture();
+      const local = await input.services.environmentsSvc.ensureLocalEnvironment(input.agent.companyId);
+      const [sandbox] = await db.insert(environments).values({ name: "Managed sandbox", driver: "sandbox", status: "active", config: { provider: "fake" }, metadata: { managedByPaperclip: true } }).returning();
+      input.agent.defaultEnvironmentId = local.id;
+      const result = await selectHeartbeatEnvironment(db, input);
+      expect(result.selectedEnvironmentId).toBe(sandbox.id);
+    });
+
+    it("fails closed in SaaS mode when no managed sandbox is active", async () => {
+      vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+      const { input } = await fixture();
+      const local = await input.services.environmentsSvc.ensureLocalEnvironment(input.agent.companyId);
+      input.agent.defaultEnvironmentId = local.id;
+      await expect(selectHeartbeatEnvironment(db, input)).rejects.toBeInstanceOf(ManagedSandboxUnavailableError);
     });
   });
 
