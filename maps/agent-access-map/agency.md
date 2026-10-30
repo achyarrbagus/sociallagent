@@ -92,12 +92,18 @@ In SaaS mode (`SOCIALAGENT_SAAS_MODE=true`) a run on that connection never
 receives the 9Router key: it gets a run-scoped token and
 `SOCIALAGENT_PUBLIC_URL/api/managed-gateway/v1`. `ALL
 /api/managed-gateway/v1/*` is mounted before actor middleware and accepts only
-that bearer token (stored as a SHA-256 hash, bound to one company and run,
-valid while unexpired, unrevoked and the run is queued/running; 401 `Invalid or
-expired gateway token` otherwise). It forwards method, path, query and body
+that bearer token (stored as a SHA-256 hash, bound to one company; a `run`
+token needs its heartbeat row in that company to exist and be
+queued/running, a `probe` token lives at most 15 minutes; 401 `Invalid or
+expired gateway token` otherwise). Paths that leave the gateway base (`..`,
+`%2e%2e`, `\`, `%5c`) get 400. It forwards method, path, query and body
 (20 MB limit) to `SOCIALAGENT_9ROUTER_BASE_URL` with the server's key and
 streams the response. Board sessions and agent API keys are not accepted.
-Issuance and revocation (on terminal run status) log
+In SaaS mode the company's stored managed credential is the placeholder
+`managed-gateway-proxied` (startup replaces an older stored key and logs
+`managed_gateway.stored_key_scrubbed`), and a run whose resolved
+configuration contains the key is refused with 422
+`managed_gateway_key_exposed`. Issuance and revocation (on terminal run status) log
 `managed_gateway.token_issued` / `managed_gateway.tokens_revoked`. See
 [proxy](../../server/src/routes/managed-gateway-proxy.ts),
 [tokens](../../server/src/services/managed-gateway-tokens.ts) and

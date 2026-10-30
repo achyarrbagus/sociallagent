@@ -1,7 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { heartbeatRuns, managedGatewayTokens, type Db } from "@paperclipai/db";
+import { readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { logActivity } from "./activity-log.js";
+import { readManagedGatewayConfig } from "./managed-gateway.js";
+import { isSaasMode } from "../saas-mode.js";
+import { unprocessable } from "../errors.js";
 
 /** Route prefix of the run-scoped gateway proxy (see routes/managed-gateway-proxy.ts). */
 export const MANAGED_GATEWAY_PROXY_PATH = "/api/managed-gateway/v1";
@@ -39,21 +44,34 @@ export function managedGatewayTokenExpiry(timeoutSec: unknown, now = Date.now())
   return new Date(now + Math.min(timeoutMs, MANAGED_GATEWAY_TOKEN_MAX_TTL_MS));
 }
 
+/** Lifetime cap of a probe token (an agent test with no heartbeat run). */
+export const MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+export type ManagedGatewayTokenKind = "run" | "probe";
+
 /**
- * Issues a run-scoped gateway token. Returns the plaintext token once; only
- * its SHA-256 hash is stored. `runId` names the heartbeat run the token is
- * bound to; `activityRunId` is null for a probe that has no heartbeat row.
+ * Issues a gateway token. Returns the plaintext token once; only its SHA-256
+ * hash is stored. A 'run' token is bound to an existing heartbeat run; a
+ * 'probe' token to a synthetic id with no heartbeat row, and its expiry is
+ * capped at 15 minutes.
  */
 export async function issueRunGatewayToken(
   db: Db,
-  input: { companyId: string; runId: string; expiresAt: Date; activityRunId?: string | null },
+  input: { companyId: string; runId: string; expiresAt: Date; kind?: ManagedGatewayTokenKind },
 ): Promise<string> {
+  const kind = input.kind ?? "run";
+  const now = Date.now();
+  const expiresAt = kind === "probe"
+    ? new Date(Math.min(input.expiresAt.getTime(), now + MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS))
+    : input.expiresAt;
   const token = `sagw_${randomBytes(32).toString("base64url")}`;
   const [row] = await db.insert(managedGatewayTokens).values({
     companyId: input.companyId,
     runId: input.runId,
+    kind,
     tokenHash: hashToken(token),
-    expiresAt: input.expiresAt,
+    expiresAt,
+    createdAt: new Date(now),
   }).returning({ id: managedGatewayTokens.id });
   await logActivity(db, {
     companyId: input.companyId,
@@ -62,8 +80,10 @@ export async function issueRunGatewayToken(
     action: "managed_gateway.token_issued",
     entityType: "managed_gateway_token",
     entityId: row!.id,
-    runId: input.activityRunId === undefined ? input.runId : input.activityRunId,
-    details: { boundRunId: input.runId, expiresAt: input.expiresAt.toISOString() },
+    // The bound run is in details: activity_log.run_id is a foreign key, and
+    // this entry must not depend on (or pin) the heartbeat row.
+    runId: null,
+    details: { kind, boundRunId: input.runId, expiresAt: expiresAt.toISOString() },
   });
   return token;
 }
@@ -75,7 +95,6 @@ export async function revokeRunGatewayTokens(db: Db, runId: string): Promise<voi
     .where(and(eq(managedGatewayTokens.runId, runId), isNull(managedGatewayTokens.revokedAt)))
     .returning({ id: managedGatewayTokens.id, companyId: managedGatewayTokens.companyId });
   if (revoked.length === 0) return;
-  const [run] = await db.select({ id: heartbeatRuns.id }).from(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
   for (const companyId of new Set(revoked.map(row => row.companyId))) {
     await logActivity(db, {
       companyId,
@@ -84,23 +103,26 @@ export async function revokeRunGatewayTokens(db: Db, runId: string): Promise<voi
       action: "managed_gateway.tokens_revoked",
       entityType: "heartbeat_run",
       entityId: runId,
-      runId: run ? runId : null,
+      runId: null,
       details: { tokenIds: revoked.filter(row => row.companyId === companyId).map(row => row.id) },
     });
   }
 }
 
 /**
- * Resolves a presented token to its company and run, or null. A token is
- * valid while unexpired and unrevoked, and while its heartbeat run (in the
- * same company) is still active. A probe token has no heartbeat row; it is
- * bounded by its short expiry and revoked when the probe finishes.
+ * Resolves a presented token to its company and run, or null. Any token must
+ * be unexpired and unrevoked. A 'run' token additionally needs its heartbeat
+ * row to exist, belong to the token's company and still be active. A 'probe'
+ * token must have no heartbeat row and a lifetime of at most 15 minutes.
  */
 export async function resolveRunGatewayToken(db: Db, token: string): Promise<{ companyId: string; runId: string } | null> {
   if (!token) return null;
   const [row] = await db.select({
     companyId: managedGatewayTokens.companyId,
     runId: managedGatewayTokens.runId,
+    kind: managedGatewayTokens.kind,
+    createdAt: managedGatewayTokens.createdAt,
+    expiresAt: managedGatewayTokens.expiresAt,
     runStatus: heartbeatRuns.status,
     runCompanyId: heartbeatRuns.companyId,
   })
@@ -113,8 +135,53 @@ export async function resolveRunGatewayToken(db: Db, token: string): Promise<{ c
     ))
     .limit(1);
   if (!row) return null;
-  if (row.runCompanyId !== null) {
-    if (row.runCompanyId !== row.companyId || !ACTIVE_RUN_STATUSES.has(row.runStatus ?? "")) return null;
+  if (row.kind === "run") {
+    if (row.runCompanyId === null || row.runCompanyId !== row.companyId || !ACTIVE_RUN_STATUSES.has(row.runStatus ?? "")) return null;
+  } else if (row.kind === "probe") {
+    if (row.runCompanyId !== null) return null;
+    if (row.expiresAt.getTime() - row.createdAt.getTime() > MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS) return null;
+  } else {
+    return null;
   }
   return { companyId: row.companyId, runId: row.runId };
+}
+
+function containsString(value: unknown, needle: string, depth = 0): boolean {
+  if (typeof value === "string") return value.includes(needle);
+  if (depth > 32 || !value || typeof value !== "object") return false;
+  for (const entry of Array.isArray(value) ? value : Object.values(value)) {
+    if (containsString(entry, needle, depth + 1)) return true;
+  }
+  return false;
+}
+
+function managedGatewayKeyExposed() {
+  // Never echo the value or where in the configuration it was found.
+  return unprocessable(
+    "This run's configuration resolves to the managed AI gateway key, which agents may never receive. Remove that value from the agent, project or environment settings.",
+    { code: "managed_gateway_key_exposed" },
+  );
+}
+
+/**
+ * SaaS defense in depth: refuses (422) when any string in a resolved agent
+ * runtime configuration, secret_ref bindings included, contains the
+ * operator's 9Router key. No-op outside SaaS mode or without a key.
+ */
+export function assertNoManagedGatewayKey(value: unknown): void {
+  if (!isSaasMode()) return;
+  const key = readManagedGatewayConfig()?.apiKey;
+  if (key && containsString(value, key)) throw managedGatewayKeyExposed();
+}
+
+/** As assertNoManagedGatewayKey, for every file under a prepared runtime home. */
+export async function assertNoManagedGatewayKeyInDirectory(directory: string | undefined): Promise<void> {
+  if (!directory || !isSaasMode()) return;
+  const key = readManagedGatewayConfig()?.apiKey;
+  if (!key) return;
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) await assertNoManagedGatewayKeyInDirectory(full);
+    else if (entry.isFile() && (await readFile(full, "utf8")).includes(key)) throw managedGatewayKeyExposed();
+  }
 }

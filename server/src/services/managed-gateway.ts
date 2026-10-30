@@ -32,9 +32,19 @@ import { agentService } from "./agents.js";
 import { readBuiltInAgentMarker } from "../lib/built-in-agent-metadata.js";
 import { aiConnectionService } from "./ai-connections.js";
 import { budgetService } from "./budgets.js";
+import { secretService } from "./secrets.js";
+import { logActivity } from "./activity-log.js";
+import { isSaasMode } from "../saas-mode.js";
 
 export const MANAGED_GATEWAY_NAME = "9Router";
 export const MANAGED_GATEWAY_DEFAULT_BASE_URL = "https://9router.amifish.com/v1";
+/**
+ * The non-secret value stored as a managed connection's credential in SaaS
+ * mode. Runs reach 9Router only through the run-scoped proxy, which reads the
+ * real key from the server environment, so no company holds the master key.
+ */
+export const MANAGED_GATEWAY_SECRET_PLACEHOLDER = "managed-gateway-proxied";
+const MANAGED_CONNECTION_NAMES = ["9Router (Claude)", "9Router (Codex)"];
 const MANAGED_ADAPTER_TYPES: readonly ManagedGatewayAdapterType[] = ["claude_local", "codex_local"];
 const SETTINGS_KEY = "default";
 /** Local harnesses an agent can leave for the managed gateway without losing anything it needs. */
@@ -220,6 +230,8 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
       const existing = await findConnection(db, companyId, adapterType, routing.baseUrl!);
       if (existing) return existing;
       if (!userId) throw conflict("SocialAgent AI is not connected for this company yet. Ask a company owner to finish onboarding.");
+      // SaaS: never store the master key per company (see MANAGED_GATEWAY_SECRET_PLACEHOLDER).
+      const storedCredential = isSaasMode() ? MANAGED_GATEWAY_SECRET_PLACEHOLDER : config.apiKey;
       const saved = await connections.save(
         companyId,
         userId,
@@ -231,9 +243,9 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
           allAgents: true,
           agentIds: [],
           routing,
-          apiKey: config.apiKey,
+          apiKey: storedCredential,
         }),
-        config.apiKey,
+        storedCredential,
       );
       return { provider: providerFor(adapterType), method: "api_key", mode: "shared", ...saved };
     }));
@@ -584,4 +596,55 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
     setCompanyBudget,
     tenantsOverview,
   };
+}
+
+/**
+ * SaaS startup scrub: replaces every managed 9Router connection credential
+ * that is not the placeholder (a master key stored before SaaS mode) with the
+ * placeholder, as a new secret version. Logs one activity entry per company;
+ * never logs a value. Returns the number of secrets replaced.
+ */
+export async function scrubStoredManagedGatewayKeys(db: Db): Promise<number> {
+  if (!isSaasMode()) return 0;
+  const rows = await db
+    .select({ companyId: toolConnections.companyId, connectionId: toolConnections.id, refs: connectionGrants.credentialSecretRefs })
+    .from(toolConnections)
+    .innerJoin(connectionGrants, and(
+      eq(connectionGrants.connectionId, toolConnections.id),
+      eq(connectionGrants.companyId, toolConnections.companyId),
+    ))
+    .where(and(
+      eq(toolConnections.connectionPurpose, "ai"),
+      eq(connectionGrants.kind, "organization"),
+      sql`${toolConnections.name} in (${MANAGED_CONNECTION_NAMES[0]}, ${MANAGED_CONNECTION_NAMES[1]})`,
+    ));
+  const secrets = secretService(db);
+  const replacedByCompany = new Map<string, string[]>();
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const ref = row.refs.find(entry => entry.configPath === "ai.credential");
+    if (!ref || seen.has(ref.secretId)) continue;
+    seen.add(ref.secretId);
+    let current: string;
+    try {
+      current = await secrets.resolveSecretValue(row.companyId, ref.secretId, "latest");
+    } catch {
+      continue;
+    }
+    if (current === MANAGED_GATEWAY_SECRET_PLACEHOLDER) continue;
+    await secrets.rotate(ref.secretId, { value: MANAGED_GATEWAY_SECRET_PLACEHOLDER, preserveAiSessionEpoch: true }, { userId: null });
+    replacedByCompany.set(row.companyId, [...(replacedByCompany.get(row.companyId) ?? []), ref.secretId]);
+  }
+  for (const [companyId, secretIds] of replacedByCompany) {
+    await logActivity(db, {
+      companyId,
+      actorType: "system",
+      actorId: "managed-gateway",
+      action: "managed_gateway.stored_key_scrubbed",
+      entityType: "company",
+      entityId: companyId,
+      details: { secretIds },
+    });
+  }
+  return [...replacedByCompany.values()].reduce((total, ids) => total + ids.length, 0);
 }

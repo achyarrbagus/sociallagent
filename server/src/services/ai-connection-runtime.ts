@@ -23,7 +23,10 @@ import { readManagedGatewayConfig } from "./managed-gateway.js";
 import { isManagedGatewayConnectionName } from "./managed-ai-pricing.js";
 import {
   issueRunGatewayToken,
+  MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS,
   managedGatewayProxyBaseUrl,
+  assertNoManagedGatewayKey,
+  assertNoManagedGatewayKeyInDirectory,
   managedGatewayTokenExpiry,
   readManagedGatewayPublicUrl,
   revokeRunGatewayTokens,
@@ -198,9 +201,6 @@ done`,
     directory = parent;
   }
 }
-
-/** A probe (no heartbeat run) gets a short-lived gateway token. */
-const MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS = 15 * 60 * 1000;
 
 /**
  * True when the selection is a company's managed 9Router connection: the
@@ -423,7 +423,7 @@ export async function prepareManagedAiRuntime(
         expiresAt: input.gatewayRun
           ? managedGatewayTokenExpiry(input.gatewayRun.timeoutSec)
           : new Date(Date.now() + MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS),
-        activityRunId: input.gatewayRun ? runId : null,
+        kind: input.gatewayRun ? "run" : "probe",
       });
       sandboxRouting = { ...routing, baseUrl: managedGatewayProxyBaseUrl(publicUrl) };
     }
@@ -452,6 +452,10 @@ export async function prepareManagedAiRuntime(
       attribution.subscriptionId = await subscriptionService(db).register(subscription);
       void refreshSubscriptionConnection(db, subscription, attribution.subscriptionId);
     }
+    // SaaS defense in depth: nothing projected into the sandbox may carry the 9Router key.
+    assertNoManagedGatewayKey(env);
+    assertNoManagedGatewayKey(projected?.config);
+    await assertNoManagedGatewayKeyInDirectory(home);
     const generation = createHash("sha256")
       .update(value)
       .digest("hex")

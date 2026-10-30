@@ -17,6 +17,7 @@ import { agentIdentityService, supportsManagedAgentIdentity } from "../agent-ide
 import { readAiConnectionConfigurationFailure, readAiCredentialAccessFailure } from "../ai-connection-configuration-failure.js";
 import { AI_AUTH_ENV_KEYS, isAiConnectionBusy, prepareManagedAiRuntime, stripAiAuthBindings } from "../ai-connection-runtime.js";
 import { managedAiSessionIdentityCompatible } from "../ai-connection-session.js";
+import { assertNoManagedGatewayKey } from "../managed-gateway-tokens.js";
 import type { companySkillService } from "../company-skills.js";
 import { connectionIntentService } from "../connection-intents.js";
 import { prepareConnectionInstructionDelivery } from "../connection-instructions.js";
@@ -231,6 +232,7 @@ export async function prepareHeartbeatExecutionConfiguration(db: Db, input: Hear
   } else {
     delete context.paperclipSecrets;
   }
+  assertNoManagedGatewayKey([resolvedConfig, configuredTaskEnvironment]);
   const effectiveResolvedConfig = applyRunScopedMentionedSkillKeys(
     resolvedConfig,
     runScopedSkillKeys,

@@ -27,12 +27,35 @@ function bearer(req: Request) {
   return /^Bearer\s+/i.test(value) ? value.replace(/^Bearer\s+/i, "").trim() : "";
 }
 
-/** Rejects `..` segments, plain or percent-encoded, so a path cannot leave the gateway base. */
+/**
+ * Rejects `..` segments (plain or percent-encoded) and any backslash, raw or
+ * `%5c`: WHATWG URL parsing treats `\\` as `/`, so either could leave the
+ * gateway base.
+ */
 function hasTraversal(pathAndQuery: string) {
+  if (/\\|%5c/i.test(pathAndQuery)) return true;
   const pathname = pathAndQuery.split("?")[0] ?? "";
   return pathname.split("/").some(segment => {
     try { return decodeURIComponent(segment) === ".."; } catch { return true; }
   });
+}
+
+/**
+ * The upstream URL for a proxied path, or null when the resolved URL leaves
+ * the configured gateway origin or base path.
+ */
+export function managedGatewayUpstreamUrl(baseUrl: string, pathAndQuery: string): URL | null {
+  if (hasTraversal(pathAndQuery)) return null;
+  const base = new URL(baseUrl);
+  const basePath = base.pathname.replace(/\/+$/, "");
+  let target: URL;
+  try {
+    target = new URL(`${base.origin}${basePath}${pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`}`);
+  } catch {
+    return null;
+  }
+  if (target.origin !== base.origin || !target.pathname.startsWith(`${basePath}/`)) return null;
+  return target;
 }
 
 /**
@@ -64,7 +87,8 @@ export function managedGatewayProxyRoutes(db: Db) {
       res.status(503).json({ error: "The managed AI gateway is not configured on this instance" });
       return;
     }
-    if (hasTraversal(req.url)) {
+    const target = managedGatewayUpstreamUrl(gateway.baseUrl, req.url);
+    if (!target) {
       res.status(400).json({ error: "Invalid gateway path" });
       return;
     }
@@ -74,7 +98,6 @@ export function managedGatewayProxyRoutes(db: Db) {
       return;
     }
 
-    const target = new URL(gateway.baseUrl.replace(/\/+$/, "") + (req.url.startsWith("/") ? req.url : `/${req.url}`));
     const headers: http.OutgoingHttpHeaders = {};
     for (const [name, value] of Object.entries(req.headers)) {
       if (value !== undefined && !STRIPPED_REQUEST_HEADERS.has(name.toLowerCase())) headers[name] = value;

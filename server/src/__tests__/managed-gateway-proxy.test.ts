@@ -9,8 +9,8 @@ import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest";
 import { activityLog, agents, heartbeatRuns, managedGatewayTokens } from "@paperclipai/db";
 import { managedGatewayService, readManagedGatewayConfig } from "../services/managed-gateway.js";
 import { prepareManagedAiRuntime } from "../services/ai-connection-runtime.js";
-import { issueRunGatewayToken, revokeRunGatewayTokens } from "../services/managed-gateway-tokens.js";
-import { managedGatewayProxyRoutes } from "../routes/managed-gateway-proxy.js";
+import { issueRunGatewayToken, resolveRunGatewayToken, revokeRunGatewayTokens } from "../services/managed-gateway-tokens.js";
+import { managedGatewayProxyRoutes, managedGatewayUpstreamUrl } from "../routes/managed-gateway-proxy.js";
 import { describeEmbeddedPostgres, seedCompanyWithBoardAccess, useEmbeddedPostgres } from "./helpers/route-test-harness.js";
 
 const MASTER_KEY = "sk-9router-master-key-never-in-sandbox";
@@ -167,6 +167,92 @@ describeEmbeddedPostgres("managed 9Router gateway proxy", () => {
       expect(await response.json()).toEqual({ error: "Invalid or expired gateway token" });
     }
     expect(upstreamRequests).toHaveLength(0);
+  });
+
+  /** Sends a raw request path; fetch would normalize `..` before sending. */
+  function rawGet(pathAndQuery: string, token: string) {
+    const url = new URL(proxyBase);
+    return new Promise<{ status: number }>((resolve, reject) => {
+      const request = http.request({ host: url.hostname, port: url.port, method: "GET", path: `${url.pathname}${pathAndQuery}`,
+        headers: { authorization: `Bearer ${token}` } }, response => { response.resume(); resolve({ status: response.statusCode ?? 0 }); });
+      request.on("error", reject);
+      request.end();
+    });
+  }
+
+  it.each([
+    "/../dashboard/api/keys",
+    "/%2e%2e/dashboard/api/keys",
+    "/%2E%2E/%2e%2e/dashboard",
+    "/..\\..\\dashboard/api/keys",
+    "/%5c..%5c..%5cdashboard/api/keys",
+    "/models%5C..%5C..%5Cdashboard",
+  ])("never forwards a path that escapes the gateway base: %s", async escape => {
+    enable();
+    const { token } = await activeToken();
+    expect((await rawGet(escape, token)).status).toBe(400);
+    expect(upstreamRequests).toHaveLength(0);
+  });
+
+  it("resolves upstream URLs only inside the gateway origin and base path", () => {
+    const base = "https://9router.example/v1";
+    expect(managedGatewayUpstreamUrl(base, "/responses?x=1")?.href).toBe("https://9router.example/v1/responses?x=1");
+    expect(managedGatewayUpstreamUrl(base, "/v1/messages")?.href).toBe("https://9router.example/v1/v1/messages");
+    for (const escape of ["/../dashboard", "/%2e%2e/dashboard", "/..\\dashboard", "/%5cdashboard", "/%5C..%5Cdashboard"]) {
+      expect(managedGatewayUpstreamUrl(base, escape)).toBeNull();
+    }
+    expect(managedGatewayUpstreamUrl(base, "")?.href).toBe("https://9router.example/v1/");
+  });
+
+  it("rejects a run token whose heartbeat row is missing", async () => {
+    enable();
+    const { companyId } = await seedRun();
+    const token = await issueRunGatewayToken(ctx.db, { companyId, runId: randomUUID(), expiresAt: new Date(Date.now() + 60_000) });
+    expect(await resolveRunGatewayToken(ctx.db, token)).toBeNull();
+    const response = await fetch(`${proxyBase}/models`, { headers: { authorization: `Bearer ${token}` } });
+    expect(response.status).toBe(401);
+    expect(upstreamRequests).toHaveLength(0);
+  });
+
+  it("rejects a run token whose heartbeat run was deleted", async () => {
+    enable();
+    const { token, runId } = await activeToken();
+    await ctx.db.delete(heartbeatRuns).where(eq(heartbeatRuns.id, runId));
+    expect((await fetch(`${proxyBase}/models`, { headers: { authorization: `Bearer ${token}` } })).status).toBe(401);
+    expect(upstreamRequests).toHaveLength(0);
+  });
+
+  it("rejects a token whose run belongs to another company", async () => {
+    enable();
+    const other = await seedRun();
+    const mine = await seedCompanyWithBoardAccess(ctx.db, "Token company");
+    const token = await issueRunGatewayToken(ctx.db, { companyId: mine.companyId, runId: other.runId, expiresAt: new Date(Date.now() + 60_000) });
+    expect((await fetch(`${proxyBase}/models`, { headers: { authorization: `Bearer ${token}` } })).status).toBe(401);
+    expect(upstreamRequests).toHaveLength(0);
+  });
+
+  it("issues a probe token capped at 15 minutes and revokes it", async () => {
+    enable();
+    const { companyId } = await seedRun();
+    const probeId = randomUUID();
+    const token = await issueRunGatewayToken(ctx.db, { companyId, runId: probeId, kind: "probe", expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) });
+    const [stored] = await ctx.db.select().from(managedGatewayTokens).where(eq(managedGatewayTokens.runId, probeId));
+    expect(stored!.kind).toBe("probe");
+    expect(stored!.expiresAt.getTime()).toBeLessThanOrEqual(Date.now() + 15 * 60 * 1000);
+    expect(await resolveRunGatewayToken(ctx.db, token)).toEqual({ companyId, runId: probeId });
+    expect((await fetch(`${proxyBase}/models`, { headers: { authorization: `Bearer ${token}` } })).status).toBe(200);
+    await revokeRunGatewayTokens(ctx.db, probeId);
+    expect((await fetch(`${proxyBase}/models`, { headers: { authorization: `Bearer ${token}` } })).status).toBe(401);
+    expect(upstreamRequests).toHaveLength(1);
+  });
+
+  it("rejects a probe token whose stored lifetime exceeds 15 minutes", async () => {
+    enable();
+    const { companyId } = await seedRun();
+    const probeId = randomUUID();
+    const token = await issueRunGatewayToken(ctx.db, { companyId, runId: probeId, kind: "probe", expiresAt: new Date(Date.now() + 60_000) });
+    await ctx.db.update(managedGatewayTokens).set({ expiresAt: new Date(Date.now() + 60 * 60 * 1000) }).where(eq(managedGatewayTokens.runId, probeId));
+    expect(await resolveRunGatewayToken(ctx.db, token)).toBeNull();
   });
 
   it("refuses request bodies over 20 MB", async () => {

@@ -83,6 +83,7 @@ import detectPort from "detect-port";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { environmentService } from "./services/environments.js";
+import { scrubStoredManagedGatewayKeys } from "./services/managed-gateway.js";
 import { logger } from "./middleware/logger.js";
 import { setStartupRecoveryPhase } from "./startup-recovery-state.js";
 import {
@@ -1044,6 +1045,7 @@ async function startServerWithDatabaseTeardown(
         "SOCIALAGENT_SAAS_MODE is enabled but no active managed sandbox environment exists; all agent runs will fail closed until one is provisioned",
       );
     }
+    await scrubStoredManagedGatewayKeys(db as any).catch((err) => logger.error({ err }, "Could not scrub stored 9Router keys from managed connections"));
     if (!config.socialagentPublicUrl) {
       logger.error(
         "SOCIALAGENT_SAAS_MODE is enabled but SOCIALAGENT_PUBLIC_URL is not set; managed 9Router runs will fail closed until it is configured",

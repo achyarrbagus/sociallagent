@@ -1,5 +1,5 @@
 {
-  "id": "62630c5f-cbac-4642-b2b8-02ebf47b656d",
+  "id": "2bef8963-ac59-4fca-835e-38dd93566eca",
   "prevId": "9528d271-0cff-4ce1-b591-af89b59c48e0",
   "version": "7",
   "dialect": "postgresql",
@@ -43594,6 +43594,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "token_hash": {
           "name": "token_hash",
           "type": "text",
@@ -43663,7 +43669,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "managed_gateway_tokens_kind_check": {
+          "name": "managed_gateway_tokens_kind_check",
+          "value": "\"managed_gateway_tokens\".\"kind\" in ('run', 'probe')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.native_run_finalizations": {

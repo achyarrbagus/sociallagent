@@ -735,6 +735,10 @@ and `SOCIALAGENT_PUBLIC_URL/api/managed-gateway/v1` instead of
 (`managed_gateway_tokens`, hashed) expire at the run timeout or after 24 hours
 and are revoked when the run turns terminal. Without the URL the server logs an
 error at startup and managed runs fail with `managed_gateway_public_url_missing`.
+In SaaS mode the managed connection's stored credential is the placeholder
+`managed-gateway-proxied`; startup replaces any stored key with it. A run whose
+resolved configuration (secret bindings included) contains the key is refused
+with `managed_gateway_key_exposed`.
 
 ## Test Commands
 
