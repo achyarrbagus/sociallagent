@@ -250,7 +250,7 @@ test.describe("Docker authenticated onboarding smoke", () => {
     // card are seeded without an LLM, so their absence means the launch
     // half-finished) …
     await expect(
-      page.getByText("Welcome to Paperclip!").first()
+      page.getByText("siap membantu Anda memulai di SocialAgent", { exact: false }).first()
     ).toBeVisible({ timeout: 20_000 });
     // The timeline also summarizes the unanswered question. Check the open
     // question card so a summary alone cannot satisfy this assertion.

@@ -36,7 +36,7 @@ and the message wakes the agent as before.
 ## Placeholders
 
 - `{{agentName}}` → the agent's chosen name. When the agent has no name the
-  greeting drops the name gracefully ("I'm your first agent teammate"), matching
+  greeting drops the name gracefully ("Saya siap membantu Anda memulai di SocialAgent"), matching
   the historical behaviour. Used in `greeting.md` and `agency-director/AGENTS.md`.
 - `{{organizationName}}` → the organization (company) name. Used in
   `agency-director/AGENTS.md`.
