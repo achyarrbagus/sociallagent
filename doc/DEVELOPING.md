@@ -3356,3 +3356,28 @@ in `_test` for `PAPERCLIP_MCP_SLEEP_TEST_DATABASE_URL`,
 `PAPERCLIP_DOT_RUNNER_TEST_DATABASE_URL`. The interaction-service regression suite
 also accepts `PAPERCLIP_INTERACTIONS_TEST_DATABASE_URL`. The suites migrate and write to those
 URLs; the sleep suite truncates company data between tests.
+
+### Seed a new administrator
+
+For a local or self-hosted authenticated instance, `bun run seed:admin` creates a new credential-backed instance administrator and gives them owner membership in one existing company. The command does not change existing accounts or reset passwords. Set `DATABASE_URL`, `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_COMPANY_ID`, and `SEED_ADMIN_PASSWORD` in the environment before running it. Use the company UUID, not its issue prefix. The password must be 8–128 characters. Do not commit credentials or put passwords in shell history; for example, read the password interactively into an environment variable and unset it after running the command. When using embedded PostgreSQL, start Paperclip first and use its configured database connection URL.
+
+Example in zsh, with a database URL and company UUID supplied by the operator:
+
+```sh
+export DATABASE_URL='<database connection URL>'
+export SEED_ADMIN_NAME='Admin' SEED_ADMIN_EMAIL='admin@example.com'
+export SEED_ADMIN_COMPANY_ID='<company UUID>'
+read -s 'SEED_ADMIN_PASSWORD?Password: '
+echo
+export SEED_ADMIN_PASSWORD
+bun run seed:admin
+unset SEED_ADMIN_PASSWORD
+```
+
+The seeder grants instance-wide administrator privileges; only run it for a trusted account.
+
+### Managed AI credits
+
+When the managed 9Router connection is configured, each organization receives a monthly credit allowance. Instance administrators can change the default under Settings → AI models, or set an organization-specific allowance and rates in Tenants. The initial default is 1,000 credits per month; each 1,000 uncached input, cached input, and output tokens costs 1, 0.1, and 5 credits respectively. Fractional charges round up to the nearest millionth of a credit. Credits are shared by the organization and reset at the beginning of each UTC month.
+
+Completed managed runs are charged once using the final provider usage receipt and the rates captured when the run was admitted. New runs are blocked once the balance reaches zero; work already running can finish and may exceed the allowance. Missing usage receipts are not treated as zero. Existing provider-cost budgets and unresolved accounting holds remain separate and continue to apply. Credit accounting starts with runs admitted after this feature is enabled; earlier usage is not backfilled. Payments, purchases, and automatic top-ups are not implemented.
