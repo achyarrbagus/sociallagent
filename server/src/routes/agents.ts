@@ -3362,7 +3362,7 @@ export function agentRoutes(
         let resource: ReturnType<typeof publicMcpConfig> = null;
         try { resource = publicMcpConfig(process.env); } catch { /* diagnostic below */ }
         let environment = requestedEnvironmentId ? await environmentsSvc.getById(requestedEnvironmentId) : null;
-        const managedOnly = isCloudManagedInstance() || (await instanceSettings.getExperimental()).enableManagedSandboxOnly === true;
+        const managedOnly = isCloudManagedInstance() || isManagedSandboxOnly(await instanceSettings.getExperimental());
         if (managedOnly && (!environment || environment.driver === "local")) {
           environment = await environmentsSvc.findManagedSandboxEnvironment(companyId);
         }
@@ -7846,3 +7846,4 @@ export function agentRoutes(
   return router;
 }
 import { listRunIdentityContexts } from "../services/run-identity.js";
+import { isManagedSandboxOnly } from "../saas-mode.js";

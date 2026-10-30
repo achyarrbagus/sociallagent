@@ -11,6 +11,7 @@ import { assertEnvironmentSelectionForCompany } from "../routes/environment-sele
 import { buildLoginLeaseAcquireArgs } from "./adapter-login-lease.js";
 import { logger } from "../middleware/logger.js";
 import { forbidden, unprocessable } from "../errors.js";
+import { isManagedSandboxOnly } from "../saas-mode.js";
 
 export async function probeCopilotConnection(db: Db, companyId: string, token: string, suppliedEnvironmentId?: string | null, model?: string, options: Parameters<typeof environmentRuntimeService>[1] & { targetAgentId?: string } = {}) {
   const { targetAgentId, ...runtimeOptions } = options;
@@ -21,7 +22,7 @@ export async function probeCopilotConnection(db: Db, companyId: string, token: s
     const kubernetes = await environments.findKubernetesEnvironment(companyId);
     if (!kubernetes) throw unprocessable("The Kubernetes execution environment is unavailable.", { code: "copilot_environment_unavailable" });
     environmentId = kubernetes.id;
-  } else if (experimental.enableManagedSandboxOnly && (!environmentId || (await environments.getById(environmentId))?.driver === "local")) {
+  } else if (isManagedSandboxOnly(experimental) && (!environmentId || (await environments.getById(environmentId))?.driver === "local")) {
     const managed = await environments.findManagedSandboxEnvironment(companyId);
     if (!managed) throw unprocessable("The managed environment is unavailable.", { code: "copilot_environment_unavailable" });
     environmentId = managed.id;

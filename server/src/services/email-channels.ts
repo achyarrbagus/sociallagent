@@ -70,6 +70,7 @@ import {
   AGENTMAIL_EVENTS,
   type AgentmailMessage,
 } from "./agentmail-api.js";
+import { isManagedSandboxOnly } from "../saas-mode.js";
 
 export type EmailActor = {
   userId?: string;
@@ -648,7 +649,7 @@ export function emailChannelService(db: Db, options: EmailChannelOptions) {
         );
       const envs = environmentService(db);
       const local = await envs.ensureLocalEnvironment(companyId);
-      const managed = experimental.enableManagedSandboxOnly
+      const managed = isManagedSandboxOnly(experimental)
         ? await envs.findManagedSandboxEnvironment(companyId)
         : null;
       const selected = resolveExecutionWorkspaceEnvironmentId({
@@ -656,7 +657,7 @@ export function emailChannelService(db: Db, options: EmailChannelOptions) {
         instanceDefaultEnvironmentId:
           (await settings.get()).defaultEnvironmentId ?? null,
         localDefaultEnvironmentId: local.id,
-        managedSandboxOnly: experimental.enableManagedSandboxOnly,
+        managedSandboxOnly: isManagedSandboxOnly(experimental),
         managedSandboxEnvironmentId: managed?.id,
       });
       const environment = await envs.getById(selected.environmentId);

@@ -27,6 +27,7 @@ import { githubBotRequest } from "./chat-github-client.js";
 import { environmentService } from "./environments.js";
 import { instanceSettingsService } from "./instance-settings.js";
 import { resolveExecutionWorkspaceEnvironmentId } from "./execution-workspace-policy.js";
+import { isManagedSandboxOnly } from "../saas-mode.js";
 
 export function githubChatManagementService(db: Db, fetchImpl = fetch) {
   async function endpoint(id: string) {
@@ -513,7 +514,7 @@ export function githubChatManagementService(db: Db, fetchImpl = fetch) {
         const experimental = await settings.getExperimental();
         const environments = environmentService(db);
         const local = await environments.ensureLocalEnvironment(bot.companyId);
-        const managed = experimental.enableManagedSandboxOnly
+        const managed = isManagedSandboxOnly(experimental)
           ? await environments.findManagedSandboxEnvironment(bot.companyId)
           : null;
         const selected = resolveExecutionWorkspaceEnvironmentId({
@@ -521,7 +522,7 @@ export function githubChatManagementService(db: Db, fetchImpl = fetch) {
           instanceDefaultEnvironmentId:
             (await settings.get()).defaultEnvironmentId ?? null,
           localDefaultEnvironmentId: local.id,
-          managedSandboxOnly: experimental.enableManagedSandboxOnly,
+          managedSandboxOnly: isManagedSandboxOnly(experimental),
           managedSandboxEnvironmentId: managed?.id,
         });
         const environment = await environments.getById(selected.environmentId);

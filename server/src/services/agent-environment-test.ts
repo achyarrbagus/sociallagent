@@ -19,6 +19,7 @@ import { validateAiApiKey } from "./ai-api-key-test.js";
 import { probeCopilotExecutionTarget } from "./copilot-connection-probe.js";
 import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
+import { isManagedSandboxOnly } from "../saas-mode.js";
 const asRecord = (value: unknown): Record<string, unknown> | null => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: PluginWorkerManager) {
   const instanceSettings = instanceSettingsService(db);
@@ -36,7 +37,7 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
     if (environmentId) return environmentId;
     const settings = await instanceSettings.get();
     if (settings.defaultEnvironmentId) return settings.defaultEnvironmentId;
-    if ((await instanceSettings.getExperimental()).enableManagedSandboxOnly === true) {
+    if (isManagedSandboxOnly(await instanceSettings.getExperimental())) {
       const managed = await environmentsSvc.findManagedSandboxEnvironment(companyId);
       if (!managed) {
         throw unprocessable("The managed sandbox is unavailable. Restore Paperclip Computer and retry.", {
@@ -111,8 +112,9 @@ export function agentEnvironmentTestService(db: Db, pluginWorkerManager?: Plugin
     // With no active managed sandbox the Test fails closed — never local.
     let environment = requestedEnvironment;
     if (requestedEnvironment.driver === "local") {
-      const managedSandboxOnly =
-        (await instanceSettings.getExperimental()).enableManagedSandboxOnly === true;
+      const managedSandboxOnly = isManagedSandboxOnly(
+        await instanceSettings.getExperimental(),
+      );
       if (managedSandboxOnly) {
         const managedSandboxEnvironment = await environmentsSvc.findManagedSandboxEnvironment(
           input.companyId,

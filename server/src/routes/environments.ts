@@ -61,6 +61,7 @@ import { SANDBOX_PLATFORM_PROBE_METADATA_KEY } from "../services/environment-cus
 import { environmentRuntimeService } from "../services/environment-runtime.js";
 import { executionWorkspaceService } from "../services/execution-workspaces.js";
 import { closeWarmNativeSessionsForEnvironment } from "../services/native-runtime/native-session-executor.js";
+import { isManagedSandboxOnly } from "../saas-mode.js";
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -704,7 +705,7 @@ export function environmentRoutes(
    * not the enforcement boundary.
    */
   async function isManagedSandboxOnlyInstance(): Promise<boolean> {
-    return (await instanceSettings.getExperimental()).enableManagedSandboxOnly === true;
+    return isManagedSandboxOnly(await instanceSettings.getExperimental());
   }
 
   router.get("/companies/:companyId/environments", async (req, res) => {

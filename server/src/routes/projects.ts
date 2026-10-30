@@ -55,6 +55,7 @@ import { appendWithCap } from "../adapters/utils.js";
 import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
 import { environmentService } from "../services/environments.js";
 import { secretService } from "../services/secrets.js";
+import { isManagedSandboxOnly } from "../saas-mode.js";
 
 const WORKSPACE_CONTROL_OUTPUT_MAX_CHARS = 256 * 1024;
 const SHARED_WORKSPACE_STOP_AND_RESTART_ACTIONS = new Set(["stop", "restart"]);
@@ -106,7 +107,7 @@ export function projectRoutes(db: Db) {
     const patch = workspacePatch as Record<string, unknown>;
     if (!Object.prototype.hasOwnProperty.call(patch, "cwd")) return;
     if (patch.cwd === null || patch.cwd === undefined) return;
-    if ((await instanceSettings.getExperimental()).enableManagedSandboxOnly !== true) return;
+    if (!isManagedSandboxOnly(await instanceSettings.getExperimental())) return;
     throw unprocessable(
       "This instance runs agents only in the platform-managed environment; local folders are not configurable.",
     );

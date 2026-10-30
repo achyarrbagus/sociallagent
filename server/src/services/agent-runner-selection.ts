@@ -10,6 +10,7 @@ import { runSshCommand } from "@paperclipai/adapter-utils/ssh";
 import { parseEnvironmentDriverConfig, resolveEnvironmentDriverConfigForRuntime } from "./environment-config.js";
 import { localAgentRunnerTarget } from "../lib/agent-runner-platform.js";
 import { normalizeClaudeRunnerOptions, type AgentConfigurationWarning } from "@paperclipai/shared";
+import { isManagedSandboxOnly } from "../saas-mode.js";
 
 export type RunnerTarget = {
   driver: string; platform?: string; architecture?: string; libc?: "glibc" | "musl" | "unknown"; glibcVersion?: string;
@@ -318,7 +319,7 @@ export async function resolveAgentRunnerEnvironmentForCompany(db: Db, companyId:
   const envs = environmentService(db);
   const environmentId = defaultEnvironmentId ?? settings.defaultEnvironmentId;
   let environment = environmentId ? await envs.getById(environmentId) : null;
-  if (settings.experimental?.enableManagedSandboxOnly && (!environment || environment.driver === "local")) {
+  if (isManagedSandboxOnly(settings.experimental) && (!environment || environment.driver === "local")) {
     environment = await envs.findManagedSandboxEnvironment(companyId);
     if (!environment) throw unprocessable("The managed sandbox is unavailable. Restore Paperclip Computer and retry.", { code: "managed_sandbox_unavailable" });
   }

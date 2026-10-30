@@ -8,6 +8,7 @@ import { resolvePaperclipEnvPath } from "./paths.js";
 import { maybeRepairLegacyWorktreeConfigAndEnvFiles } from "./worktree-config.js";
 import { shouldLoadWorkingDirectoryEnv } from "./env-file-policy.js";
 import { applyEmptyWorktreeSigningSecrets } from "./dev-runner-worktree.js";
+import { isSaasMode } from "./saas-mode.js";
 import {
   AUTH_BASE_URL_MODES,
   BIND_MODES,
@@ -52,19 +53,13 @@ if (shouldLoadWorkingDirectoryEnv({
 if (basename(dirname(PAPERCLIP_ENV_FILE_PATH)) === ".paperclip") {
   applyEmptyWorktreeSigningSecrets(dirname(dirname(PAPERCLIP_ENV_FILE_PATH)));
 }
+export { isSaasMode };
+
 maybeRepairLegacyWorktreeConfigAndEnvFiles();
 
 const TAILSCALE_DETECT_TIMEOUT_MS = 3000;
 
 type DatabaseMode = "embedded-postgres" | "postgres";
-
-/**
- * Multi-tenant SaaS switch (SOCIALAGENT_SAAS_MODE=true). Read from the
- * environment at call time so code without the config object can consult it.
- */
-export function isSaasMode(): boolean {
-  return process.env.SOCIALAGENT_SAAS_MODE === "true";
-}
 
 export interface Config {
   saasMode: boolean;
