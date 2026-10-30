@@ -44,8 +44,10 @@ it("reads the managed gateway from the server environment", () => {
 
 it("prices gateway tokens at the admin's rates", () => {
   const billing = { inputCentsPerMillionTokens: 300, cachedInputCentsPerMillionTokens: 30, outputCentsPerMillionTokens: 1500, companyMonthlyBudgetCents: 2000 };
-  // 1M fresh input = $3, 1M cached = $0.30, 1M output = $15.
-  expect(managedAiCostUsd(billing, { inputTokens: 2_000_000, cachedInputTokens: 1_000_000, outputTokens: 1_000_000 })).toBeCloseTo(18.3);
+  // inputTokens excludes cache reads: 2M fresh input = $6, 1M cached = $0.30, 1M output = $15.
+  expect(managedAiCostUsd(billing, { inputTokens: 2_000_000, cachedInputTokens: 1_000_000, outputTokens: 1_000_000 })).toBeCloseTo(21.3);
+  // Codex receipts can report more cache reads than exclusive input.
+  expect(managedAiCostUsd(billing, { inputTokens: 37_435, cachedInputTokens: 78_848, outputTokens: 898 })).toBeCloseTo(0.1494039);
   expect(managedAiCostUsd(billing, {})).toBe(0);
 });
 

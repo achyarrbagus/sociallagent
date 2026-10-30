@@ -21,12 +21,14 @@ export async function readManagedAiBilling(db: Pick<Db, "select">): Promise<Mana
   return (parsed.success ? parsed.data : managedAiModelPolicySchema.parse({})).billing;
 }
 
-/** Price for one run's tokens at the admin's rates, in USD. */
+/**
+ * Price for one run's tokens at the admin's rates, in USD. Usage follows the
+ * exclusive-input contract: inputTokens excludes cache reads, which
+ * cachedInputTokens counts separately and may exceed inputTokens.
+ */
 export function managedAiCostUsd(billing: ManagedAiBilling, usage: Record<string, unknown>) {
-  const input = tokens(usage.inputTokens);
-  const cached = Math.min(tokens(usage.cachedInputTokens), input);
-  const cents = (input - cached) * billing.inputCentsPerMillionTokens / 1_000_000
-    + cached * billing.cachedInputCentsPerMillionTokens / 1_000_000
+  const cents = tokens(usage.inputTokens) * billing.inputCentsPerMillionTokens / 1_000_000
+    + tokens(usage.cachedInputTokens) * billing.cachedInputCentsPerMillionTokens / 1_000_000
     + tokens(usage.outputTokens) * billing.outputCentsPerMillionTokens / 1_000_000;
   return cents / 100;
 }
