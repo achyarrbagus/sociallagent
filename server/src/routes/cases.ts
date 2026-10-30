@@ -1374,7 +1374,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
           throw unprocessable(
-            `Attachment is larger than the ${formatAttachmentSize(MAX_ATTACHMENT_BYTES)} limit`,
+            `Attachment is larger than the ${formatAttachmentSize(uploadParserLimitBytes(isSaasMode()))} limit`,
           );
         }
         throw badRequest(err.message);

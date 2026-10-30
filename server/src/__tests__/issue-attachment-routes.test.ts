@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 import type { IncomingMessage } from "node:http";
 import express from "express";
 import request from "supertest";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StorageService } from "../storage/types.js";
 
 const mockIssueService = vi.hoisted(() => ({
@@ -293,6 +293,52 @@ describe("issue attachment routes", () => {
       }),
     );
     expect(res.body.contentType).toBe("application/zip");
+  });
+
+  describe("in SaaS mode", () => {
+    const url = "/api/companies/company-1/issues/11111111-1111-4111-8111-111111111111/attachments";
+    const ZIP = Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]);
+    const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
+    beforeEach(() => { process.env.SOCIALAGENT_SAAS_MODE = "true"; });
+    afterEach(() => { delete process.env.SOCIALAGENT_SAAS_MODE; });
+
+    it.each([
+      ["a renamed archive declared application/pdf", ZIP, "brief.pdf", "application/pdf"],
+      ["text/html", Buffer.from("<html></html>"), "page.html", "text/html"],
+      ["image/svg+xml", Buffer.from("<svg/>"), "logo.svg", "image/svg+xml"],
+      ["an octet-stream file named x.zip", ZIP, "x.zip", "application/octet-stream"],
+    ])("rejects %s with 422 and stores nothing", async (_label, body, filename, contentType) => {
+      const storage = createStorageService();
+      const res = await request(await createApp(storage)).post(url).attach("file", body, { filename, contentType });
+      expect(res.status).toBe(422);
+      expect(storage.__calls.putFile).toBeUndefined();
+      expect(mockIssueService.createAttachment).not.toHaveBeenCalled();
+    });
+
+    it("accepts a valid PNG", async () => {
+      const storage = createStorageService();
+      mockIssueService.createAttachment.mockResolvedValue(makeAttachment("image/png", "logo.png"));
+      const res = await request(await createApp(storage)).post(url).attach("file", PNG, { filename: "logo.png", contentType: "image/png" });
+      expect(res.status).toBe(201);
+      expect(storage.__calls.putFile?.contentType).toBe("image/png");
+    });
+
+    it("accepts a 50 MB mp4 with a valid ftyp box and refuses one over the video cap", async () => {
+      const storage = createStorageService();
+      mockIssueService.createAttachment.mockResolvedValue(makeAttachment("video/mp4", "ad.mp4"));
+      const video = Buffer.alloc(50 * 1024 * 1024);
+      video.write("ftypmp42", 4, "latin1");
+      const ok = await request(await createApp(storage)).post(url).attach("file", video, { filename: "ad.mp4", contentType: "video/mp4" });
+      expect(ok.status).toBe(201);
+
+      process.env.SOCIALAGENT_VIDEO_MAX_BYTES = String(1024 * 1024);
+      try {
+        const small = Buffer.alloc(2 * 1024 * 1024);
+        small.write("ftypmp42", 4, "latin1");
+        const tooBig = await request(await createApp(createStorageService())).post(url).attach("file", small, { filename: "ad.mp4", contentType: "video/mp4" });
+        expect(tooBig.status).toBe(422);
+      } finally { delete process.env.SOCIALAGENT_VIDEO_MAX_BYTES; }
+    });
   });
 
   it("removes a newly stored object when attachment registration is rejected", async () => {

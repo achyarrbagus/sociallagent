@@ -19517,7 +19517,7 @@ export function issueRoutes(
         if (err instanceof multer.MulterError) {
           if (err.code === "LIMIT_FILE_SIZE") {
             res.status(422).json({
-              error: `Attachment is larger than the ${formatAttachmentSize(MAX_ATTACHMENT_BYTES)} limit`,
+              error: `Attachment is larger than the ${formatAttachmentSize(uploadParserLimitBytes(isSaasMode()))} limit`,
             });
             return;
           }

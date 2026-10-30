@@ -935,6 +935,27 @@ describe.skipIf(!support.supported)("public MCP OAuth and tool boundary", () => 
     } finally { await f.cleanup(); }
   });
 
+  it("in SaaS mode judges MCP transfer bytes and stores nothing for a renamed archive", async () => {
+    process.env.SOCIALAGENT_SAAS_MODE = "true";
+    const f = await expandedFixture();
+    try {
+      const app = express(); app.use(f.transfers.router);
+      const attempt = async (bytes: Buffer, filename: string, contentType: string) => {
+        const args = { taskId: f.issue.id, requestId: randomUUID(), filename, contentType, byteSize: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") };
+        const url = new URL((await f.call("paperclip_get_upload_url", args)).url as string);
+        return request(app).put(url.pathname + url.search).set("Content-Type", contentType).send(bytes);
+      };
+      const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]);
+      expect((await attempt(zip, "brief.pdf", "application/pdf")).status).toBe(403);
+      expect((await f.call("paperclip_list_deliverables", { taskId: f.issue.id })).attachments).toHaveLength(0);
+      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
+      expect((await attempt(png, "logo.png", "image/png")).status).toBe(200);
+      expect((await f.call("paperclip_list_deliverables", { taskId: f.issue.id })).attachments).toHaveLength(1);
+      const zipArgs = { taskId: f.issue.id, requestId: randomUUID(), filename: "a.zip", contentType: "application/zip", byteSize: 4, sha256: "0".repeat(64) };
+      await expect(f.call("paperclip_get_upload_url", zipArgs)).rejects.toThrow();
+    } finally { delete process.env.SOCIALAGENT_SAAS_MODE; await f.cleanup(); }
+  });
+
   it("rejects partial, oversized and mismatched uploads without creating attachments", async () => {
     const f = await expandedFixture();
     try {

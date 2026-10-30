@@ -4,7 +4,8 @@ import express, { Router } from "express";
 import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import { type Db, mcpAttachmentUploads, mcpFileTickets, mcpOauthGrants, issues } from "@paperclipai/db";
 import { z } from "zod";
-import { MAX_ATTACHMENT_BYTES, isAllowedContentType } from "../../attachment-types.js";
+import { checkUploadPolicy, effectiveAllowedTypes, matchesContentType, maxUploadBytes, uploadParserLimitBytes } from "../../attachment-types.js";
+import { isSaasMode } from "../../saas-mode.js";
 import type { StorageService } from "../../storage/types.js";
 import { authorizationService } from "../authorization.js";
 import { issueService } from "../issues.js";
@@ -16,8 +17,8 @@ import { McpCapabilityError, company, task, requestId, pick, object, stable, typ
 const lifetime = 10 * 60_000;
 export const uploadSchema = z.object({ ...task, requestId,
   filename: z.string().trim().min(1).max(240).regex(/^[^/\\\x00-\x1f\x7f]+$/),
-  contentType: z.string().min(1).max(150).regex(/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/).refine(isAllowedContentType, "Unsupported attachment content type"),
-  byteSize: z.number().int().min(1).max(MAX_ATTACHMENT_BYTES),
+  contentType: z.string().min(1).max(150).regex(/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/).refine(type => matchesContentType(type, effectiveAllowedTypes(isSaasMode())), "Unsupported attachment content type"),
+  byteSize: z.number().int().min(1).refine(n => n <= uploadParserLimitBytes(isSaasMode()), "File is too large"),
   sha256: z.string().regex(/^[a-f0-9]{64}$/).describe("SHA-256 of the exact file bytes. The upload must match this digest and byteSize."),
 }).strict();
 const attachmentFields = ["id", "issueId", "originalFilename", "contentType", "byteSize", "sha256", "createdAt"];
@@ -125,7 +126,7 @@ export function createPublicMcpTransfers(db: Db, oauth: PublicMcpOAuth, api: Api
   });
   router.put(prefix + "/upload", async (req, res, next) => {
     await authorize(req.query.ticket, true); next();
-  }, express.raw({ type: () => true, limit: MAX_ATTACHMENT_BYTES }), async (req, res) => {
+  }, (req, res, next) => express.raw({ type: () => true, limit: uploadParserLimitBytes(isSaasMode()) })(req, res, next), async (req, res) => {
     const { row, principal } = await authorize(req.query.ticket, true);
     const bytes = req.body;
     if (!Buffer.isBuffer(bytes)) throw unavailable();
@@ -134,6 +135,8 @@ export function createPublicMcpTransfers(db: Db, oauth: PublicMcpOAuth, api: Api
       const [upload] = await tx.select().from(mcpAttachmentUploads).where(eq(mcpAttachmentUploads.id, row.uploadId!)).for("update");
       if (!upload || upload.companyId !== principal.grant.companyId || upload.userId !== principal.grant.userId || upload.workSessionId !== row.workSessionId || upload.grantId && upload.grantId !== row.grantId || upload.storageProvider !== storage.provider) throw unavailable();
       if (upload.sha256 !== digest || upload.byteSize !== bytes.length || req.get("Content-Type")?.split(";")[0]?.trim().toLowerCase() !== upload.contentType) throw new McpCapabilityError("Upload bytes, size or Content-Type do not match the requested file.");
+      const policy = checkUploadPolicy({ saasMode: isSaasMode(), contentType: upload.contentType, buffer: bytes, filename: upload.originalFilename });
+      if (!policy.ok) throw new McpCapabilityError(policy.error);
       await taskAccess(principal, upload.taskId, principal.grant.purpose !== "agent", tx as unknown as Db, row.workSessionId ?? undefined);
       const stored = upload.attachmentId ? null : await storage.putFile({ companyId: upload.companyId, namespace: "mcp-transfers", objectKey: upload.objectKey, originalFilename: upload.originalFilename, contentType: upload.contentType, body: bytes });
       await workSession(principal, row.workSessionId ?? undefined, upload.taskId, true, tx as unknown as Db);
@@ -184,6 +187,7 @@ export function createPublicMcpTransfers(db: Db, oauth: PublicMcpOAuth, api: Api
     router,
     async getUploadUrl(p: McpPrincipal, input: unknown, sessionId?: string) {
       const a = uploadSchema.parse(input);
+      if (a.byteSize > maxUploadBytes(a.contentType, isSaasMode())) throw new McpCapabilityError("File is too large for its type.");
       await taskAccess(p, a.taskId, true, undefined, sessionId);
       await sweep();
       const hash = hashMcpSecret(stable(sessionId ? { ...a, sessionId, grantId: p.grant.id } : a));
@@ -215,7 +219,7 @@ export function createPublicMcpTransfers(db: Db, oauth: PublicMcpOAuth, api: Api
         // An older upload can lack publication proof. Verify the same bytes
         // through another bounded PUT; never manufacture a receipt from metadata.
       }
-      return { ...await ticket(p, { uploadId: upload.id }, sessionId), method: "PUT", headers: { "Content-Type": a.contentType }, uploadId: upload.id, maxBytes: MAX_ATTACHMENT_BYTES,
+      return { ...await ticket(p, { uploadId: upload.id }, sessionId), method: "PUT", headers: { "Content-Type": a.contentType }, uploadId: upload.id, maxBytes: maxUploadBytes(a.contentType, isSaasMode()),
         instructions: "Send the exact file bytes with the given Content-Type. Success saves the attachment and returns its ID. An agent upload also returns a verified publication receipt; cite its evidenceRef in your completion report. There is no separate upload completion tool. Do not share this temporary file credential. Reuse requestId after a lost response." };
     },
     async getDownloadUrl(p: McpPrincipal, attachmentId: string, sessionId?: string) {
