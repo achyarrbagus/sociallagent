@@ -41,6 +41,7 @@ import { useStreamlinedUiEnabled } from "./hooks/useStreamlinedUiEnabled";
 import { cloudStackCreateUrl } from "./lib/cloudLinks";
 import { navigateTopLevel } from "@/lib/browserNavigation";
 
+const SocialAgentLanding = lazy(() => import("./pages/SocialAgentLanding").then((module) => ({ default: module.SocialAgentLanding })));
 const AuthPage = lazy(() => import("./pages/Auth").then((module) => ({ default: module.AuthPage })));
 const ForgotPasswordPage = lazy(() => import("./pages/PasswordReset").then((module) => ({ default: module.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => import("./pages/PasswordReset").then((module) => ({ default: module.ResetPasswordPage })));
@@ -790,6 +791,7 @@ export function App() {
   return (
     <>
       <Suspense fallback={<PaperclipLoading />}><Routes>
+        <Route index element={<SocialAgentLanding />} />
         <Route path="oauth-handoff" element={<PaperclipCloudOAuthHandoffPage />} />
         <Route path="auth" element={<AuthPage />} />
         <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
@@ -815,7 +817,7 @@ export function App() {
 
         <Route element={<CloudAccessGate />}>
           <Route element={<ShellConfigurationGate loaded={streamlinedUiLoaded} />}>
-          <Route index element={<CompanyRootRedirect />} />
+          <Route path="app" element={<CompanyRootRedirect />} />
           <Route path="onboarding" element={<OnboardingRoutePage />} />
           <Route path="instance" element={<LegacySettingsRedirect />} />
           <Route path="instance/settings" element={<LegacySettingsRedirect />} />

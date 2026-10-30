@@ -27,7 +27,7 @@ export function AuthPage() {
   const errorId = "auth-error";
 
   const nextPath = useMemo(
-    () => tenantSignInReturnPath(searchParams.get("next") || getRememberedInvitePath() || "/"),
+    () => tenantSignInReturnPath(searchParams.get("next") || getRememberedInvitePath() || "/app"),
     [searchParams],
   );
   const healthQuery = useQuery({

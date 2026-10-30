@@ -206,6 +206,14 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
     return <Navigate to={`/auth?next=${next}`} replace />;
   }
 
+  // A sign-in return URL may still point at the previous user's organization.
+  // New self-service users need the company-creation flow regardless of that URL.
+  if (!allowMembershipRequest && isAuthenticatedMode && !boardAccessQuery.data?.isInstanceAdmin
+    && boardAccessQuery.data?.canCreateCompany && boardAccessQuery.data.companyIds.length === 0
+    && location.pathname !== "/onboarding") {
+    return <Navigate to="/onboarding" replace />;
+  }
+
   // Private invitation pages may let signed-in nonmembers request access.
   // Their token APIs still enforce membership before granting any authority.
   if (!hasBoardAccess) {

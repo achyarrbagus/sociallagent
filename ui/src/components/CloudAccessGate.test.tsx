@@ -8,8 +8,9 @@ import { CloudAccessGate } from "./CloudAccessGate";
 import { queryKeys } from "@/lib/queryKeys";
 import { ApiUnavailableError } from "@/api/response";
 
+const route = vi.hoisted(() => ({ pathname: "/CON/agents/conan/instructions", search: "?tab=edit", hash: "#draft" }));
 vi.mock("@/lib/router", () => ({
-  useLocation: () => ({ pathname: "/CON/agents/conan/instructions", search: "?tab=edit", hash: "#draft" }),
+  useLocation: () => route,
   Navigate: ({ to }: { to: string }) => <div data-redirect={to} />,
   Outlet: () => <textarea aria-label="Instructions" defaultValue="Unsaved instructions" />,
 }));
@@ -42,6 +43,7 @@ describe("CloudAccessGate restart recovery", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    route.pathname = "/CON/agents/conan/instructions";
     failingPath = null;
     failure = () => new Response("<!doctype html><h1>Restarting</h1>", { status: 200 });
     fetchMock.mockImplementation(async (path: string) => {
@@ -221,6 +223,25 @@ describe("CloudAccessGate restart recovery", () => {
     failingPath = null;
     container.querySelector("button")!.click();
     await flushReact();
+    expect(container.querySelector("textarea")).not.toBeNull();
+  });
+
+  it("sends a self-service user without an organization to onboarding even from a previously visited organization URL", async () => {
+    fetchMock.mockImplementation(async (path: string) => Response.json(path === "/api/cli-auth/me"
+      ? { isInstanceAdmin: false, companyIds: [], canCreateCompany: true }
+      : responses[path]));
+    await render();
+    expect(container.querySelector("[data-redirect]")?.getAttribute("data-redirect")).toBe("/onboarding");
+    expect(container.querySelector("textarea")).toBeNull();
+  });
+
+  it("allows a self-service user to open onboarding without a redirect loop", async () => {
+    route.pathname = "/onboarding";
+    fetchMock.mockImplementation(async (path: string) => Response.json(path === "/api/cli-auth/me"
+      ? { isInstanceAdmin: false, companyIds: [], canCreateCompany: true }
+      : responses[path]));
+    await render();
+    expect(container.querySelector("[data-redirect]")).toBeNull();
     expect(container.querySelector("textarea")).not.toBeNull();
   });
 
