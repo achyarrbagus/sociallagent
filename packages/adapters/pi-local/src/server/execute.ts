@@ -387,11 +387,13 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       detectCommand: ctx.runtimeCommandSpec?.detectCommand,
       cwd,
       env: runtimeEnv,
+      explicitEnv: env,
       timeoutSec,
       graceSec,
       onLog,
     });
     await ensureAdapterExecutionTargetCommandResolvable(command, executionTarget, cwd, runtimeEnv, {
+      explicitEnv: env,
       installCommand: SANDBOX_INSTALL_COMMAND,
       timeoutSec,
     });

@@ -446,6 +446,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const billingType = resolveCursorBillingType(effectiveEnv);
   const runtimeEnv = ensurePathInEnv(effectiveEnv);
   await ensureAdapterExecutionTargetCommandResolvable(command, executionTarget, cwd, runtimeEnv, {
+    explicitEnv: env,
     installCommand: SANDBOX_INSTALL_COMMAND,
     timeoutSec,
   });

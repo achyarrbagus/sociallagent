@@ -487,6 +487,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
     );
     const runtimeEnv = ensurePathInEnv(effectiveEnv);
     await ensureAdapterExecutionTargetCommandResolvable(command, executionTarget, cwd, runtimeEnv, {
+      explicitEnv: env,
       installCommand: ctx.runtimeCommandSpec?.installCommand ?? null,
       timeoutSec,
     });

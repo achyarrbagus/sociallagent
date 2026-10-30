@@ -82,7 +82,7 @@ import {
   type RunProcessResult,
   type TerminalResultCleanupOptions,
 } from "./server-utils.js";
-import { sanitizeRemoteExecutionEnv } from "./remote-execution-env.js";
+import { buildRemoteProbeEnv, sanitizeRemoteExecutionEnv } from "./remote-execution-env.js";
 import { preferredShellForSandbox, shellCommandArgs } from "./sandbox-shell.js";
 import {
   runWithRuntimeParent,
@@ -382,7 +382,7 @@ export interface AdapterExecutionTargetProcessSessionBridgeHandle {
   stop(): Promise<void>;
 }
 
-export { sanitizeRemoteExecutionEnv } from "./remote-execution-env.js";
+export { buildRemoteProbeEnv, sanitizeRemoteExecutionEnv } from "./remote-execution-env.js";
 
 // Four-hour wall-clock backstop for sandbox-backed adapter runs. Keep this
 // execution limit independent of the earlier informational silence warnings
@@ -716,15 +716,18 @@ export async function ensureAdapterExecutionTargetCommandResolvable(
   target: AdapterExecutionTarget | null | undefined,
   cwd: string,
   env: NodeJS.ProcessEnv,
-  options: { installCommand?: string | null; timeoutSec?: number | null } = {},
+  options: {
+    installCommand?: string | null;
+    timeoutSec?: number | null;
+    /** The agent's explicitly configured env (not host-inherited); remote targets receive only this plus PATH/HOME. */
+    explicitEnv?: NodeJS.ProcessEnv | Record<string, string> | null;
+  } = {},
 ) {
   if (target?.kind === "remote" && target.transport === "sandbox") {
     await ensureSandboxCommandResolvable(
       command,
       target,
-      sanitizeRemoteExecutionEnv(Object.fromEntries(
-        Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-      )),
+      buildRemoteProbeEnv(env, options.explicitEnv),
       options.installCommand?.trim() || null,
       options.timeoutSec,
     );
@@ -1065,12 +1068,15 @@ export async function maybeRunSandboxInstallCommand(input: {
   /** When provided, skip the install if `command -v <detectCommand>` succeeds. */
   detectCommand?: string | null;
   env?: Record<string, string>;
+  /** The agent's explicitly configured env (not host-inherited); remote targets receive only this plus PATH/HOME. */
+  explicitEnv?: Record<string, string> | NodeJS.ProcessEnv | null;
   timeoutSec?: number;
 }): Promise<AdapterSandboxInstallCommandCheck | null> {
   const { target, adapterKey, installCommand } = input;
   if (!target || target.kind !== "remote" || target.transport !== "sandbox") {
     return null;
   }
+  input = { ...input, env: buildRemoteProbeEnv(input.env ?? {}, input.explicitEnv) };
   const trimmed = installCommand.trim();
   if (trimmed.length === 0) return null;
 
@@ -1170,6 +1176,8 @@ export async function ensureAdapterExecutionTargetRuntimeCommandInstalled(input:
   detectCommand?: string | null;
   cwd: string;
   env: Record<string, string>;
+  /** The agent's explicitly configured env (not host-inherited); remote targets receive only this plus PATH/HOME. */
+  explicitEnv?: Record<string, string> | NodeJS.ProcessEnv | null;
   timeoutSec?: number;
   graceSec?: number;
   onLog?: AdapterExecutionTargetShellOptions["onLog"];
@@ -1178,6 +1186,7 @@ export async function ensureAdapterExecutionTargetRuntimeCommandInstalled(input:
   if (!installCommand || input.target?.kind !== "remote" || input.target.transport !== "sandbox") {
     return;
   }
+  input = { ...input, env: buildRemoteProbeEnv(input.env, input.explicitEnv) };
 
   const detectCommand = input.detectCommand?.trim();
   if (detectCommand) {

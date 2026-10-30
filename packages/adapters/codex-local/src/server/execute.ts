@@ -1086,11 +1086,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       detectCommand: ctx.runtimeCommandSpec?.detectCommand,
       cwd,
       env: runtimeEnv,
+      explicitEnv: env,
       timeoutSec,
       graceSec,
       onLog,
     });
-    await ensureAdapterExecutionTargetCommandResolvable(command, executionTarget, cwd, runtimeEnv);
+    await ensureAdapterExecutionTargetCommandResolvable(command, executionTarget, cwd, runtimeEnv, { explicitEnv: env });
     const resolvedCommand = await resolveAdapterExecutionTargetCommandForLogs(command, executionTarget, cwd, runtimeEnv);
     if (observabilityProfile) {
       let qualified = false;

@@ -7,7 +7,9 @@ import {
   cleanupGitHubOperationLaunchers,
   prepareGitHubOperationLaunchers,
   adapterExecutionTargetUsesManagedHome,
+  ensureAdapterExecutionTargetCommandResolvable,
   ensureAdapterExecutionTargetRuntimeCommandInstalled,
+  maybeRunSandboxInstallCommand,
   resolveAdapterExecutionTargetCwd,
   runAdapterExecutionTargetProcess,
   runAdapterExecutionTargetShellCommand,
@@ -323,6 +325,137 @@ describe("ensureAdapterExecutionTargetRuntimeCommandInstalled", () => {
     });
 
     expect(runSshCommandSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("remote install/probe env allowlist", () => {
+  const SENTINELS = {
+    PAPERCLIP_AGENT_JWT_SECRET: "sentinel-jwt",
+    ANTHROPIC_API_KEY: "sentinel-anthropic",
+    GITHUB_TOKEN: "sentinel-github",
+  } as const;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  function okRunner() {
+    return {
+      execute: vi.fn(async (_input: { env?: Record<string, string> }) => ({
+        exitCode: 0,
+        signal: null,
+        timedOut: false,
+        stdout: "",
+        stderr: "",
+        pid: null,
+        startedAt: new Date().toISOString(),
+      })),
+    };
+  }
+
+  function sandboxTarget(runner: ReturnType<typeof okRunner>) {
+    return {
+      kind: "remote" as const,
+      transport: "sandbox" as const,
+      providerKey: "daytona",
+      remoteCwd: "/remote/workspace",
+      runner,
+    };
+  }
+
+  function mergedHostEnv(explicit: Record<string, string>): Record<string, string> {
+    for (const [key, value] of Object.entries(SENTINELS)) vi.stubEnv(key, value);
+    const merged: Record<string, string> = {};
+    for (const [key, value] of Object.entries(process.env)) {
+      if (typeof value === "string") merged[key] = value;
+    }
+    return { ...merged, ...explicit };
+  }
+
+  function expectNoHostSecrets(runner: ReturnType<typeof okRunner>) {
+    expect(runner.execute).toHaveBeenCalled();
+    for (const call of runner.execute.mock.calls) {
+      const env = call[0].env ?? {};
+      for (const key of Object.keys(SENTINELS)) expect(env).not.toHaveProperty(key);
+      expect(Object.values(env)).not.toContain("sentinel-jwt");
+      expect(env.AGENT_CONFIGURED_VAR).toBe("configured");
+    }
+  }
+
+  it("install helper sends only explicit env for sandbox targets (fallback without explicitEnv)", async () => {
+    const runner = okRunner();
+    const env = mergedHostEnv({ AGENT_CONFIGURED_VAR: "configured" });
+    await ensureAdapterExecutionTargetRuntimeCommandInstalled({
+      runId: "run-allowlist",
+      target: sandboxTarget(runner),
+      installCommand: "npm install -g some-cli",
+      detectCommand: "some-cli",
+      cwd: "/local",
+      env,
+    });
+    expectNoHostSecrets(runner);
+  });
+
+  it("install helper honors explicitEnv for sandbox targets", async () => {
+    const runner = okRunner();
+    const explicit = { AGENT_CONFIGURED_VAR: "configured" };
+    await ensureAdapterExecutionTargetRuntimeCommandInstalled({
+      runId: "run-allowlist-explicit",
+      target: sandboxTarget(runner),
+      installCommand: "npm install -g some-cli",
+      cwd: "/local",
+      env: mergedHostEnv(explicit),
+      explicitEnv: explicit,
+    });
+    expectNoHostSecrets(runner);
+  });
+
+  it("an explicitly configured agent var survives even when it shadows a host var", async () => {
+    const runner = okRunner();
+    const explicit = { AGENT_CONFIGURED_VAR: "configured", ANTHROPIC_API_KEY: "agent-bound" };
+    await ensureAdapterExecutionTargetRuntimeCommandInstalled({
+      runId: "run-allowlist-bound",
+      target: sandboxTarget(runner),
+      installCommand: "npm install -g some-cli",
+      cwd: "/local",
+      env: mergedHostEnv(explicit),
+      explicitEnv: explicit,
+    });
+    expect(runner.execute.mock.calls[0]![0].env).toMatchObject({ ANTHROPIC_API_KEY: "agent-bound" });
+  });
+
+  it("command-resolvable probe sends only explicit env for sandbox targets", async () => {
+    const runner = okRunner();
+    const explicit = { AGENT_CONFIGURED_VAR: "configured" };
+    await ensureAdapterExecutionTargetCommandResolvable(
+      "some-cli",
+      sandboxTarget(runner),
+      "/local",
+      mergedHostEnv(explicit),
+    );
+    expectNoHostSecrets(runner);
+    const runner2 = okRunner();
+    await ensureAdapterExecutionTargetCommandResolvable(
+      "some-cli",
+      sandboxTarget(runner2),
+      "/local",
+      mergedHostEnv(explicit),
+      { explicitEnv: explicit },
+    );
+    expectNoHostSecrets(runner2);
+  });
+
+  it("test-probe install helper sends only explicit env for sandbox targets", async () => {
+    const runner = okRunner();
+    await maybeRunSandboxInstallCommand({
+      runId: "run-allowlist-test",
+      target: sandboxTarget(runner),
+      adapterKey: "claude",
+      installCommand: "npm install -g some-cli",
+      env: mergedHostEnv({ AGENT_CONFIGURED_VAR: "configured" }),
+    });
+    expectNoHostSecrets(runner);
   });
 });
 

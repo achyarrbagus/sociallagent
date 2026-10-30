@@ -3536,6 +3536,20 @@ export const SERVER_SECRET_ENV_PATTERNS: readonly RegExp[] = [
   /^BETTER_AUTH_SECRET$/i,
   /^SOCIALAGENT_/i,
   /^PAPERCLIP_STORAGE_/i,
+  // Instance signing/encryption roots and tenant tokens: any one of these lets
+  // a holder mint or decrypt credentials for every company on the instance.
+  /^PAPERCLIP_AGENT_JWT_SECRET$/i,
+  /^PAPERCLIP_SECRETS_MASTER_KEY(_FILE)?$/i,
+  /^PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN$/i,
+  /^PAPERCLIP_WORKSPACE_HANDOFF_SECRET$/i,
+  /^PAPERCLIP_TOOL_OAUTH_(.+_)?CLIENT_SECRET$/i,
+  /_SIGNING_SECRET$/i,
+  // Sandbox provider credentials held by the server.
+  /^DAYTONA_API_KEY$/i,
+  /^E2B_API_KEY$/i,
+  /^NOVITA_API_KEY$/i,
+  /^CREATEOS_API_KEY$/i,
+  /^EXE_API_KEY$/i,
   /^AWS_/i,
   /^SUPABASE_/i,
 ];

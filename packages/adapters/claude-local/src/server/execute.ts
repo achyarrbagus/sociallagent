@@ -334,11 +334,13 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     detectCommand: runtimeCommandSpec?.detectCommand,
     cwd,
     env: runtimeEnv,
+    explicitEnv: env,
     timeoutSec,
     graceSec,
     onLog,
   });
   await ensureAdapterExecutionTargetCommandResolvable(command, executionTarget, cwd, runtimeEnv, {
+    explicitEnv: env,
     installCommand: SANDBOX_INSTALL_COMMAND,
     timeoutSec,
   });
