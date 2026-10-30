@@ -1,3 +1,4 @@
+import { ThemeToggle } from "./ThemeToggle";
 import { Link } from "@/lib/router";
 import { Menu } from "lucide-react";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -29,6 +30,7 @@ function GlobalToolbar({ context }: { context: GlobalToolbarContext }) {
   const { launchers } = usePluginLaunchers({ placementZones: ["globalToolbarButton"], companyId: context.companyId, enabled: !!context.companyId });
   return (
     <div className="ml-auto flex shrink-0 items-center gap-1 pl-2 empty:hidden">
+      <ThemeToggle />
       {slots.length > 0 ? (
         <PluginSlotOutlet slotTypes={["globalToolbarButton"]} context={context} className="flex items-center gap-1" />
       ) : null}
@@ -58,6 +60,7 @@ export function BreadcrumbBar() {
     return (
       <div className="border-b border-border px-2 h-12 shrink-0 flex items-center">
         {mobileToolbar}
+        <div className="ml-auto shrink-0"><ThemeToggle /></div>
       </div>
     );
   }

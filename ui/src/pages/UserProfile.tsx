@@ -1,4 +1,3 @@
-import { modelDisplayName } from "@/lib/model-display";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, UserRound, UserRoundPen } from "lucide-react";
@@ -26,7 +25,6 @@ import {
   formatShortDate,
   formatTokens,
   issueUrl,
-  providerDisplayName,
   relativeTime,
 } from "../lib/utils";
 
@@ -253,8 +251,8 @@ export function UserProfile() {
     () =>
       (data?.topProviders ?? []).map((row) => ({
         key: `${row.provider}:${row.biller}:${row.model}`,
-        label: `${providerDisplayName(row.provider)} / ${modelDisplayName(row.model)}`,
-        sublabel: `Billed through ${providerDisplayName(row.biller)}`,
+        label: "SocialAgent AI",
+        sublabel: "AI usage",
         costCents: row.costCents,
         inputTokens: row.inputTokens,
         cachedInputTokens: row.cachedInputTokens,

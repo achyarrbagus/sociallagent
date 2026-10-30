@@ -2,7 +2,7 @@ import { modelDisplayCode, modelDisplayName } from "@/lib/model-display";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type Ref } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, ChevronDown, Plus, RotateCcw, Search, X, Zap } from "lucide-react";
-import { aiRuntimeConnectionBindingSchema, agentHarnessType, type Agent, type IssueAssigneeAdapterOverrides } from "@paperclipai/shared";
+import { aiRuntimeConnectionBindingSchema, type Agent, type IssueAssigneeAdapterOverrides } from "@paperclipai/shared";
 import { agentsApi, type AdapterModel } from "@/api/agents";
 import { queryKeys } from "@/lib/queryKeys";
 import { COPILOT_MODEL_DISCOVERY_QUERY_OPTIONS, copilotTaskModelCatalogOptions } from "@/lib/copilot-task-model-catalog";
@@ -42,27 +42,13 @@ interface Props {
   initialAssigneeSearch?: string;
 }
 
-const HARNESS_LABELS: Record<string, string> = {
-  claude_local: "Claude Code", codex_local: "Codex", opencode_local: "OpenCode",
-  pi_local: "Pi", kimi_local: "Kimi Code", gemini_local: "Gemini CLI",
-  cursor: "Cursor", cursor_cloud: "Cursor Cloud", grok_local: "Grok CLI",
-  hermes_local: "Hermes CLI", paperclip_runner: "SocialAgent Runner",
-  process: "Process", http: "HTTP", openclaw_gateway: "OpenClaw Gateway",
-  hermes_gateway: "Hermes Gateway",
-};
-
 function harnessLabel(agent: Agent | undefined): string {
-  if (!agent) return "Choose an agent";
-  const harness = HARNESS_LABELS[agentHarnessType(agent.adapterType, agent.adapterConfig)] ?? agent.adapterType;
-  const provider = composerCatalogProvider(agent);
-  const binding = aiRuntimeConnectionBindingSchema.safeParse(agent?.runtimeConfig?.aiConnection).data;
-  const poolId = binding?.mode === "router" ? binding.connectionId : undefined;
-  return provider === "openrouter" ? `${harness} · OpenRouter` : harness;
+  return agent ? "SocialAgent AI" : "Choose an agent";
 }
 
 function unavailableModelReason(agent: Agent | undefined): string {
   if (!agent) return "Choose an agent to select its model and effort.";
-  if (agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "muse") return "Muse chooses its model and effort. SocialAgent has no per-task override.";
+  if (agent.adapterType === "paperclip_runner" && agent.adapterConfig.provider === "muse") return "This agent chooses its model and effort automatically.";
   if (agent?.adapterType === "process") return "This agent runs a command. Its harness does not expose a model or effort setting.";
   if (agent?.adapterType === "http") return "This agent calls an HTTP endpoint. The destination service chooses its model.";
   return "This gateway chooses its model remotely; SocialAgent has no per-task model setting for it.";

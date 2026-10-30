@@ -27,7 +27,6 @@ import { AlertTriangle, Bot, Plus, List, GitBranch } from "lucide-react";
 import { AGENT_ROLE_LABELS, type Agent, type Environment, type EnvironmentCapabilities } from "@paperclipai/shared";
 import { usePublishSharedQueryData, useSharedPollingQuery } from "../hooks/useSharedPolling";
 
-import { getAdapterLabel } from "../adapters/adapter-display-registry";
 
 const roleLabels = AGENT_ROLE_LABELS as Record<string, string>;
 
@@ -659,7 +658,7 @@ function AgentMetaColumns({
   showEnvironment: boolean;
 }) {
   const model = getConfiguredModel(agent);
-  const adapterLabel = getAdapterLabel(agent.adapterType);
+  const adapterLabel = "SocialAgent AI";
   return (
     <>
       <div className="w-44 min-w-0 leading-tight">

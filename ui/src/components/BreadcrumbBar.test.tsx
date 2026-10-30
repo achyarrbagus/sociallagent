@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BreadcrumbProvider, useBreadcrumbs } from "../context/BreadcrumbContext";
 import { BreadcrumbBar } from "./BreadcrumbBar";
+import { ThemeProvider } from "../context/ThemeContext";
 
 const viewport = vi.hoisted(() => ({ isMobile: false }));
 
@@ -128,7 +129,7 @@ describe("BreadcrumbBar", () => {
       }, [setBreadcrumbs]);
       return <BreadcrumbBar taskDetailLayout />;
     }
-    await act(async () => root.render(<BreadcrumbProvider><AgentBreadcrumb /></BreadcrumbProvider>));
+    await act(async () => root.render(<ThemeProvider><BreadcrumbProvider><AgentBreadcrumb /></BreadcrumbProvider></ThemeProvider>));
     const label = container.querySelector('[data-slot="breadcrumb-page"]');
     expect(label?.textContent).toBe("CCCodexCoder");
     expect(label?.classList.contains("items-center")).toBe(true);
@@ -146,9 +147,9 @@ describe("BreadcrumbBar", () => {
     viewport.isMobile = true;
     await act(async () => {
       root.render(
-        <BreadcrumbProvider>
+        <ThemeProvider><BreadcrumbProvider>
           <TaskBreadcrumbs identifier="TES-3" sourceHref="/TES/issues" />
-        </BreadcrumbProvider>,
+        </BreadcrumbProvider></ThemeProvider>,
       );
     });
     expect(container.querySelector('a[href="/TES/issues"]')).toBeNull();
@@ -163,9 +164,9 @@ describe("BreadcrumbBar", () => {
     const onOpen = vi.fn();
     await act(async () => {
       root.render(
-        <BreadcrumbProvider>
+        <ThemeProvider><BreadcrumbProvider>
           <TaskBreadcrumbs onOpen={onOpen} />
-        </BreadcrumbProvider>,
+        </BreadcrumbProvider></ThemeProvider>,
       );
     });
 
@@ -182,9 +183,9 @@ describe("BreadcrumbBar", () => {
   it("appends the task identifier to the task title in the task-detail header", async () => {
     await act(async () => {
       root.render(
-        <BreadcrumbProvider>
+        <ThemeProvider><BreadcrumbProvider>
           <TaskBreadcrumbs taskDetailLayout identifier="TES-1" />
-        </BreadcrumbProvider>,
+        </BreadcrumbProvider></ThemeProvider>,
       );
     });
 
@@ -215,9 +216,9 @@ describe("BreadcrumbBar", () => {
   it("styles the root crumb as an uppercase muted header on every detail view", async () => {
     await act(async () => {
       root.render(
-        <BreadcrumbProvider>
+        <ThemeProvider><BreadcrumbProvider>
           <TaskBreadcrumbs />
-        </BreadcrumbProvider>,
+        </BreadcrumbProvider></ThemeProvider>,
       );
     });
 
@@ -234,9 +235,9 @@ describe("BreadcrumbBar", () => {
     const panelControl = { open: false, onToggle };
     await act(async () => {
       root.render(
-        <BreadcrumbProvider>
+        <ThemeProvider><BreadcrumbProvider>
           <TaskBreadcrumbs taskDetailLayout panelControl={panelControl} />
-        </BreadcrumbProvider>,
+        </BreadcrumbProvider></ThemeProvider>,
       );
     });
 
@@ -253,9 +254,9 @@ describe("BreadcrumbBar", () => {
   it("omits the retired sidebar control and keeps the properties control", async () => {
     await act(async () => {
       root.render(
-        <BreadcrumbProvider>
+        <ThemeProvider><BreadcrumbProvider>
           <TaskBreadcrumbs taskDetailLayout />
-        </BreadcrumbProvider>,
+        </BreadcrumbProvider></ThemeProvider>,
       );
     });
 

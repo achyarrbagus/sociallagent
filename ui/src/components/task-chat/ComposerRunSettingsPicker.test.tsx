@@ -248,7 +248,7 @@ describe("composer assignee picker", () => {
     const input = document.querySelector<HTMLInputElement>('input[aria-label="Search assignees"]');
     expect(input).not.toBeNull();
     const setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
-    for (const query of ["Engineering Lead", "Codex"]) {
+    for (const query of ["Engineering Lead", "SocialAgent AI"]) {
       flushSync(() => {
         setValue.call(input, query);
         input!.dispatchEvent(new Event("input", { bubbles: true }));
@@ -425,7 +425,7 @@ describe("composer assignee picker", () => {
     expect(document.querySelector('[aria-label="Search or paste a model ID"]')).toBeNull();
     expect(document.querySelector('[aria-label="Choose exact model"]')).toBeNull();
     expect(document.querySelector('[aria-label="Effort"]')).toBeNull();
-    expect(document.querySelector('[data-testid="model-unavailable"]')?.textContent).toContain("Muse chooses its model and effort");
+    expect(document.querySelector('[data-testid="model-unavailable"]')?.textContent).toContain("This agent chooses its model and effort automatically");
     expect(onSettingsChange).toHaveBeenCalledOnce();
     expect(onSettingsChange).toHaveBeenCalledWith(null);
   });

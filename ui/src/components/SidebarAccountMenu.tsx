@@ -1,7 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  BookOpen,
   Flag,
   LogOut,
   Settings,
@@ -30,7 +29,6 @@ import { SidebarServerInfo } from "./SidebarServerInfo";
 import { TruncatedText } from "./TruncatedText";
 
 const INVITES_PATH = "/company/settings/members?tab=invites";
-const DOCS_URL = "https://docs.paperclip.ing/";
 const FEEDBACK_URL = "https://paperclip.ing/feedback";
 
 interface SidebarAccountMenuProps {
@@ -251,13 +249,6 @@ export function SidebarAccountMenu({
                   onClick={closeNavigationChrome}
                 />
               ) : null}
-              <MenuAction
-                label="Documentation"
-                icon={BookOpen}
-                href={DOCS_URL}
-                external
-                onClick={() => setOpen(false)}
-              />
               <ThemeToggle variant="compact-menu-action" onAfterToggle={() => setOpen(false)} />
               {deploymentMode === "authenticated" ? (
                 <button

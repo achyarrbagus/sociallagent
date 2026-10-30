@@ -3444,27 +3444,7 @@ function RunDetail({ run: initialRun, agentRouteId, adapterType, adapterConfig }
                 </Button>
               )}
             </div>
-            {/* Adapter type · provider · model */}
-            {(() => {
-              const displayProvider = metrics.provider
-                ?? asNonEmptyString(adapterConfig?.provider);
-              const displayModel = metrics.model
-                ?? asNonEmptyString(adapterConfig?.model);
-              if (!adapterType && !displayProvider && !displayModel) return null;
-              return (
-                <div className="text-(length:--text-micro) text-muted-foreground font-mono flex items-center gap-1.5 flex-wrap">
-                  {adapterType && (
-                    <span className="bg-muted rounded px-1.5 py-0.5 text-(length:--text-nano) font-medium uppercase tracking-wide">{adapterType.replace(/_/g, " ")}</span>
-                  )}
-                  {displayProvider && displayModel && (
-                    <span>{displayProvider}/{modelDisplayName(displayModel)}</span>
-                  )}
-                  {!displayProvider && displayModel && (
-                    <span>{modelDisplayName(displayModel)}</span>
-                  )}
-                </div>
-              );
-            })()}
+            <div className="text-xs text-muted-foreground">SocialAgent AI</div>
             {run.responsibleUserId && (
               <div
                 data-testid="run-detail-on-behalf-of"
