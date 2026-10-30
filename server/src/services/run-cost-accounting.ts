@@ -117,8 +117,7 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
       const rates = object(usage.creditRatesSnapshot) as CreditRates;
       // Never fabricate zero usage, and never let a credit gap hold back the
       // provider-cost receipt: incomplete token counts produce no charge.
-      const complete = [usage.inputTokens, usage.cachedInputTokens, usage.outputTokens].every(value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
-        && (usage.cachedInputTokens as number) <= (usage.inputTokens as number);
+      const complete = [usage.inputTokens, usage.cachedInputTokens, usage.outputTokens].every(value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
       if (!complete) logger.warn({ runId: run.id, companyId: run.companyId }, "Managed run receipt lacks complete token usage; no credit charge recorded");
       else await recordCreditUsageInTransaction(tx, run.companyId, run.id, {
         inputTokens: usage.inputTokens as number,

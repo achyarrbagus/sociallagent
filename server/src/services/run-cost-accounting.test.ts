@@ -65,14 +65,20 @@ const support = await getEmbeddedPostgresTestSupport();
     const { companyId, runId } = await seed({ usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01, inputTokens: 2000, cachedInputTokens: 500, outputTokens: 1000, creditRatesSnapshot: { input: 1000000, cachedInput: 100000, output: 5000000 } } });
     expect(await accountRunCost(db, runId)).toBe(true);
     expect(await accountRunCost(db, runId)).toBe(false);
-    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("6550000");
+    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("7050000");
   });
 
   it("settles concurrent retries into a single credit charge", async () => {
     const { companyId, runId } = await seed({ usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01, inputTokens: 2000, cachedInputTokens: 500, outputTokens: 1000, creditRatesSnapshot: { input: 1000000, cachedInput: 100000, output: 5000000 } } });
     const results = await Promise.all([accountRunCost(db, runId), accountRunCost(db, runId), accountRunCost(db, runId)]);
     expect(results.filter(Boolean)).toHaveLength(1);
-    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("6550000");
+    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("7050000");
+  });
+
+  it("charges a Codex receipt whose cache reads exceed its exclusive input", async () => {
+    const { companyId, runId } = await seed({ usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01, inputTokens: 37435, cachedInputTokens: 78848, outputTokens: 898, creditRatesSnapshot: { input: 1000000, cachedInput: 100000, output: 5000000 } } });
+    expect(await accountRunCost(db, runId)).toBe(true);
+    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("49809800");
   });
 
   it("records provider cost without a credit charge when token usage is incomplete", async () => {

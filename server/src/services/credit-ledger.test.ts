@@ -49,7 +49,7 @@ const support = await getEmbeddedPostgresTestSupport();
       await db.update(heartbeatRuns).set({ status: "succeeded", finishedAt: new Date(), usageJson: { ...reserved.usageJson, accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01, inputTokens: 2000, cachedInputTokens: 500, outputTokens: 1000 } }).where(eq(heartbeatRuns.id, run.id));
       expect(await accountRunCost(db, run.id)).toBe(true);
       expect(await accountRunCost(db, run.id)).toBe(false);
-      expect(await creditBalance(db, company.id)).toMatchObject({ spentMicrounits: "6550000", remainingMicrounits: "0" });
+      expect(await creditBalance(db, company.id)).toMatchObject({ spentMicrounits: "7050000", remainingMicrounits: "0" });
       const [next] = await db.insert(heartbeatRuns).values({ companyId: company.id, agentId: agent.id, contextSnapshot: { aiConnection: { connectionId: connection.id } } }).returning();
       await expect(reserveRunBudget(db, company.id, next.id, null)).rejects.toThrow(/credit/i);
     } finally { vi.unstubAllEnvs(); }

@@ -1,0 +1,2 @@
+ALTER TABLE "company_credit_charges" DROP CONSTRAINT IF EXISTS "company_credit_charges_nonnegative";--> statement-breakpoint
+ALTER TABLE "company_credit_charges" ADD CONSTRAINT "company_credit_charges_nonnegative" CHECK ("company_credit_charges"."amount_microunits" >= 0 and "company_credit_charges"."input_tokens" >= 0 and "company_credit_charges"."cached_input_tokens" >= 0 and "company_credit_charges"."output_tokens" >= 0);

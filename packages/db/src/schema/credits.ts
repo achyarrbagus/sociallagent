@@ -28,4 +28,4 @@ export const companyCreditCharges = pgTable("company_credit_charges", {
   rates: jsonb("rates").$type<{ input: number; cachedInput: number; output: number }>().notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, t => ({ runUnique: uniqueIndex("company_credit_charges_company_run_uq").on(t.companyId, t.runId), period: index("company_credit_charges_company_occurred_idx").on(t.companyId, t.occurredAt), amounts: check("company_credit_charges_nonnegative", sql`${t.amountMicrounits} >= 0 and ${t.inputTokens} >= 0 and ${t.cachedInputTokens} >= 0 and ${t.cachedInputTokens} <= ${t.inputTokens} and ${t.outputTokens} >= 0`) }));
+}, t => ({ runUnique: uniqueIndex("company_credit_charges_company_run_uq").on(t.companyId, t.runId), period: index("company_credit_charges_company_occurred_idx").on(t.companyId, t.occurredAt), amounts: check("company_credit_charges_nonnegative", sql`${t.amountMicrounits} >= 0 and ${t.inputTokens} >= 0 and ${t.cachedInputTokens} >= 0 and ${t.outputTokens} >= 0`) }));
