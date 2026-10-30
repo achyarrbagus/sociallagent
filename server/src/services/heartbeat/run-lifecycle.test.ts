@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { Db } from "@paperclipai/db";
-import { agents, agentWakeupRequests, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns } from "@paperclipai/db";
+import { agents, agentWakeupRequests, companies, createDb, EMBEDDED_POSTGRES_TEST_TIMEOUT_MS, heartbeatRunEvents, heartbeatRuns, managedGatewayTokens } from "@paperclipai/db";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../../__tests__/helpers/embedded-postgres.js";
@@ -12,6 +12,7 @@ import { heartbeatService } from "../heartbeat.js";
 import { createHeartbeatRunPreparation } from "./run-preparation.js";
 import { createHeartbeatLifecycle, persistHeartbeatRunProcessMetadata, type HeartbeatLifecycleDependencies } from "./run-lifecycle.js";
 import { DELIVERY_QUEUES, subscribeDeliveryWork } from "../delivery-work-notifications.js";
+import { issueRunGatewayToken, resolveRunGatewayToken } from "../managed-gateway-tokens.js";
 
 vi.mock("../live-events.js", () => ({ publishLiveEvent: vi.fn() }));
 
@@ -247,6 +248,26 @@ describe.skipIf(!support.supported)("heartbeat lifecycle database wiring", () =>
       await createHeartbeatLifecycle(db, callbacks(db)).setRunStatus(run.id, "running");
       expect(settled).not.toHaveBeenCalled();
     } finally { unsubscribe(); }
+  });
+
+  it.each(["setRunStatus", "setRunStatusIfRunning"] as const)("revokes the run's managed gateway tokens when %s makes it terminal", async operation => {
+    const { run } = await fixture();
+    const lifecycle = createHeartbeatLifecycle(db, callbacks(db));
+    const token = await issueRunGatewayToken(db, { companyId: run.companyId, runId: run.id, expiresAt: new Date(Date.now() + 60_000) });
+    await lifecycle.setRunStatus(run.id, "running");
+    expect(await resolveRunGatewayToken(db, token)).toEqual({ companyId: run.companyId, runId: run.id });
+    await lifecycle[operation](run.id, "succeeded", { finishedAt: new Date() });
+    const [stored] = await db.select().from(managedGatewayTokens).where(eq(managedGatewayTokens.runId, run.id));
+    expect(stored!.revokedAt).not.toBeNull();
+    expect(await resolveRunGatewayToken(db, token)).toBeNull();
+  });
+
+  it("keeps gateway tokens when a terminal write loses to native ownership", async () => {
+    const { run } = await fixture({ errorCode: "native_execution_ownership_unverified", nativePhase: "terminal_failure" });
+    await issueRunGatewayToken(db, { companyId: run.companyId, runId: run.id, expiresAt: new Date(Date.now() + 60_000) });
+    expect(await createHeartbeatLifecycle(db, callbacks(db)).setRunStatusIfRunning(run.id, "failed")).toMatchObject({ updated: false });
+    const [stored] = await db.select().from(managedGatewayTokens).where(eq(managedGatewayTokens.runId, run.id));
+    expect(stored!.revokedAt).toBeNull();
   });
 
   it("signals legacy terminal accounting after the nested terminalizer transaction commits", async () => {

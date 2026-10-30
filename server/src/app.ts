@@ -229,6 +229,7 @@ import {
 import { COMPANY_IMPORT_API_PATH } from "./routes/company-import-paths.js";
 import { apiCompression } from "./middleware/api-compression.js";
 import { chatWebhookBodyParser } from "./middleware/chat-webhook-body.js";
+import { managedGatewayProxyRoutes } from "./routes/managed-gateway-proxy.js";
 import { createChatWebhookDiagnostics } from "./services/chat-webhook-diagnostics.js";
 
 type UiMode = "none" | "static" | "vite-dev";
@@ -598,6 +599,10 @@ export async function createApp(
     createChatWebhookDiagnostics(),
     chatWebhookBodyParser,
   );
+  // Run-scoped 9Router proxy: streams raw bodies both ways, so it mounts before
+  // the JSON parser and response compression. Its bearer is a run-bound
+  // gateway token (never board/agent auth); the master key stays here.
+  app.use("/api/managed-gateway/v1", managedGatewayProxyRoutes(db));
   const jsonBodyParser = express.json({ limit: DEFAULT_JSON_BODY_LIMIT, verify: captureRawBody });
   // File tickets authenticate before parsing bytes; JSON attachments must remain bytes too.
   app.use((req, res, next) => ["/mcp/files/upload", "/mcp/runner/files/upload"].includes(req.path) ? next() : jsonBodyParser(req, res, next));

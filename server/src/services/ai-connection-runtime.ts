@@ -1,7 +1,7 @@
 import { environmentTaskResultSchema } from "@paperclipai/plugin-sdk";
 import type { PluginTaskCredentialWritebackBinding } from "./plugin-task-credential-writeback.js";
 import { OPENROUTER_ATTRIBUTION_HEADERS, openRouterClaudeHeaders } from "@paperclipai/shared/openrouter-attribution";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { HttpError, unprocessable } from "../errors.js";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import os from "node:os";
@@ -18,6 +18,16 @@ import { aiConnectionService } from "./ai-connections.js";
 import { subscriptionService } from "./subscriptions.js";
 import { refreshSubscriptionConnection } from "./subscription-refresh.js";
 import { secretService } from "./secrets.js";
+import { isSaasMode } from "../saas-mode.js";
+import { readManagedGatewayConfig } from "./managed-gateway.js";
+import { isManagedGatewayConnectionName } from "./managed-ai-pricing.js";
+import {
+  issueRunGatewayToken,
+  managedGatewayProxyBaseUrl,
+  managedGatewayTokenExpiry,
+  readManagedGatewayPublicUrl,
+  revokeRunGatewayTokens,
+} from "./managed-gateway-tokens.js";
 import { decideCodexAuthMerge, withAccountHomeSecretMutationLock } from "@paperclipai/adapter-codex-local/server";
 import { WORKSPACE_RESTORE_LOCK_TIMEOUT_CODE } from "@paperclipai/adapter-utils/workspace-restore-merge";
 import type { AdapterExecutionTarget } from "@paperclipai/adapter-utils/execution-target";
@@ -189,6 +199,24 @@ done`,
   }
 }
 
+/** A probe (no heartbeat run) gets a short-lived gateway token. */
+const MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+/**
+ * True when the selection is a company's managed 9Router connection: the
+ * managed name on an organization-granted gateway route (the same name-based
+ * identification as managed-ai-pricing.ts). Its stored credential is the
+ * operator's master key, whatever base URL the row recorded.
+ */
+function isManagedGatewayRoute(
+  selection: { connection: { name: string }; grant: { kind: string } },
+  routing: { kind: string },
+) {
+  return routing.kind === "gateway"
+    && selection.grant.kind === "organization"
+    && isManagedGatewayConnectionName(selection.connection.name);
+}
+
 function managedAiHomeEnvironment(home: string): Record<string, string> {
   const providerHome = path.join(home, "provider");
   return {
@@ -215,7 +243,7 @@ export function managedAiSessionFingerprintConfig(
   }
   const managed = config.managedAiConnection as Record<string, unknown> | undefined;
   if (managed?.sessionIdentity) {
-    for (const key of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "CODEX_API_KEY", "OPENROUTER_API_KEY", "XAI_API_KEY", "GROK_API_KEY", "OPENCODE_AUTH_JSON", "OPENCODE_CONFIG_CONTENT"]) {
+    for (const key of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_OAUTH_TOKEN", "OPENAI_API_KEY", "PAPERCLIP_AI_PROVIDER_KEY", "CODEX_API_KEY", "OPENROUTER_API_KEY", "XAI_API_KEY", "GROK_API_KEY", "OPENCODE_AUTH_JSON", "OPENCODE_CONFIG_CONTENT"]) {
       if (env[key]) env[key] = "<managed-ai-credential>";
     }
   }
@@ -234,6 +262,13 @@ export async function prepareManagedAiRuntime(
     allowUninstalledShared?: boolean;
     allowLegacyValidation?: boolean;
     config: Record<string, unknown>;
+    /**
+     * The heartbeat run this runtime serves. In SaaS mode a managed 9Router
+     * connection receives a token bound to it; without one (a probe) the
+     * token is bound to a synthetic id, expires quickly and is revoked at
+     * cleanup.
+     */
+    gatewayRun?: { runId: string; timeoutSec?: unknown };
   },
 ) {
   const configuredEnv =
@@ -270,6 +305,7 @@ export async function prepareManagedAiRuntime(
     selection.attribution.method === "subscription" &&
     input.binding.provider !== "anthropic";
   let home: string | undefined;
+  let probeGatewayRunId: string | null = null;
   try {
     const selectedGrantId = selection.grant.id;
     selection = await service.select({
@@ -364,7 +400,34 @@ export async function prepareManagedAiRuntime(
         security: { auth: { selectedType: "gemini-api-key" } },
       }), { mode: 0o600 });
     }
-    const projected = routing ? managedProviderRouting(routing, harness, value, typeof input.config.model === "string" ? input.config.model : "") : undefined;
+    // SaaS: the sandbox receives a run-scoped token and the proxy URL; the
+    // operator's 9Router key stays on the server (routes/managed-gateway-proxy.ts).
+    let sandboxRouting = routing;
+    let sandboxCredential = value;
+    if (routing && isSaasMode() && isManagedGatewayRoute(selection, routing)) {
+      if (!readManagedGatewayConfig()) {
+        throw unprocessable("The managed 9Router gateway is not configured on this instance.", { code: "managed_gateway_unconfigured" });
+      }
+      const publicUrl = readManagedGatewayPublicUrl();
+      if (!publicUrl) {
+        throw unprocessable(
+          "SOCIALAGENT_PUBLIC_URL is not configured, so SocialAgent AI cannot run in SaaS mode. Ask the operator to set it.",
+          { code: "managed_gateway_public_url_missing" },
+        );
+      }
+      const runId = input.gatewayRun?.runId ?? randomUUID();
+      if (!input.gatewayRun) probeGatewayRunId = runId;
+      sandboxCredential = await issueRunGatewayToken(db, {
+        companyId: input.companyId,
+        runId,
+        expiresAt: input.gatewayRun
+          ? managedGatewayTokenExpiry(input.gatewayRun.timeoutSec)
+          : new Date(Date.now() + MANAGED_GATEWAY_PROBE_TOKEN_TTL_MS),
+        activityRunId: input.gatewayRun ? runId : null,
+      });
+      sandboxRouting = { ...routing, baseUrl: managedGatewayProxyBaseUrl(publicUrl) };
+    }
+    const projected = sandboxRouting ? managedProviderRouting(sandboxRouting, harness, sandboxCredential, typeof input.config.model === "string" ? input.config.model : "") : undefined;
     if (projected) {
       const customHeaders = env.ANTHROPIC_CUSTOM_HEADERS ?? process.env.ANTHROPIC_CUSTOM_HEADERS;
       Object.assign(env, projected.env);
@@ -493,10 +556,12 @@ export async function prepareManagedAiRuntime(
         // same cleanup; only a committed save or an intentional discard
         // (revoked grant, older/different identity) permits deletion.
         if (home) await rm(home, { recursive: true, force: true });
+        if (probeGatewayRunId) await revokeRunGatewayTokens(db, probeGatewayRunId);
       },
     };
   } catch (error) {
     if (home) await rm(home, { recursive: true, force: true });
+    if (probeGatewayRunId) await revokeRunGatewayTokens(db, probeGatewayRunId).catch(() => {});
     throw error;
   }
 }

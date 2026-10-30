@@ -88,6 +88,20 @@ instance-managed 9Router gateway is configured (board, company access; never
 returns the key). `POST` on the same path creates or reuses the company's
 shared 9Router AI connection; it uses the shared AI connection create gate,
 denies agents and viewers, and logs `ai_connection.connected`.
+In SaaS mode (`SOCIALAGENT_SAAS_MODE=true`) a run on that connection never
+receives the 9Router key: it gets a run-scoped token and
+`SOCIALAGENT_PUBLIC_URL/api/managed-gateway/v1`. `ALL
+/api/managed-gateway/v1/*` is mounted before actor middleware and accepts only
+that bearer token (stored as a SHA-256 hash, bound to one company and run,
+valid while unexpired, unrevoked and the run is queued/running; 401 `Invalid or
+expired gateway token` otherwise). It forwards method, path, query and body
+(20 MB limit) to `SOCIALAGENT_9ROUTER_BASE_URL` with the server's key and
+streams the response. Board sessions and agent API keys are not accepted.
+Issuance and revocation (on terminal run status) log
+`managed_gateway.token_issued` / `managed_gateway.tokens_revoked`. See
+[proxy](../../server/src/routes/managed-gateway-proxy.ts),
+[tokens](../../server/src/services/managed-gateway-tokens.ts) and
+[tests](../../server/src/__tests__/managed-gateway-proxy.test.ts).
 With the gateway configured, `GET`/`PUT /api/instance/settings/ai-models`,
 `GET /api/instance/ai-models/catalog` and `GET /api/instance/ai-models/agents`
 are instance-admin only. Non-admin board users and agents cannot change agent

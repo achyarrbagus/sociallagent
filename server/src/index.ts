@@ -1044,6 +1044,11 @@ async function startServerWithDatabaseTeardown(
         "SOCIALAGENT_SAAS_MODE is enabled but no active managed sandbox environment exists; all agent runs will fail closed until one is provisioned",
       );
     }
+    if (!config.socialagentPublicUrl) {
+      logger.error(
+        "SOCIALAGENT_SAAS_MODE is enabled but SOCIALAGENT_PUBLIC_URL is not set; managed 9Router runs will fail closed until it is configured",
+      );
+    }
   }
 
   setStartupRecoveryPhase("recovering");

@@ -726,6 +726,16 @@ heartbeat environment selection behaves as if
 managed sandbox and fail closed with `ManagedSandboxUnavailableError` when none
 is active. At startup the server logs an error if no managed sandbox exists.
 
+SaaS mode also requires `SOCIALAGENT_PUBLIC_URL`, the server origin sandboxes
+can reach. A run on the managed 9Router connection receives a run-scoped token
+and `SOCIALAGENT_PUBLIC_URL/api/managed-gateway/v1` instead of
+`SOCIALAGENT_9ROUTER_API_KEY`; the proxy
+(`server/src/routes/managed-gateway-proxy.ts`) forwards to
+`SOCIALAGENT_9ROUTER_BASE_URL` with the key and streams the response. Tokens
+(`managed_gateway_tokens`, hashed) expire at the run timeout or after 24 hours
+and are revoked when the run turns terminal. Without the URL the server logs an
+error at startup and managed runs fail with `managed_gateway_public_url_missing`.
+
 ## Test Commands
 
 The [feature map](../maps/feature-map/README.md) is an optional reference for user

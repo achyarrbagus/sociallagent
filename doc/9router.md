@@ -11,6 +11,7 @@ An operator can provide 9Router for every company. Set these in the server envir
 | `SOCIALAGENT_9ROUTER_ADAPTER` | no | `claude_local` | Onboarding agent: `claude_local` or `codex_local`. |
 | `SOCIALAGENT_9ROUTER_CLAUDE_MODEL` | no | first gateway model | Preferred Claude model ID. |
 | `SOCIALAGENT_9ROUTER_CODEX_MODEL` | no | first gateway model | Preferred Codex model ID. |
+| `SOCIALAGENT_PUBLIC_URL` | in SaaS mode | — | Server origin sandboxes can reach. In SaaS mode runs use the run-scoped proxy at `<url>/api/managed-gateway/v1`, never the key. |
 
 When the key is set, **Connect a model** does not ask for a key. Onboarding calls `POST /api/companies/:companyId/onboarding/managed-gateway`. That route stores the key once per company and protocol as a shared AI connection named `9Router (Claude)` or `9Router (Codex)`, installed for all agents. The route reuses the connection on replay. The owner confirms the model and presses **Connect**. The agent connection test still runs before the hire. The agency team specialists use the Director's shared connection.
 

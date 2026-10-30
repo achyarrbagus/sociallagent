@@ -63,6 +63,12 @@ type DatabaseMode = "embedded-postgres" | "postgres";
 
 export interface Config {
   saasMode: boolean;
+  /**
+   * SOCIALAGENT_PUBLIC_URL: the server origin sandboxes can reach. Required in
+   * SaaS mode, where managed AI runs call the 9Router proxy at
+   * `<url>/api/managed-gateway/v1` with a run-scoped token.
+   */
+  socialagentPublicUrl: string | undefined;
   deploymentMode: DeploymentMode;
   deploymentExposure: DeploymentExposure;
   bind: BindMode;
@@ -382,6 +388,7 @@ export function loadConfig(): Config {
 
   return {
     saasMode: isSaasMode(),
+    socialagentPublicUrl: process.env.SOCIALAGENT_PUBLIC_URL?.trim().replace(/\/+$/, "") || undefined,
     deploymentMode,
     deploymentExposure,
     bind: resolvedBind.bind,

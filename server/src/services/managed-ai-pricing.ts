@@ -5,6 +5,11 @@ import { managedAiModelPolicySchema, type ManagedAiBilling } from "@paperclipai/
 /** The managed gateway's connection names; kept in step with managed-gateway.ts. */
 const MANAGED_CONNECTION_NAMES = ["9Router (Claude)", "9Router (Codex)"];
 
+/** True for the name of a company's managed 9Router connection. */
+export function isManagedGatewayConnectionName(name: unknown): boolean {
+  return typeof name === "string" && MANAGED_CONNECTION_NAMES.includes(name);
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }

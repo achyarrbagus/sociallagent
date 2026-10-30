@@ -1,4 +1,5 @@
 import { notifyExecutionRunWork } from "../execution-control-notifications.js";
+import { revokeRunGatewayTokens } from "../managed-gateway-tokens.js";
 import os from "node:os";
 import {
   DEFERRED_WAKE_CONTEXT_KEY,
@@ -1012,14 +1013,17 @@ export function createHeartbeatLifecycle(db: Db, dependencies: HeartbeatLifecycl
     return recordHeartbeatRunRuntimeProgress(currentRun, update, issueId);
   }
 
-  async function writeRunStatus<T>(status: string, companyId: string | undefined, write: (tx: Db) => Promise<T>) {
+  async function writeRunStatus<T extends { id: string } | null>(status: string, companyId: string | undefined, write: (tx: Db) => Promise<T>) {
     // Register on the outer transaction before the terminal write. An unknown
     // commit cannot strand newly-actionable accounting after the live event.
     return db.transaction(async transaction => {
       const tx = transaction as unknown as Db;
       if (isHeartbeatRunTerminalStatus(status)) await notifyDeliveryWork(tx, DELIVERY_QUEUES.accounting, companyId);
       await notifyExecutionRunWork(tx);
-      return write(tx);
+      const written = await write(tx);
+      // A terminal run's managed gateway tokens die with the status write.
+      if (written && isHeartbeatRunTerminalStatus(status)) await revokeRunGatewayTokens(tx, written.id);
+      return written;
     });
   }
 
