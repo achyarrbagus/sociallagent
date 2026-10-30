@@ -1,9 +1,12 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import {
   agents,
   budgetPolicies,
   companies,
   companyMemberships,
+  companySecrets,
+  companySecretVersions,
   connectionGrants,
   instanceSettings,
   toolConnections,
@@ -35,6 +38,7 @@ import { budgetService } from "./budgets.js";
 import { secretService } from "./secrets.js";
 import { logActivity } from "./activity-log.js";
 import { isSaasMode } from "../saas-mode.js";
+import { logger } from "../middleware/logger.js";
 
 export const MANAGED_GATEWAY_NAME = "9Router";
 export const MANAGED_GATEWAY_DEFAULT_BASE_URL = "https://9router.amifish.com/v1";
@@ -598,16 +602,26 @@ export function managedGatewayService(db: Db, readConfig: () => ManagedGatewayCo
   };
 }
 
+/** SHA-256 of the placeholder, as the local encrypted provider records `value_sha256`. */
+const PLACEHOLDER_SHA256 = createHash("sha256").update(MANAGED_GATEWAY_SECRET_PLACEHOLDER).digest("hex");
+
 /**
- * SaaS startup scrub: replaces every managed 9Router connection credential
- * that is not the placeholder (a master key stored before SaaS mode) with the
- * placeholder, as a new secret version. Logs one activity entry per company;
- * never logs a value. Returns the number of secrets replaced.
+ * SaaS startup scrub: no version of a managed 9Router connection credential
+ * may hold anything but the placeholder. The latest version becomes the
+ * placeholder (a rotation when needed), and every older version's encrypted
+ * material is overwritten with the placeholder's, so a binding pinned to an
+ * old version can no longer recover a key stored before SaaS mode.
+ *
+ * Detection uses each version's recorded `value_sha256` (no decryption), so
+ * the scrub is idempotent on every restart. Each secret is handled on its own:
+ * a failure is logged (never with a value) and the loop continues; each
+ * scrubbed secret writes its own activity entry. Returns the number of
+ * secrets scrubbed.
  */
 export async function scrubStoredManagedGatewayKeys(db: Db): Promise<number> {
   if (!isSaasMode()) return 0;
   const rows = await db
-    .select({ companyId: toolConnections.companyId, connectionId: toolConnections.id, refs: connectionGrants.credentialSecretRefs })
+    .select({ companyId: toolConnections.companyId, refs: connectionGrants.credentialSecretRefs })
     .from(toolConnections)
     .innerJoin(connectionGrants, and(
       eq(connectionGrants.connectionId, toolConnections.id),
@@ -619,32 +633,61 @@ export async function scrubStoredManagedGatewayKeys(db: Db): Promise<number> {
       sql`${toolConnections.name} in (${MANAGED_CONNECTION_NAMES[0]}, ${MANAGED_CONNECTION_NAMES[1]})`,
     ));
   const secrets = secretService(db);
-  const replacedByCompany = new Map<string, string[]>();
   const seen = new Set<string>();
+  let scrubbed = 0;
   for (const row of rows) {
     const ref = row.refs.find(entry => entry.configPath === "ai.credential");
     if (!ref || seen.has(ref.secretId)) continue;
     seen.add(ref.secretId);
-    let current: string;
     try {
-      current = await secrets.resolveSecretValue(row.companyId, ref.secretId, "latest");
-    } catch {
-      continue;
+      const [secret] = await db.select({ provider: companySecrets.provider, status: companySecrets.status })
+        .from(companySecrets)
+        .where(and(eq(companySecrets.id, ref.secretId), eq(companySecrets.companyId, row.companyId)));
+      if (!secret) {
+        logger.error({ companyId: row.companyId, secretId: ref.secretId }, "Managed 9Router credential secret not found; it cannot be scrubbed");
+        continue;
+      }
+      if (secret.provider !== "local_encrypted") {
+        logger.error({ companyId: row.companyId, secretId: ref.secretId, provider: secret.provider },
+          "Managed 9Router credential is not a local encrypted secret; its stored versions cannot be scrubbed");
+        continue;
+      }
+      const versions = () => db.select().from(companySecretVersions)
+        .where(eq(companySecretVersions.secretId, ref.secretId))
+        .orderBy(desc(companySecretVersions.version));
+      let current = await versions();
+      if (!current.some(version => version.valueSha256 !== PLACEHOLDER_SHA256)) continue;
+      if (current[0]?.valueSha256 !== PLACEHOLDER_SHA256) {
+        await secrets.rotate(ref.secretId, { value: MANAGED_GATEWAY_SECRET_PLACEHOLDER, preserveAiSessionEpoch: true }, { userId: null });
+        current = await versions();
+      }
+      const placeholder = current[0]!;
+      const overwritten = current.filter(version => version.valueSha256 !== PLACEHOLDER_SHA256).map(version => version.version);
+      if (overwritten.length) {
+        await db.update(companySecretVersions).set({
+          material: placeholder.material,
+          valueSha256: placeholder.valueSha256,
+          fingerprintSha256: placeholder.fingerprintSha256,
+          providerVersionRef: placeholder.providerVersionRef,
+        }).where(and(
+          eq(companySecretVersions.secretId, ref.secretId),
+          ne(companySecretVersions.valueSha256, PLACEHOLDER_SHA256),
+        ));
+      }
+      await logActivity(db, {
+        companyId: row.companyId,
+        actorType: "system",
+        actorId: "managed-gateway",
+        action: "managed_gateway.stored_key_scrubbed",
+        entityType: "secret",
+        entityId: ref.secretId,
+        details: { latestVersion: placeholder.version, overwrittenVersions: overwritten },
+      });
+      scrubbed += 1;
+    } catch (error) {
+      logger.error({ companyId: row.companyId, secretId: ref.secretId, errorName: error instanceof Error ? error.name : typeof error },
+        "Could not scrub a stored managed 9Router credential");
     }
-    if (current === MANAGED_GATEWAY_SECRET_PLACEHOLDER) continue;
-    await secrets.rotate(ref.secretId, { value: MANAGED_GATEWAY_SECRET_PLACEHOLDER, preserveAiSessionEpoch: true }, { userId: null });
-    replacedByCompany.set(row.companyId, [...(replacedByCompany.get(row.companyId) ?? []), ref.secretId]);
   }
-  for (const [companyId, secretIds] of replacedByCompany) {
-    await logActivity(db, {
-      companyId,
-      actorType: "system",
-      actorId: "managed-gateway",
-      action: "managed_gateway.stored_key_scrubbed",
-      entityType: "company",
-      entityId: companyId,
-      details: { secretIds },
-    });
-  }
-  return [...replacedByCompany.values()].reduce((total, ids) => total + ids.length, 0);
+  return scrubbed;
 }

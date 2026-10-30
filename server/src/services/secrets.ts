@@ -66,6 +66,7 @@ import { isSecretProviderClientError } from "../secrets/types.js";
 import { authorizationDeniedDetails, authorizationService } from "./authorization.js";
 import { findActiveServerAdapter } from "../adapters/index.js";
 import { logActivity } from "./activity-log.js";
+import { isSaasMode } from "../saas-mode.js";
 // Only a `local_encrypted` secret can hold a literal directory path, so only a
 // `local_encrypted` secret can ever name a Codex account-home directory. A
 // create or a rotate that writes a new `local_encrypted` value runs inside
@@ -834,6 +835,17 @@ function assertClass3StaticLeaseAllowed(input: {
 
 function defaultProviderConfigStatus(provider: SecretProvider): SecretProviderConfigStatus {
   return COMING_SOON_SECRET_PROVIDERS.has(provider) ? "coming_soon" : "ready";
+}
+
+const MANAGED_GATEWAY_KEY_REFUSED = "managed_gateway_key_refused";
+
+/**
+ * True in SaaS mode when a value is (or contains) the operator's 9Router key.
+ * Read from the environment directly: managed-gateway.ts depends on this module.
+ */
+function isManagedGatewayMasterKey(value: string): boolean {
+  const key = process.env.SOCIALAGENT_9ROUTER_API_KEY?.trim();
+  return isSaasMode() && Boolean(key) && value.includes(key!);
 }
 
 function secretResolutionErrorCode(error: unknown): SecretResolutionErrorCode {
@@ -1712,6 +1724,23 @@ export function secretService(db: Db | DbTransaction) {
         accessContext,
       });
       await context.registerForRedaction(resolution.value);
+      if (isManagedGatewayMasterKey(resolution.value)) {
+        // SaaS: no agent may read the operator's 9Router key, whatever binding
+        // or pinned version names it. Logged without the value.
+        await logActivity(db as Db, {
+          companyId,
+          actorType: "agent",
+          actorId: context.agentId,
+          action: "secret.value.read",
+          entityType: "secret",
+          entityId: secretId,
+          agentId: context.agentId,
+          runId: context.heartbeatRunId,
+          issueId: effectiveIssueId,
+          details: { configPath: context.configPath, outcome: "refused", reason: MANAGED_GATEWAY_KEY_REFUSED },
+        });
+        throw forbidden("This secret value cannot be read by agents", { code: MANAGED_GATEWAY_KEY_REFUSED });
+      }
       await logActivity(db as Db, {
         companyId,
         actorType: "agent",
@@ -1733,6 +1762,7 @@ export function secretService(db: Db | DbTransaction) {
         version: resolution.manifestEntry.version,
       };
     } catch (error) {
+      if (error instanceof HttpError && asRecord(error.details)?.code === MANAGED_GATEWAY_KEY_REFUSED) throw error;
       const errorCode = secretResolutionErrorCode(error);
       await logActivity(db as Db, {
         companyId,

@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterEach, expect, it, vi } from "vitest";
-import { activityLog, agents, connectionGrants, heartbeatRuns, issues, toolConnections } from "@paperclipai/db";
+import { createHash } from "node:crypto";
+import { activityLog, agents, companySecrets, companySecretVersions, connectionGrants, heartbeatRuns, issues, toolConnections } from "@paperclipai/db";
+import { logger } from "../middleware/logger.js";
 import {
   MANAGED_GATEWAY_SECRET_PLACEHOLDER,
   managedGatewayService,
@@ -92,6 +94,7 @@ describeEmbeddedPostgres("managed 9Router key never stored per company in SaaS m
     expect(await storedValue(companyId, secretId)).toBe(MANAGED_GATEWAY_SECRET_PLACEHOLDER);
     const logged = await ctx.db.select().from(activityLog).where(and(eq(activityLog.companyId, companyId), eq(activityLog.action, "managed_gateway.stored_key_scrubbed")));
     expect(logged).toHaveLength(1);
+    expect(logged[0]!.entityId).toBe(secretId);
     expect(JSON.stringify(logged)).not.toContain(MASTER_KEY);
     // Idempotent: nothing left to replace.
     expect(await scrubStoredManagedGatewayKeys(ctx.db)).toBe(0);
@@ -112,5 +115,83 @@ describeEmbeddedPostgres("managed 9Router key never stored per company in SaaS m
     const secret = await secretService(ctx.db).create(seeded.companyId, { name: `copied-${randomUUID()}`, provider: "local_encrypted", value: MASTER_KEY }, { userId: seeded.userId });
     const prepared = await prepareWithBoundSecret(seeded.companyId, secret.id);
     expect(prepared.prepared).toBe(true);
+  });
+
+  const MASTER_SHA = createHash("sha256").update(MASTER_KEY).digest("hex");
+  const versionsOf = (secretId: string) => ctx.db.select().from(companySecretVersions).where(eq(companySecretVersions.secretId, secretId));
+
+  /** A managed secret whose version 1 holds the key (stored before SaaS) and version 2 the placeholder. */
+  async function managedSecretWithOldKeyVersion() {
+    enable(false);
+    const managed = await managedCompany();
+    await secretService(ctx.db).rotate(managed.secretId, { value: MANAGED_GATEWAY_SECRET_PLACEHOLDER }, { userId: null });
+    const versions = await versionsOf(managed.secretId);
+    expect(versions.map(version => [version.version, version.valueSha256 === MASTER_SHA])).toEqual(expect.arrayContaining([[1, true], [2, false]]));
+    return managed;
+  }
+
+  it("overwrites every stored version holding the key, not only the latest", async () => {
+    const { companyId, secretId } = await managedSecretWithOldKeyVersion();
+    enable(true);
+    expect(await scrubStoredManagedGatewayKeys(ctx.db)).toBeGreaterThanOrEqual(1);
+    const versions = await versionsOf(secretId);
+    expect(versions.length).toBeGreaterThanOrEqual(2);
+    expect(versions.some(version => version.valueSha256 === MASTER_SHA)).toBe(false);
+    for (const version of versions) {
+      expect(await secretService(ctx.db).resolveSecretValue(companyId, secretId, version.version)).toBe(MANAGED_GATEWAY_SECRET_PLACEHOLDER);
+    }
+    // A second run has nothing to do.
+    expect(await scrubStoredManagedGatewayKeys(ctx.db)).toBe(0);
+  });
+
+  async function agentRun(companyId: string) {
+    const agentId = randomUUID(), heartbeatRunId = randomUUID();
+    await ctx.db.insert(agents).values({ id: agentId, companyId, name: "Secret reader", adapterType: "codex_local", status: "idle", adapterConfig: {} });
+    await ctx.db.insert(heartbeatRuns).values({ id: heartbeatRunId, companyId, agentId, status: "running", startedAt: new Date() });
+    return { agentId, heartbeatRunId };
+  }
+
+  it("refuses an access.* binding pinned to an old key version, while a normal secret resolves", async () => {
+    const { companyId, secretId } = await managedSecretWithOldKeyVersion();
+    enable(true);
+    const svc = secretService(ctx.db);
+    const { agentId, heartbeatRunId } = await agentRun(companyId);
+    await svc.createBinding({ companyId, secretId, targetType: "agent", targetId: agentId, configPath: "access.GATEWAY", versionSelector: 1 });
+    const normal = await svc.create(companyId, { name: `normal-${randomUUID()}`, provider: "local_encrypted", value: "ordinary-value" });
+    await svc.createBinding({ companyId, secretId: normal.id, targetType: "agent", targetId: agentId, configPath: "access.NORMAL" });
+    const read = (id: string, configPath: string, version: number | "latest") => svc.resolveSecretValueForAgentAccess(companyId, id, version, {
+      agentId, configPath, actorSource: "agent_jwt", heartbeatRunId, registerForRedaction: () => {},
+    });
+
+    // Before any scrub, the access layer refuses the pinned key version.
+    const refused = await read(secretId, "access.GATEWAY", 1).then(() => null, (error: unknown) => error);
+    expect(refused).toMatchObject({ status: 403, details: { code: "managed_gateway_key_refused" } });
+    expect(JSON.stringify(refused)).not.toContain(MASTER_KEY);
+    const logged = await ctx.db.select().from(activityLog).where(and(eq(activityLog.entityId, secretId), eq(activityLog.action, "secret.value.read")));
+    expect(logged.some(entry => (entry.details as Record<string, unknown>).outcome === "refused")).toBe(true);
+    expect(JSON.stringify(logged)).not.toContain(MASTER_KEY);
+    await expect(read(normal.id, "access.NORMAL", "latest")).resolves.toEqual({ value: "ordinary-value", version: 1 });
+
+    // After the scrub the pinned version only yields the placeholder.
+    await scrubStoredManagedGatewayKeys(ctx.db);
+    await expect(read(secretId, "access.GATEWAY", 1)).resolves.toEqual({ value: MANAGED_GATEWAY_SECRET_PLACEHOLDER, version: 1 });
+  });
+
+  it("keeps scrubbing past a secret that fails and logs it without values", async () => {
+    enable(false);
+    const broken = await managedCompany();
+    const healthy = await managedCompany();
+    await ctx.db.update(companySecrets).set({ status: "disabled" }).where(eq(companySecrets.id, broken.secretId));
+    enable(true);
+    const errors = vi.spyOn(logger, "error");
+    try {
+      await scrubStoredManagedGatewayKeys(ctx.db);
+      expect(errors).toHaveBeenCalledWith(expect.objectContaining({ secretId: broken.secretId }), expect.stringContaining("Could not scrub"));
+      expect(JSON.stringify(errors.mock.calls)).not.toContain(MASTER_KEY);
+      expect((await versionsOf(healthy.secretId)).some(version => version.valueSha256 === MASTER_SHA)).toBe(false);
+    } finally {
+      errors.mockRestore();
+      await ctx.db.update(companySecrets).set({ status: "active" }).where(eq(companySecrets.id, broken.secretId));
+    }
   });
 });

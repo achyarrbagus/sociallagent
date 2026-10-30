@@ -100,8 +100,10 @@ expired gateway token` otherwise). Paths that leave the gateway base (`..`,
 (20 MB limit) to `SOCIALAGENT_9ROUTER_BASE_URL` with the server's key and
 streams the response. Board sessions and agent API keys are not accepted.
 In SaaS mode the company's stored managed credential is the placeholder
-`managed-gateway-proxied` (startup replaces an older stored key and logs
-`managed_gateway.stored_key_scrubbed`), and a run whose resolved
+`managed-gateway-proxied` (startup overwrites every stored version that held
+the key and logs `managed_gateway.stored_key_scrubbed` per secret), the agent
+secret-value route refuses a value containing the key (403
+`managed_gateway_key_refused`), and a run whose resolved
 configuration contains the key is refused with 422
 `managed_gateway_key_exposed`. Issuance and revocation (on terminal run status) log
 `managed_gateway.token_issued` / `managed_gateway.tokens_revoked`. See
