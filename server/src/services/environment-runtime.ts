@@ -100,6 +100,7 @@ import {
   type SandboxOrphanCleanupSpool,
 } from "./sandbox-orphan-cleanup-spool.js";
 import { logger } from "../middleware/logger.js";
+import { isSaasMode } from "../saas-mode.js";
 
 // The constant error kind for the durable orphan-cleanup-write-failed log. The
 // log never reads the caught exception, because the exception can carry a
@@ -1878,6 +1879,13 @@ function createSandboxEnvironmentDriver(
         throw new Error("sandbox_snapshot_qualification_required: The snapshot qualification is missing or stale. Test this environment again before running Paperclip Runner.");
       }
       if (input.configuredEnvironment) parsed.config = { ...parsed.config, reuseLease: storedParsed.config.reuseLease, archiveOnRelease: storedParsed.config.archiveOnRelease };
+      // SaaS mode: one ephemeral provider sandbox per run lease. A retained or
+      // reusable sandbox could be resumed by a later run, so the saved
+      // `reuseLease` setting is ignored and every reuse lookup below is skipped.
+      if (isSaasMode()) {
+        parsed.config = { ...parsed.config, reuseLease: false };
+        storedParsed.config = { ...storedParsed.config, reuseLease: false };
+      }
       if (pinnedSnapshotId) parsed.config = { ...parsed.config, snapshot: pinnedSnapshotId };
 
       // Check if this provider should be handled by a plugin.
@@ -1968,6 +1976,9 @@ function createSandboxEnvironmentDriver(
           input.agentId !== null
           ? (await environmentsSvc.listLeases(input.environment.id))
               .filter((lease) =>
+                // Tenant boundary, in every mode: never resume (or clean up as
+                // obsolete) another company's lease, whatever its metadata says.
+                lease.companyId === input.companyId &&
                 lease.leasePolicy === "reuse_by_environment" &&
                 reusableLeaseCanBeResumed({ lease, heartbeatRunId: input.heartbeatRunId }) &&
                 lease.executionWorkspaceId === input.executionWorkspaceId &&
@@ -2390,6 +2401,9 @@ function createSandboxEnvironmentDriver(
         input.agentId !== null
           ? (await environmentsSvc.listLeases(input.environment.id))
               .filter((lease) =>
+                // Tenant boundary, in every mode: never resume (or clean up as
+                // obsolete) another company's lease, whatever its metadata says.
+                lease.companyId === input.companyId &&
                 lease.leasePolicy === "reuse_by_environment" &&
                 reusableLeaseCanBeResumed({ lease, heartbeatRunId: input.heartbeatRunId }) &&
                 lease.executionWorkspaceId === input.executionWorkspaceId &&
@@ -2593,6 +2607,23 @@ function createSandboxEnvironmentDriver(
           environment: input.environment,
           lease: input.lease,
           failureReason: "lease_expired",
+        });
+      }
+
+      // SaaS mode: a run's sandbox is destroyed at release, never retained or
+      // stopped for a later run. A stop-and-retain release keeps the exact
+      // lease for same-run workspace recovery and stays on its own path. A
+      // plugin worker that cannot verify destroy falls back to its release.
+      if (
+        isSaasMode() &&
+        input.resourceDisposition !== "stop_and_retain" &&
+        saasSandboxLeaseCanBeDestroyed(input.lease)
+      ) {
+        return await destroyReusableSandboxLease({
+          environment: input.environment,
+          lease: input.lease,
+          failureReason: input.status === "failed" ? "adapter_or_run_failure" : undefined,
+          releaseStatus: input.status,
         });
       }
 
@@ -3390,10 +3421,26 @@ function createSandboxEnvironmentDriver(
     });
   }
 
+  function saasSandboxLeaseCanBeDestroyed(lease: EnvironmentLease): boolean {
+    const metadata = lease.metadata ?? {};
+    const pluginBacked = metadata.sandboxProviderPlugin === true || (() => {
+      const looseConfig = sandboxConfigFromLeaseMetadataLoose(lease);
+      return !!looseConfig && !isBuiltinSandboxProvider(looseConfig.provider);
+    })();
+    if (!pluginBacked) return true;
+    const pluginId = readString(metadata.pluginId);
+    return !!pluginId &&
+      !!readString(metadata.provider) &&
+      pluginWorkerManager?.isRunning(pluginId) === true &&
+      pluginWorkerVerifiesLifecycleMethod(pluginId, "environmentDestroyLease");
+  }
+
   async function destroyReusableSandboxLease(input: {
     environment: Environment;
     lease: EnvironmentLease;
-    failureReason: string;
+    failureReason?: string;
+    /** Status recorded after a successful teardown (default `expired`). */
+    releaseStatus?: Extract<EnvironmentLeaseStatus, "released" | "expired" | "failed">;
   }): Promise<EnvironmentLease | null> {
     if (await legacyShutdownWorkspaceResourceProtected(db, input.lease)) return null;
     let cleanupStatus: "success" | "failed" = "success";
@@ -3454,7 +3501,7 @@ function createSandboxEnvironmentDriver(
 
     return await environmentsSvc.releaseLease(
       input.lease.id,
-      cleanupStatus === "success" ? "expired" : "pending_cleanup",
+      cleanupStatus === "success" ? (input.releaseStatus ?? "expired") : "pending_cleanup",
       {
         ...(input.lease.status === "pending_cleanup" && typeof metadata.pendingCleanupAttemptId === "string"
           ? { expectedPendingCleanupAttemptId: metadata.pendingCleanupAttemptId } : {}),
@@ -3665,7 +3712,9 @@ function createPluginEnvironmentDriver(
         driver.defaultAcquireTimeoutMs,
       );
       const timeoutOverride: [number?] = rpcTimeoutMs === undefined ? [] : [rpcTimeoutMs];
-      const warm = input.adapterType === "paperclip_runner" && parsed.config.runnerLifecycleMode === "warm" &&
+      // SaaS mode never keeps a warm task lease for a later run: every run gets
+      // a fresh ephemeral provider lease (see the sandbox driver above).
+      const warm = !isSaasMode() && input.adapterType === "paperclip_runner" && parsed.config.runnerLifecycleMode === "warm" &&
         driver.warmTaskVersion === 1 && !!input.issueId && !!input.agentId && !!input.heartbeatRunId &&
         workerManager.getWorker(plugin.id)?.supportedMethods.includes("environmentResumeLease");
       const lifecyclePolicy = warm ? { mode: "warm", idleTimeoutMs: parsed.config.runnerIdleTimeoutMs ?? 300_000 } : { mode: "per_turn", idleTimeoutMs: null };
@@ -3745,11 +3794,20 @@ function createPluginEnvironmentDriver(
     },
 
     async releaseRunLease(input) {
-      await db.update(environmentLeases).set({ metadata: sql`coalesce(${environmentLeases.metadata}, '{}'::jsonb) || '{"pluginLeaseCleanupMethod":"release"}'::jsonb` }).where(and(eq(environmentLeases.id, input.lease.id), eq(environmentLeases.companyId, input.lease.companyId)));
+      // SaaS mode destroys the provider lease at release so nothing survives
+      // for a later run; a worker that cannot verify destroy keeps release.
+      const saasDestroy = isSaasMode() && input.resourceDisposition !== "stop_and_retain" && await (async () => {
+        try {
+          const { plugin } = await resolvePluginDriverForRelease(input);
+          return workerManager.getWorker(plugin.id)?.supportedMethods.includes("environmentDestroyLease") === true;
+        } catch { return false; }
+      })();
+      const cleanupMethod = saasDestroy ? "destroy" : "release";
+      await db.update(environmentLeases).set({ metadata: sql`coalesce(${environmentLeases.metadata}, '{}'::jsonb) || ${JSON.stringify({ pluginLeaseCleanupMethod: cleanupMethod })}::jsonb` }).where(and(eq(environmentLeases.id, input.lease.id), eq(environmentLeases.companyId, input.lease.companyId)));
       const taskStopped = await settleDispatchedEnvironmentTask(db, workerManager, input.lease) ||
         (input.lease.metadata?.runnerTaskLease === true && input.lease.metadata?.runnerTaskDispatched !== true);
       const { plugin, driverKey, driverConfig } = await resolvePluginDriverForRelease(input);
-      await workerManager.call(plugin.id, "environmentReleaseLease", {
+      await workerManager.call(plugin.id, saasDestroy ? "environmentDestroyLease" : "environmentReleaseLease", {
         driverKey,
         companyId: input.lease.companyId,
         environmentId: input.environment.id,
