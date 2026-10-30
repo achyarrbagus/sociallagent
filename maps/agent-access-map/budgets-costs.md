@@ -59,6 +59,8 @@ have additional board gates.
 
 Capability ID: `budgets-costs/budgets`.
 
+Managed AI credits use a separate organization allowance: the balance endpoint requires a board actor with company access, and instance credit defaults and tenant overrides require an instance administrator. Ordinary agent credentials cannot read or modify these settings. See [credit routes](../../server/src/routes/credits.ts) and [route tests](../../server/src/__tests__/credit-routes.test.ts).
+
 Review: `baseline`.
 
 API: `present` — representative operation IDs:

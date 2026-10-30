@@ -1,3 +1,4 @@
+import { managedCreditAdmission } from "./credit-ledger.js";
 import { and, eq, sql } from "drizzle-orm";
 import { agents, budgetReservations, heartbeatRuns, nativeRunFinalizations, type Db } from "@paperclipai/db";
 import { centsToUnits, unitsToCents } from "@paperclipai/shared";
@@ -47,6 +48,10 @@ export async function recheckRunBudgetReservationInTransaction(
         eq(nativeRunFinalizations.runId, run.id), eq(nativeRunFinalizations.leaseOwner, recoveryLeaseOwner),
         sql`${nativeRunFinalizations.leaseExpiresAt} > clock_timestamp()`)) : [];
     if (!owner) return "Native recovery no longer owns provider dispatch";
+  }
+  if (!recoveryLeaseOwner) {
+    const credit = await managedCreditAdmission(tx, run);
+    if (credit && !credit.allowed) return "Organization has no credits remaining";
   }
   const { block, policies, observations } = await budgetServiceInTransaction(tx, publications)
     .evaluateAdmission(run.companyId, run.agentId, { projectId: reservation.projectId });
@@ -100,6 +105,8 @@ export async function reserveRunBudget(db: Db, companyId: string, runId: string,
       }
       throw conflict("Provider dispatch has already reserved this run");
     }
+    const credit = await managedCreditAdmission(tx, run);
+    if (credit && !credit.allowed) return { admissionBlockReason: "Organization has no credits remaining" };
     const { block, policies, observations } = await budgetServiceInTransaction(tx, publications).evaluateAdmission(companyId, run.agentId, { projectId });
     if (block) return { admissionBlockReason: block.reason };
     // A budget release can start asynchronous resume hooks. Capacity alone
@@ -121,7 +128,7 @@ export async function reserveRunBudget(db: Db, companyId: string, runId: string,
     const [reservation] = await tx.insert(budgetReservations).values({ companyId, runId, agentId: run.agentId, projectId,
       amountCents: unitsToCents(amount), providerStartedAt: new Date() }).returning();
     await tx.update(heartbeatRuns).set({ costAccountingPending: true,
-      usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({ accountingReceiptReady: false, ledgerScope: { ...(run.usageJson?.ledgerScope as object ?? {}), ...ledgerScope, projectId } })}::jsonb`,
+      usageJson: sql`coalesce(${heartbeatRuns.usageJson}, '{}'::jsonb) || ${JSON.stringify({ accountingReceiptReady: false, ...(credit ? { creditRatesSnapshot: credit.rates } : {}), ledgerScope: { ...(run.usageJson?.ledgerScope as object ?? {}), ...ledgerScope, projectId } })}::jsonb`,
     }).where(eq(heartbeatRuns.id, runId));
     return { ...reservation, reused: false };
   }));

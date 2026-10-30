@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot } from "lucide-react";
 import { AGENT_ROLES, AGENT_ROLE_LABELS, type AgentRole, type ManagedAdapterModelPolicy, type ManagedAiBilling } from "@paperclipai/shared";
 import { managedAiApi } from "@/api/managed-ai";
+import { CreditSettings } from "@/components/CreditSettings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -134,6 +135,7 @@ export function InstanceAiModelsSettings() {
         </p>
       </div>
 
+      <CreditSettings />
       {settings.error && <p role="alert" className="text-sm text-destructive">{settings.error instanceof Error ? settings.error.message : "Could not load AI model settings."}</p>}
       {settings.data && !enabled && (
         <Card className="block bg-transparent p-5 text-sm">

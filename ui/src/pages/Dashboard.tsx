@@ -17,6 +17,7 @@ import { InlineBanner } from "../components/InlineBanner";
 import { Button } from "../components/ui/button";
 import { TodayOverview } from "../components/TodayOverview";
 import { PluginSlotOutlet } from "@/plugins/slots";
+import { CreditBalance } from "@/components/CreditBalance";
 
 export type PausedAgentBanner =
   | { kind: "imported"; pausedImportedAgentIds: string[] }
@@ -106,6 +107,7 @@ export function Dashboard() {
   </>;
   return <TodayOverview key={selectedCompanyId} companyId={selectedCompanyId} companyName={companies.find(company => company.id === selectedCompanyId)?.name ?? "Agensi kamu"}
     agents={agents} agentsError={agentQuery.error} notices={notices}>
+    <CreditBalance companyId={selectedCompanyId} />
     <PluginSlotOutlet slotTypes={["dashboardWidget"]} context={{ companyId: selectedCompanyId }} className="grid gap-4 md:grid-cols-2" />
   </TodayOverview>;
 }

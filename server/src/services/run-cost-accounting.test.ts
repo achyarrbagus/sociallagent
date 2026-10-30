@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { agents, companies, costEvents, createDb, heartbeatRuns, promptInjectionInvocations, type Db } from "@paperclipai/db";
 import { getEmbeddedPostgresTestSupport, startEmbeddedPostgresTestDatabase } from "../__tests__/helpers/embedded-postgres.js";
 import { accountRunCost, createCostAccountingReconciler, readCostAccountingWork } from "./run-cost-accounting.js";
+import { creditBalance } from "./credit-ledger.js";
 
 const support = await getEmbeddedPostgresTestSupport();
 (support.supported ? describe : describe.skip)("run cost accounting work", () => {
@@ -58,6 +59,33 @@ const support = await getEmbeddedPostgresTestSupport();
     expect(events[0].costCents).toBe(1);
     expect(cancelWorkForScope).not.toHaveBeenCalled();
     expect(await readCostAccountingWork(db, Date.now(), directory)).toEqual({ pending: false, nextRunAt: null });
+  });
+
+  it("settles credits once with the captured rates and final token receipt", async () => {
+    const { companyId, runId } = await seed({ usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01, inputTokens: 2000, cachedInputTokens: 500, outputTokens: 1000, creditRatesSnapshot: { input: 1000000, cachedInput: 100000, output: 5000000 } } });
+    expect(await accountRunCost(db, runId)).toBe(true);
+    expect(await accountRunCost(db, runId)).toBe(false);
+    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("6550000");
+  });
+
+  it("settles concurrent retries into a single credit charge", async () => {
+    const { companyId, runId } = await seed({ usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01, inputTokens: 2000, cachedInputTokens: 500, outputTokens: 1000, creditRatesSnapshot: { input: 1000000, cachedInput: 100000, output: 5000000 } } });
+    const results = await Promise.all([accountRunCost(db, runId), accountRunCost(db, runId), accountRunCost(db, runId)]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("6550000");
+  });
+
+  it("records provider cost without a credit charge when token usage is incomplete", async () => {
+    const { companyId, runId } = await seed({ usageJson: { accountingReceiptReady: true, provider: "test", model: "test", billingType: "metered_api", costUsd: 0.01, inputTokens: 2000, creditRatesSnapshot: { input: 1000000, cachedInput: 100000, output: 5000000 } } });
+    expect(await accountRunCost(db, runId)).toBe(true);
+    expect(await db.select().from(costEvents).where(eq(costEvents.heartbeatRunId, runId))).toHaveLength(1);
+    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("0");
+  });
+
+  it("does not charge a run while its provider receipt is missing", async () => {
+    const { companyId, runId } = await seed({ usageJson: { accountingReceiptReady: false, inputTokens: 2000, creditRatesSnapshot: { input: 1000000, cachedInput: 100000, output: 5000000 } } });
+    expect(await accountRunCost(db, runId)).toBe(false);
+    expect((await creditBalance(db, companyId)).spentMicrounits).toBe("0");
   });
 
   it("repairs a stale pending marker without creating another charge", async () => {

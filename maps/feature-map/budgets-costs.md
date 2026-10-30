@@ -21,6 +21,8 @@ that hold. See [accounting behavior](../../doc/prompt-injection-prevention.md).
 
 - `cost-reporting`: `budgets-costs/cost-reporting` — inspect spend by the offered time range and resource dimensions.
 - `budgets`: `budgets-costs/budgets` — configure supported company/project/agent limits and inspect usage.
+
+Managed 9Router usage additionally has organization-shared monthly credits. Instance administrators set default and tenant-specific allowances and token rates; company members can see the balance on the dashboard. Exhaustion blocks new managed runs while admitted work may finish. This allowance is separate from provider-cost budget incidents.
 - `incidents`: `budgets-costs/incidents` — distinguish warnings, hard stops, and manual pauses.
 - `resolution`: `budgets-costs/resolution` — raise or resolve a budget incident through authorized controls and verify resumption.
 - `subscriptions`: `budgets-costs/subscriptions` — inspect subscription fees separately from API usage, edit owned prices, link duplicate accounts, and end or exclude tracking.

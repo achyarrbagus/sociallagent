@@ -1,5 +1,6 @@
 export { chatSlackRegistrations } from "./chat_slack_registrations.js";
 export { companies } from "./companies.js";
+export { instanceCreditSettings, companyCreditPolicies, companyCreditCharges } from "./credits.js";
 export { agencyClients } from "./agency_clients.js";
 export { agencyBrands } from "./agency_brands.js";
 export { agencyContentItems, agencyContentRevisions, agencyContentDecisions, agencyContentTasks } from "./agency_content.js";

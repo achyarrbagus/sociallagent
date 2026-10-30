@@ -1,3 +1,4 @@
+import { recordCreditUsageInTransaction, type CreditRates } from "./credit-ledger.js";
 import { usdToUnits, unitsToCents } from "@paperclipai/shared";
 import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import { accountingRuntimeBaselines, budgetReservations, agentRuntimeState, agents, costEvents, heartbeatRuns, nativeRunFinalizations, issues, projects, decisionInvocations, promptInjectionInvocations, type Db } from "@paperclipai/db";
@@ -112,6 +113,19 @@ export async function accountRunCost(db: Db, runId: string, hooks: BudgetService
       inputTokens: amount(usage.inputTokens) ?? 0, cachedInputTokens: amount(usage.cachedInputTokens) ?? 0, outputTokens: amount(usage.outputTokens) ?? 0,
       costCents, occurredAt: run.finishedAt ?? run.createdAt,
     };
+    if (usage.creditRatesSnapshot) {
+      const rates = object(usage.creditRatesSnapshot) as CreditRates;
+      // Never fabricate zero usage, and never let a credit gap hold back the
+      // provider-cost receipt: incomplete token counts produce no charge.
+      const complete = [usage.inputTokens, usage.cachedInputTokens, usage.outputTokens].every(value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+        && (usage.cachedInputTokens as number) <= (usage.inputTokens as number);
+      if (!complete) logger.warn({ runId: run.id, companyId: run.companyId }, "Managed run receipt lacks complete token usage; no credit charge recorded");
+      else await recordCreditUsageInTransaction(tx, run.companyId, run.id, {
+        inputTokens: usage.inputTokens as number,
+        cachedInputTokens: usage.cachedInputTokens as number,
+        outputTokens: usage.outputTokens as number,
+      }, rates, run.finishedAt ?? run.createdAt);
+    }
     const parts = Array.isArray(usage.usageByModel) ? usage.usageByModel.map(object) : [];
     const tokensMatch = ["inputTokens", "cachedInputTokens", "outputTokens"].every((key) =>
       parts.reduce((sum, part) => sum + (amount(object(part.usage)[key]) ?? 0), 0) === (amount(usage[key]) ?? 0));

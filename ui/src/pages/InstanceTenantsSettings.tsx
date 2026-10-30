@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2 } from "lucide-react";
 import type { ManagedTenantRow } from "@paperclipai/shared";
 import { api } from "@/api/client";
+import { TenantCreditSettings } from "@/components/TenantCreditSettings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -63,6 +64,7 @@ function TenantRow({ row }: { row: ManagedTenantRow }) {
             : "Default"}
           {row.monthlyBudgetCents === 0 && " · no limit"}
         </div>
+        <TenantCreditSettings companyId={row.companyId} />
       </td>
       <td className="py-3 pr-4"><Badge variant={status.tone}>{status.label}</Badge></td>
       <td className="py-3">

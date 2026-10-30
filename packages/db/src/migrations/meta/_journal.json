@@ -2668,6 +2668,13 @@
       "when": 1793262296261,
       "tag": "0382_optimal_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1793351272547,
+      "tag": "0383_rich_red_shift",
+      "breakpoints": true
     }
   ]
 }
