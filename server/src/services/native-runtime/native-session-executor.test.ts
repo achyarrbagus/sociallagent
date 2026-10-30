@@ -10097,6 +10097,44 @@ describe("native session bounded recovery", () => {
     }
   });
 
+  it("preserves a read-only provider error and records the underlying failure", async () => {
+    const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
+    const failure = Object.freeze(new Error("original provider failure"));
+    state.execute.mockReset().mockRejectedValueOnce(failure);
+    state.upsertRecoveryAction.mockReset().mockResolvedValue({});
+    const service = vi.spyOn(issueServiceModule, "issueService").mockReturnValue({
+      update: vi.fn(async () => ({ status: "blocked", statusVersion: 1 })),
+    } as unknown as ReturnType<typeof issueServiceModule.issueService>);
+    try {
+      await expect(executePaperclipNativeSession({
+        db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner",
+      })).rejects.toThrow("original provider failure");
+      expect(updates.some(entry => entry.table === nativeRunFinalizations && entry.values.failureDetail)).toBe(true);
+    } finally { service.mockRestore(); }
+  });
+
+  it("keeps read-only provider failure classification and redacts its message", async () => {
+    const updates: Array<{ table: unknown; values: Record<string, unknown> }> = [];
+    const privateKey = generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+    const failure = Object.freeze(new NativeProviderTerminalFailure("test_failure", false, `provider: ${privateKey}`));
+    state.execute.mockReset().mockRejectedValueOnce(failure);
+    state.upsertRecoveryAction.mockReset().mockResolvedValue({});
+    const service = vi.spyOn(issueServiceModule, "issueService").mockReturnValue({
+      update: vi.fn(async () => ({ status: "blocked", statusVersion: 1 })),
+    } as unknown as ReturnType<typeof issueServiceModule.issueService>);
+    try {
+      const caught = await executePaperclipNativeSession({
+        db: leaseDb(execution, {}, {}, updates), execution, runnerInstanceId: "runner",
+        runnerEnvironment: { PAPERCLIP_AGENT_PRIVATE_KEY: privateKey },
+      }).catch(error => error);
+      expect(caught).toBeInstanceOf(NativeProviderTerminalFailure);
+      expect(caught.message).not.toContain(privateKey.split("\n")[1]);
+      expect(caught.message).toContain("***REDACTED***");
+      expect(updates.find(entry => entry.table === nativeRunFinalizations && entry.values.failureDetail)?.values.failureDetail)
+        .toMatchObject({ originalFailureCode: "test_failure", recoverable: false });
+    } finally { service.mockRestore(); }
+  });
+
   it("persists actionable operator recovery without an automatic cleanup wake", async () => {
     const updates: Array<{ table: unknown; values: Record<string, unknown> }> =
       [];

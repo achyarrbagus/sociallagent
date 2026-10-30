@@ -9373,9 +9373,20 @@ async function executePaperclipNativeSessionWithinScope(
     // persistence, reporting, logging, or rethrow at this boundary.
     if (error instanceof Error) {
       const originalMessage = error.message;
-      error.message = redactIdentityText(originalMessage);
-      if (error.stack) error.stack = redactIdentityText(originalMessage
-        ? error.stack.split(originalMessage).join(error.message) : error.stack);
+      const message = redactIdentityText(originalMessage);
+      const stack = error.stack && redactIdentityText(originalMessage
+        ? error.stack.split(originalMessage).join(message) : error.stack);
+      try {
+        error.message = message;
+        if (stack) error.stack = stack;
+      } catch {
+        // Some provider errors expose read-only properties. Preserve their
+        // prototype and typed fields without mutating the original object.
+        const properties = Object.getOwnPropertyDescriptors(error);
+        properties.message = { value: message, writable: true, configurable: true };
+        if (stack) properties.stack = { value: stack, writable: true, configurable: true };
+        error = Object.create(Object.getPrototypeOf(error), properties) as Error;
+      }
     } else {
       error = identityRedactor.redact(error);
     }
