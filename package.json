@@ -95,7 +95,8 @@
     "test:lifecycle-baseline": "node tests/lifecycle-baseline/run.mjs",
     "test:lifecycle-baseline:support": "node --test tests/lifecycle-baseline/report.test.mjs",
     "test:lifecycle-baseline:typecheck": "tsc -p tests/lifecycle-baseline/tsconfig.json",
-    "seed:admin": "bun server/scripts/seed-admin.ts"
+    "seed:admin": "bun server/scripts/seed-admin.ts",
+    "storage:smoke": "bun server/scripts/storage-smoke.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
