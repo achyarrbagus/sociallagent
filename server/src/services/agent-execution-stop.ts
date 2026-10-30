@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import { readProcessStartedAt } from "./hot-restart.js";
 import { runUsedConversationAdapter } from "./conversation-continuation.js";
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
@@ -5,6 +6,26 @@ import { environmentLeases, heartbeatRuns, nativeRunFinalizations, type Db } fro
 import { hasNativeLocalProcessStop } from "./native-local-process-stop.js";
 import { hasRemoteTerminationReceipt } from "./remote-execution-termination.js";
 import { isCancelledNativeStartup } from "./cancelled-native-startup.js";
+
+type ProcessTable = { zombies: Set<number>; liveGroups: Set<number> };
+
+/** Unreadable process state returns null, which keeps a signalable PID alive. */
+function readProcessTable(): Promise<ProcessTable | null> {
+  if (process.platform === "win32") return Promise.resolve(null);
+  return new Promise(resolve => {
+    execFile("ps", ["-A", "-o", "pid=,pgid=,stat="], { encoding: "utf8", timeout: 1_500 }, (error, stdout) => {
+      if (error) return resolve(null);
+      const table: ProcessTable = { zombies: new Set(), liveGroups: new Set() };
+      for (const line of stdout.split("\n")) {
+        const [pid, pgid, stat] = line.trim().split(/\s+/);
+        if (!pid || !pgid || !stat) continue;
+        if (stat.startsWith("Z")) table.zombies.add(Number(pid));
+        else table.liveGroups.add(Number(pgid));
+      }
+      resolve(table);
+    });
+  });
+}
 
 /** Cancellation changes admission. Process and lease evidence controls cleanup. */
 export async function agentExecutionsHaveStopped(db: Db, agentIds: string[]) {
@@ -32,6 +53,7 @@ export async function agentExecutionsHaveStopped(db: Db, agentIds: string[]) {
     if (!observed || !coordinator.controllerProcessStartedAt ||
         new Date(observed).getTime() === coordinator.controllerProcessStartedAt.getTime()) return false;
   }
+  let table: ProcessTable | null | undefined;
   for (const run of runs) {
     if (!["succeeded", "failed", "cancelled", "timed_out", "interrupted"].includes(run.status)) return false;
     if (run.controllerLeaseExpiresAt && run.controllerLeaseExpiresAt > new Date()) return false;
@@ -48,6 +70,12 @@ export async function agentExecutionsHaveStopped(db: Db, agentIds: string[]) {
         processAlive = false;
         if (run.processGroupId === run.processPid) groupAlive = false;
       }
+    }
+    if (processAlive || groupAlive) {
+      // A zombie has exited; only an unreaped parent keeps its PID signalable.
+      table ??= await readProcessTable();
+      if (table && processAlive && table.zombies.has(run.processPid!)) processAlive = false;
+      if (table && groupAlive && !table.liveGroups.has(run.processGroupId!)) groupAlive = false;
     }
     if (processAlive || groupAlive) return false;
     if (run.status !== "cancelled" || !run.startedAt) continue;

@@ -9,6 +9,7 @@ import { approvalService } from "../../../services/approvals.js";
 import { updateAgentConfigurationInTransaction } from "../../../services/agent-configuration-transaction.js";
 import { agentService as agentConfiguration } from "../../../services/agents.js";
 import { readFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
 import express from "express";
 import request from "supertest";
 import { agentRoutes } from "../../../routes/agents.js";
@@ -355,6 +356,19 @@ const support = await getEmbeddedPostgresTestSupport();
     await db.update(nativeRunFinalizations).set({ leaseExpiresAt: new Date(0) }).where(eq(nativeRunFinalizations.runId, run.id));
     expect(await agentExecutionsHaveStopped(db, [agent.id])).toBe(true);
     expect((await db.select().from(nativeRunFinalizations).where(eq(nativeRunFinalizations.runId, run.id)))[0]).toMatchObject({ leaseOwner: null, leaseExpiresAt: null });
+  });
+
+  it.skipIf(process.platform === "win32")("treats an exited but unreaped process and its group as stopped", async () => {
+    // `sleep 30` never reaps its exited child, leaving a zombie that leads its own group.
+    const holder = spawn("sh", ["-c", "set -m; sleep 0 & echo $!; exec sleep 30"], { stdio: ["ignore", "pipe", "ignore"] });
+    try {
+      const zombie = Number(await new Promise<string>(resolve => holder.stdout.once("data", data => resolve(String(data).trim()))));
+      await vi.waitFor(() => expect(execFileSync("ps", ["-o", "stat=", "-p", String(zombie)]).toString().trim()).toMatch(/^Z/));
+      const agent = await hire();
+      await db.insert(heartbeatRuns).values({ companyId, agentId: agent.id, status: "failed", invocationSource: "on_demand",
+        runtimeMode: "native", startedAt: new Date(), finishedAt: new Date(), processPid: zombie, processGroupId: zombie });
+      expect(await agentExecutionsHaveStopped(db, [agent.id])).toBe(true);
+    } finally { holder.kill("SIGKILL"); }
   });
 
   it("does not advance termination while a cancelled process still runs", async () => {
