@@ -179,6 +179,25 @@ Unknown field names are logged and ignored (mixed-version fleet safe).
 Malformed JSON or an invalid value for a known field refuses startup — policy
 configuration fails closed.
 
+## SaaS Mode
+
+Multi-tenant SaaS deployments. See [SaaS Mode](/deploy/saas) for the guarantees, the go-live checklist and the roll-back steps.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SOCIALAGENT_SAAS_MODE` | `false` | `true` turns on every SaaS guard: sandbox-only execution, per-run sandboxes, the gateway proxy, and the upload policy. |
+| `SOCIALAGENT_PUBLIC_URL` | (unset) | Required in SaaS mode. This is the `https` server origin that sandboxes can reach. Plain `http` is accepted only on loopback. When the value is missing or invalid, managed runs refuse to start. |
+| `SOCIALAGENT_VIDEO_MAX_BYTES` | `104857600` | Per-video upload cap in SaaS mode. The value must be a positive integer; any other value falls back to the default with a warning. |
+| `SOCIALAGENT_9ROUTER_API_KEY` | (unset) | The 9Router master key. Only the server holds it. |
+| `SOCIALAGENT_9ROUTER_BASE_URL` | (unset) | The 9Router base URL, including `/v1`. |
+| `SOCIALAGENT_9ROUTER_ADAPTER` | `claude_local` | The default adapter for onboarded agents (`claude_local` or `codex_local`). |
+| `SOCIALAGENT_9ROUTER_CLAUDE_MODEL` / `SOCIALAGENT_9ROUTER_CODEX_MODEL` | (unset) | The default managed models. |
+| `SOCIALAGENT_MAX_COMPANIES_PER_USER` | `1` | The number of companies a user can create themselves in SaaS mode. |
+| `PAPERCLIP_STORAGE_S3_ACCESS_KEY_ID` / `PAPERCLIP_STORAGE_S3_SECRET_ACCESS_KEY` | (unset) | Explicit S3 keys (for example, Supabase Storage). Set both or neither. They replace the AWS credential chain. |
+| `DATABASE_MIGRATION_URL` | (`DATABASE_URL`) | A direct connection for migrations. `DATABASE_URL` and `DATABASE_MIGRATION_URL` both reject port `6543` and `pgbouncer=true`. The `DATABASE_URL` role must own the tables or have `BYPASSRLS`. |
+
+Outside SaaS mode, local agents inherit host `AWS_*` and `SUPABASE_*` variables as before. In SaaS mode these are stripped, so bind them explicitly on the agent when it needs them.
+
 ## Secrets
 
 | Variable | Default | Description |

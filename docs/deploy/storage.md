@@ -45,8 +45,9 @@ PAPERCLIP_STORAGE_S3_SECRET_ACCESS_KEY=<secret access key>
 When both keys are set they are used instead of the default AWS credential
 chain, so no `AWS_*` variables are needed in the server environment. Setting
 only one of the two fails at startup. Credentials are read from the environment
-only, never from the config file. All `PAPERCLIP_STORAGE_*` and `AWS_*`
-variables are stripped from agent child processes.
+only, never from the config file. All `PAPERCLIP_STORAGE_*` variables are
+stripped from agent child processes. `AWS_*` variables are stripped too in
+SaaS mode (see [SaaS Mode](/deploy/saas)).
 
 Objects are keyed `<companyId>/...`; this layout is unchanged.
 
