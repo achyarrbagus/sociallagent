@@ -19,6 +19,7 @@ Build arguments:
 | `USER_UID` | `1000` | UID for the container `node` user (match your host UID to avoid permission issues on bind mounts) |
 | `USER_GID` | `1000` | GID for the container `node` group |
 | `CLI_TOOLS_CACHE_EPOCH` | empty | Refresh the CLI-install layer; CI supplies the current ISO week |
+| `AGENT_CLI_PACKAGES` | empty | Space-separated npm packages to install globally, such as `@anthropic-ai/claude-code@latest @openai/codex@latest`. Empty by default: the ACP engine uses the agent binaries in the app's `node_modules`. Only the legacy `engine=cli` path needs the global CLIs |
 | `PAPERCLIP_BUILD_VERSION` | empty | Runtime version when Git metadata is unavailable |
 | `PAPERCLIP_BUILD_COMMIT` | empty | Source commit written into the server build stamp and runtime environment |
 

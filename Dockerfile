@@ -153,7 +153,7 @@ ENV NODE_OPTIONS=--max-old-space-size=4096
 # TypeScript 7 is a native compiler: NODE_OPTIONS does not cap its memory, and
 # its default checker count gets the server typecheck OOM-killed on an 8 GB
 # Docker VM. Cap the checkers for this image build only.
-ARG TSC_CHECKERS=2
+ARG TSC_CHECKERS=1
 RUN node -e "const fs=require('fs');const f='server/tsconfig.json';const j=JSON.parse(fs.readFileSync(f,'utf8'));j.compilerOptions.checkers=Number(process.env.TSC_CHECKERS);fs.writeFileSync(f,JSON.stringify(j,null,2));"
 RUN bun run --filter @paperclipai/server build
 RUN test -f server/dist/index.js || (echo "ERROR: server build output missing" && exit 1)
@@ -178,6 +178,21 @@ RUN mkdir -p /provider-pack /provider-pack-transport \
     echo "Skipping remote provider pack: supply a full PAPERCLIP_BUILD_COMMIT to enable remote OpenCode/ACPX execution"; \
   fi
 
+# The runtime needs the built output and the production dependencies only.
+# The build stage still holds every devDependency (TypeScript, Vite,
+# Storybook, ...), plus tests and docs. Reinstall from the same lockfile
+# without devDependencies, then drop files that are never read at runtime.
+# Bun installs both glibc and musl variants of native optional packages. The
+# image is Debian (glibc), so the musl copies are dead weight.
+FROM build AS app-prune
+RUN find . -name node_modules -type d -prune -not -path "./packages/plugins/sandbox-providers/*" -exec rm -rf {} + \
+  && bun install --frozen-lockfile --production \
+  && rm -rf /root/.bun/install/cache \
+  && find node_modules/.bun -mindepth 1 -maxdepth 1 -name "*musl*" -exec rm -rf {} + \
+  && rm -rf tests doc docs ui/src ui/public ui/storybook \
+  && find server/dist-runtime -name "*.mjs" -exec grep -ohE "/app/node_modules/[^\"'\`]+" {} + | sort -u > /tmp/runtime-paths \
+  && while read -r p; do test -e "$p" || { echo "ERROR: runtime bundle references missing $p" >&2; exit 1; }; done < /tmp/runtime-paths
+
 FROM base AS production
 ARG USER_UID=1000
 ARG USER_GID=1000
@@ -190,8 +205,18 @@ WORKDIR /app
 # the app copy changes on every commit — ordered the other way around, this
 # (the single most expensive layer: four CLI toolchains + apt, per arch) can
 # never hit the layer cache and rebuilds on every build.
+#
+# Agent CLIs are opt-in. The default ACP engine runs claude-agent-acp and
+# codex-acp from the app's own node_modules, and a managed 9Router deployment
+# forces every hire onto claude_local or codex_local. The global CLIs were
+# about 1.8 GB of duplicates. To ship some anyway, for example for the
+# legacy engine=cli path, pass them as a build arg:
+#   --build-arg AGENT_CLI_PACKAGES="@anthropic-ai/claude-code@latest @openai/codex@latest"
+ARG AGENT_CLI_PACKAGES=""
 RUN echo "cli-tools-epoch: ${CLI_TOOLS_CACHE_EPOCH}" \
-  && npm install --global --omit=dev @anthropic-ai/claude-code@latest @openai/codex@latest opencode-ai @google/gemini-cli@latest @moonshot-ai/kimi-code@latest \
+  && if [ -n "${AGENT_CLI_PACKAGES}" ]; then \
+    npm install --global --omit=dev ${AGENT_CLI_PACKAGES} && npm cache clean --force; \
+  fi \
   && apt-get update \
   && apt-get install -y --no-install-recommends openssh-client jq \
   && rm -rf /var/lib/apt/lists/* \
@@ -201,7 +226,7 @@ RUN echo "cli-tools-epoch: ${CLI_TOOLS_CACHE_EPOCH}" \
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-COPY --chown=node:node --from=build /app /app
+COPY --chown=node:node --from=app-prune /app /app
 
 COPY --from=runner-provider-pack /provider-pack /opt/paperclip-runner/provider-pack
 COPY --from=runner-provider-pack /provider-pack-transport/ /opt/paperclip-runner/
