@@ -4509,6 +4509,7 @@ export function agentRoutes(
     Object.assign(hireInput, await resolveNewAgentRunnerForCompany(db, companyId, { ...hireInput, runner: hireRunner,
       onConfigurationWarnings: warnings => { configurationWarnings = warnings; } }));
     hireInput.adapterType = await assertSelectableAdapterType(hireInput.adapterType, hireInput.adapterConfig);
+    assertSaasExecutionAllowed({ adapterType: hireInput.adapterType, adapterConfig: hireInput.adapterConfig });
     const rawHireAdapterConfig = (hireInput.adapterConfig ?? {}) as Record<string, unknown>;
     assertProviderTraceSettingTransition(req, hireInput.runtimeConfig);
     await assertFreshPaperclipRunnerProvider(
@@ -4847,6 +4848,7 @@ export function agentRoutes(
     Object.assign(createInput, await resolveNewAgentRunnerForCompany(db, companyId, { ...createInput, runner: createRunner, setupOnly: Boolean(setupId),
       onConfigurationWarnings: warnings => { configurationWarnings = warnings; } }));
     createInput.adapterType = await assertSelectableAdapterType(createInput.adapterType, createInput.adapterConfig);
+    assertSaasExecutionAllowed({ adapterType: createInput.adapterType, adapterConfig: createInput.adapterConfig });
     const rawCreateAdapterConfig = (createInput.adapterConfig ?? {}) as Record<string, unknown>;
     assertProviderTraceSettingTransition(req, createInput.runtimeConfig);
     if (!setupId) await assertFreshPaperclipRunnerProvider(
@@ -5541,6 +5543,14 @@ export function agentRoutes(
     const requestedAdapterType = nextAdapterType === existing.adapterType
       ? nextAdapterType
       : await assertSelectableAdapterType(nextAdapterType, patchData.adapterConfig);
+    if (hasOwn(patchData, "adapterType") || hasOwn(patchData, "adapterConfig")) {
+      assertSaasExecutionAllowed({
+        adapterType: nextAdapterType,
+        adapterConfig: hasOwn(patchData, "adapterConfig")
+          ? (replaceAdapterConfig ? patchData.adapterConfig : { ...existing.adapterConfig, ...asRecord(patchData.adapterConfig) })
+          : existing.adapterConfig,
+      });
+    }
     let requestedRuntimeConfig: Record<string, unknown> | null = null;
     if (hasOwn(patchData, "runtimeConfig")) {
       const runtimeConfig = asRecord(patchData.runtimeConfig);
@@ -7847,3 +7857,4 @@ export function agentRoutes(
 }
 import { listRunIdentityContexts } from "../services/run-identity.js";
 import { isManagedSandboxOnly } from "../saas-mode.js";
+import { assertSaasExecutionAllowed } from "../services/saas-execution-policy.js";

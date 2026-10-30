@@ -81,6 +81,7 @@ import { buildPlanReviewContext } from "../plan-review-context.js";
 import { resolvePaperclipRunnerIdleTimeoutMs } from "@paperclipai/adapter-utils";
 import { normalizePaperclipWakePayload, selectPaperclipTaskMarkdown } from "@paperclipai/adapter-utils/server-utils";
 import type { ProviderResourceDisposition } from "../environment-runtime.js";
+import { assertSaasExecutionAllowed } from "../saas-execution-policy.js";
 
 type Run = typeof heartbeatRuns.$inferSelect;
 type Agent = typeof agents.$inferSelect;
@@ -256,6 +257,8 @@ function readNonEmptyString(value: unknown): string | null {
 
 /** Prepare and persist the selected runtime before the executor dispatches provider work. */
 export async function selectHeartbeatRuntime(db: Db, input: HeartbeatRuntimeSelectionInput): Promise<HeartbeatRuntimeSelectionResult> {
+  // SaaS admission: refuse host-executing agents before any dispatch.
+  assertSaasExecutionAllowed(input.agent);
   const { run, agent, nativeRuntimeResolution, issuesSvc, runtimeEnv, beforeNativeRuntimeSelection, onAdapterEvent,
     onNativeLifecycleSelected, onProviderResourceDisposition, onNativeOwnershipHeld, stopControllerLease } = input;
   const { issueRef, issueContext, context, executionContinuation, safeWakeComments, safeWakeCommentContext,
