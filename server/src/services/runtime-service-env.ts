@@ -1,5 +1,6 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 export function sanitizeRuntimeServiceBaseEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...baseEnv };
+  const env: NodeJS.ProcessEnv = stripServerSecretEnv(baseEnv);
   for (const key of Object.keys(env)) {
     if (key.startsWith("PAPERCLIP_")) {
       delete env[key];

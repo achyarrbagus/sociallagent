@@ -1,3 +1,4 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 import { FAST_RESPONSE_AGENT_GUIDANCE, fastResponseHistoryBody } from "@paperclipai/shared";
 import { enqueueFastResponse, supersedeFastResponse } from "../services/fast-responses.js";
 import { Router } from "express";
@@ -256,7 +257,7 @@ export function boardChatRoutes(
       stdio: ["pipe", "pipe", "pipe"],
       cwd: "/tmp",
       env: {
-        ...process.env,
+        ...stripServerSecretEnv(process.env),
         PAPERCLIP_API_URL: apiUrl,
         PAPERCLIP_COMPANY_ID: companyId,
       },

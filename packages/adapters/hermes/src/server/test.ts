@@ -1,3 +1,4 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 /**
  * Environment test for the Hermes Agent adapter.
  *
@@ -339,7 +340,7 @@ export async function testEnvironment(
     if (remote) {
       checks.push({ level: "error", code: "hermes_remote_probe_unsupported", message: "Hermes connection testing requires a local execution environment." });
     } else {
-      const env = { ...process.env };
+      const env = { ...stripServerSecretEnv(process.env) };
       for (const [key, value] of Object.entries((config.env ?? {}) as Record<string, unknown>)) {
         if (typeof value === "string") env[key] = value;
       }

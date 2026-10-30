@@ -1,3 +1,4 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
@@ -138,7 +139,7 @@ interface ClaudeAuthStatus {
 export async function readClaudeAuthStatus(): Promise<ClaudeAuthStatus | null> {
   try {
     const { stdout } = await execFileAsync("claude", ["auth", "status"], {
-      env: process.env,
+      env: stripServerSecretEnv(process.env),
       timeout: 5_000,
       maxBuffer: 1024 * 1024,
     });

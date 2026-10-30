@@ -1,3 +1,4 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -477,7 +478,7 @@ class CodexRpcClient {
     // Only account-read RPCs are sent; no agent turn is started. Keep the
     // read-only sandbox and use the approval policy supported by current CLIs.
     ["-s", "read-only", "-a", "on-request", "app-server"],
-    { stdio: ["pipe", "pipe", "pipe"], env: process.env },
+    { stdio: ["pipe", "pipe", "pipe"], env: stripServerSecretEnv(process.env) },
   );
 
   private nextId = 1;
