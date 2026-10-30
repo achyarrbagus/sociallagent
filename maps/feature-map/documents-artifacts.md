@@ -67,6 +67,7 @@ Manual: Find the task’s output through search and grouping, open its stack, pa
 
 ## Gotchas
 
+- In SaaS mode uploads are individual media and document files only: no folder picker for project files, no ZIP/HTML/SVG, and a renamed archive is rejected by its bytes. Check by uploading a ZIP renamed `.pdf`.
 - A local path is not automatically an uploaded artifact accessible to another user.
 - A preview screenshot is not proof that download bytes or revision references are correct.
 - Version conflicts and stale annotations must stay visible rather than silently targeting different content.

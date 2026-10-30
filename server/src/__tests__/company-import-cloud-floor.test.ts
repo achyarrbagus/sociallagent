@@ -202,4 +202,27 @@ describe("company import Cloud floor", () => {
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ error: "Import job not found" });
   });
+
+  it("in SaaS mode limits ZIP import to instance administrators", async () => {
+    process.env.SOCIALAGENT_SAAS_MODE = "true";
+    try {
+      const nonAdmin = { type: "board", source: "session", userId: "user-1", isInstanceAdmin: false, companyIds: [], memberships: [] };
+      const denied = await request(await createApp(nonAdmin))
+        .post("/api/companies/import/preview")
+        .set("Content-Type", "application/zip")
+        .send(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+      expect(denied.status).toBe(403);
+      const transfer = await request(await createApp(nonAdmin)).post("/api/companies/import/transfers").send({});
+      expect(transfer.status).toBe(403);
+      expectNoImportWork();
+
+      const admin = await request(await createApp(boardAdmin))
+        .post("/api/companies/import/preview")
+        .set("Content-Type", "application/zip")
+        .send(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
+      expect(admin.status).not.toBe(403);
+    } finally {
+      delete process.env.SOCIALAGENT_SAAS_MODE;
+    }
+  });
 });

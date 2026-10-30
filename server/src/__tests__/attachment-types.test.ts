@@ -259,3 +259,79 @@ describe("formatAttachmentSize", () => {
     expect(formatAttachmentSize(Number.NaN)).toBe("0 bytes");
   });
 });
+
+import {
+  SAAS_ALLOWED_TYPES,
+  bytesMatchDeclaredType,
+  checkUploadPolicy,
+  effectiveAllowedTypes,
+  maxUploadBytes,
+  uploadParserLimitBytes,
+  videoMaxBytes,
+} from "../attachment-types.js";
+
+describe("SaaS upload policy", () => {
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]);
+  const ZIP = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
+  const MP4 = (size: number) => {
+    const b = Buffer.alloc(size);
+    b.write("ftypmp42", 4, "latin1");
+    return b;
+  };
+  const check = (contentType: string, buffer: Buffer, filename = "file") =>
+    checkUploadPolicy({ saasMode: true, contentType, buffer, filename });
+
+  it("never allows archives, html or svg", () => {
+    for (const type of ["application/zip", "application/x-zip-compressed", "text/html", "image/svg+xml"]) {
+      expect(SAAS_ALLOWED_TYPES).not.toContain(type);
+      expect(check(type, Buffer.from("x")).ok, type).toBe(false);
+    }
+    expect(effectiveAllowedTypes(true)).toEqual([...SAAS_ALLOWED_TYPES]);
+    expect(effectiveAllowedTypes(false)).toContain("application/zip");
+  });
+
+  it("accepts a 50 MB mp4 and rejects one above the video cap", () => {
+    expect(check("video/mp4", MP4(50 * 1024 * 1024)).ok).toBe(true);
+    expect(check("video/mp4", MP4(videoMaxBytes() + 1)).ok).toBe(false);
+  });
+
+  it("caps non-video files at the attachment limit and videos at the video limit", () => {
+    expect(maxUploadBytes("image/png", true)).toBe(MAX_ATTACHMENT_BYTES);
+    expect(maxUploadBytes("video/mp4", true)).toBe(videoMaxBytes());
+    expect(maxUploadBytes("video/mp4", false)).toBe(MAX_ATTACHMENT_BYTES);
+    expect(uploadParserLimitBytes(true)).toBeGreaterThanOrEqual(videoMaxBytes());
+    expect(uploadParserLimitBytes(false)).toBe(MAX_ATTACHMENT_BYTES);
+    const big = Buffer.concat([PNG, Buffer.alloc(MAX_ATTACHMENT_BYTES)]);
+    expect(check("image/png", big).ok).toBe(false);
+  });
+
+  it("judges a renamed archive by its bytes", () => {
+    expect(check("application/pdf", ZIP, "brief.pdf").ok).toBe(false);
+    expect(check("image/png", ZIP, "logo.png").ok).toBe(false);
+    expect(check("text/plain", ZIP, "notes.txt").ok).toBe(false);
+  });
+
+  it("allows ZIP magic only for the three Office types", () => {
+    const docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    expect(check(docx, ZIP, "brief.docx").ok).toBe(true);
+    expect(bytesMatchDeclaredType("application/pdf", ZIP)).toBe(false);
+  });
+
+  it("sniffs text types for NULs and markup", () => {
+    expect(check("text/plain", Buffer.from("hello")).ok).toBe(true);
+    expect(check("text/csv", Buffer.from("a,b\n1,2")).ok).toBe(true);
+    expect(check("text/plain", Buffer.from("  <!DOCTYPE html><p>")).ok).toBe(false);
+    expect(check("text/markdown", Buffer.from("<svg onload=x>")).ok).toBe(false);
+    expect(check("text/plain", Buffer.from([0x61, 0, 0x62])).ok).toBe(false);
+    expect(check("text/plain", Buffer.from("%PDF-1.4")).ok).toBe(false);
+  });
+
+  it("rejects folder-style filenames", () => {
+    const result = check("image/png", PNG, "assets/logo.png");
+    expect(result).toMatchObject({ ok: false });
+  });
+
+  it("leaves non-SaaS behavior unchanged", () => {
+    expect(checkUploadPolicy({ saasMode: false, contentType: "application/zip", buffer: ZIP, filename: "a/b.zip" }).ok).toBe(true);
+  });
+});

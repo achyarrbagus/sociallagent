@@ -85,6 +85,29 @@ describeEmbeddedPostgres("project files", () => {
     expect(storage.objects.size).toBe(1);
   });
 
+  it("in SaaS mode accepts individual files only and judges bytes", async () => {
+    process.env.SOCIALAGENT_SAAS_MODE = "true";
+    try {
+      const { companyId, project, app } = await seed();
+      const base = `/api/companies/${companyId}/projects/${project.id}/files`;
+      const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+
+      const folder = await request(app).post(base).field("path", "assets/logo.png").attach("file", png, { filename: "logo.png", contentType: "image/png" });
+      expect(folder.status).toBe(422);
+      expect(folder.body.error).toMatch(/Folders are not supported/);
+
+      const single = await request(app).post(base).attach("file", png, { filename: "logo.png", contentType: "image/png" });
+      expect(single.status, JSON.stringify(single.body)).toBe(201);
+
+      const zip = await request(app).post(base).attach("file", Buffer.from([0x50, 0x4b, 0x03, 0x04, 0]), { filename: "brief.pdf", contentType: "application/pdf" });
+      expect(zip.status).toBe(422);
+      const svg = await request(app).post(base).attach("file", Buffer.from("<svg/>"), { filename: "a.svg", contentType: "image/svg+xml" });
+      expect(svg.status).toBe(422);
+    } finally {
+      delete process.env.SOCIALAGENT_SAAS_MODE;
+    }
+  });
+
   it("refuses another company's project and viewers", async () => {
     const { companyId, project, storage } = await seed();
     const other = await seed();

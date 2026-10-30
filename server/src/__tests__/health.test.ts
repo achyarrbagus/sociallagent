@@ -95,6 +95,18 @@ describe("GET /health", () => {
     expect(Object.prototype.hasOwnProperty.call(res.body, "cloud")).toBe(false);
   });
 
+  it("reports saasMode only when SaaS mode is on", async () => {
+    process.env.SOCIALAGENT_SAAS_MODE = "true";
+    try {
+      const res = await request(createApp(undefined, testServerInfo, undefined, {})).get("/health");
+      expect(res.body.saasMode).toBe(true);
+    } finally {
+      delete process.env.SOCIALAGENT_SAAS_MODE;
+    }
+    const off = await request(createApp(undefined, testServerInfo, undefined, {})).get("/health");
+    expect("saasMode" in off.body).toBe(false);
+  });
+
   it("exposes public stack metadata on cloud-simulated health", async () => {
     const app = createApp(undefined, testServerInfo, undefined, {
       PAPERCLIP_CLOUD_TENANT_SERVER_TOKEN: "tenant-token",

@@ -46,6 +46,7 @@ import {
 import { createHash, randomUUID } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
+import { isSaasMode } from "../saas-mode.js";
 import { z } from "zod";
 import { and, asc, desc, eq, inArray, isNull, notInArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
@@ -268,6 +269,8 @@ import {
   GENERIC_ATTACHMENT_CONTENT_TYPES,
   isInlineAttachmentContentType,
   MAX_ATTACHMENT_BYTES,
+  checkUploadPolicy,
+  uploadParserLimitBytes,
   normalizeContentType,
   normalizeUploadAttachmentContentType,
   SVG_CONTENT_TYPE,
@@ -19509,7 +19512,7 @@ export function issueRoutes(
         return;
 
       try {
-        await runSingleFileUpload(req, res, MAX_ATTACHMENT_BYTES);
+        await runSingleFileUpload(req, res, uploadParserLimitBytes(isSaasMode()));
       } catch (err) {
         if (err instanceof multer.MulterError) {
           if (err.code === "LIMIT_FILE_SIZE") {
@@ -19539,6 +19542,16 @@ export function issueRoutes(
       });
       if (file.buffer.length <= 0) {
         res.status(422).json({ error: "Attachment is empty" });
+        return;
+      }
+      const uploadPolicy = checkUploadPolicy({
+        saasMode: isSaasMode(),
+        contentType,
+        buffer: file.buffer,
+        filename: file.originalname,
+      });
+      if (!uploadPolicy.ok) {
+        res.status(422).json({ error: uploadPolicy.error });
         return;
       }
 

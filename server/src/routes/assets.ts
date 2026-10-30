@@ -1,6 +1,7 @@
 import { canActorReadAssetContent } from "../services/asset-content-access.js";
 import { Router, type Request, type Response } from "express";
 import multer from "multer";
+import { isSaasMode } from "../saas-mode.js";
 import createDOMPurify from "dompurify";
 import { JSDOM } from "jsdom";
 import type { Db } from "@paperclipai/db";
@@ -9,6 +10,7 @@ import type { StorageService } from "../storage/types.js";
 import { assetService, logActivity } from "../services/index.js";
 import {
   formatAttachmentSize,
+  checkUploadPolicy,
   isAllowedContentType,
   isInlineAttachmentContentType,
   MAX_ATTACHMENT_BYTES,
@@ -154,6 +156,17 @@ export function assetRoutes(db: Db, storage: StorageService) {
       res.status(422).json({ error: `Unsupported file type: ${contentType || "unknown"}` });
       return;
     }
+    const uploadPolicy = checkUploadPolicy({
+      saasMode: isSaasMode(),
+      contentType,
+      buffer: file.buffer,
+      filename: file.originalname,
+      imageOnly: true,
+    });
+    if (!uploadPolicy.ok) {
+      res.status(422).json({ error: uploadPolicy.error });
+      return;
+    }
     let fileBody = file.buffer;
     if (contentType === SVG_CONTENT_TYPE) {
       const sanitized = sanitizeSvgBuffer(file.buffer);
@@ -251,6 +264,17 @@ export function assetRoutes(db: Db, storage: StorageService) {
     const contentType = (file.mimetype || "").toLowerCase();
     if (!ALLOWED_COMPANY_LOGO_CONTENT_TYPES.has(contentType)) {
       res.status(422).json({ error: `Unsupported image type: ${contentType || "unknown"}` });
+      return;
+    }
+    const logoPolicy = checkUploadPolicy({
+      saasMode: isSaasMode(),
+      contentType,
+      buffer: file.buffer,
+      filename: file.originalname,
+      imageOnly: true,
+    });
+    if (!logoPolicy.ok) {
+      res.status(422).json({ error: logoPolicy.error });
       return;
     }
 

@@ -9,6 +9,8 @@ import {
   PROJECT_FILES_MAX_TOTAL_BYTES,
 } from "../services/project-files.js";
 import type { StorageService } from "../storage/types.js";
+import { checkUploadPolicy, uploadParserLimitBytes } from "../attachment-types.js";
+import { isSaasMode } from "../saas-mode.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 /**
@@ -25,7 +27,7 @@ export function projectFileRoutes(db: Db, storage: StorageService) {
     const upload = multer({
       storage: multer.memoryStorage(),
       defParamCharset: "utf8",
-      limits: { fileSize: PROJECT_FILES_MAX_TOTAL_BYTES, files: 1 },
+      limits: { fileSize: isSaasMode() ? uploadParserLimitBytes(true) : PROJECT_FILES_MAX_TOTAL_BYTES, files: 1 },
     });
     await new Promise<void>((resolve, reject) => {
       upload.single("file")(req, res, (err: unknown) => (err ? reject(err) : resolve()));
@@ -52,7 +54,9 @@ export function projectFileRoutes(db: Db, storage: StorageService) {
     } catch (err) {
       if (err instanceof multer.MulterError) {
         res.status(err.code === "LIMIT_FILE_SIZE" ? 422 : 400).json({
-          error: err.code === "LIMIT_FILE_SIZE" ? "Project files are limited to 100 MB in total" : err.message,
+          error: err.code === "LIMIT_FILE_SIZE"
+            ? (isSaasMode() ? "File is larger than the upload limit" : "Project files are limited to 100 MB in total")
+            : err.message,
         });
         return;
       }
@@ -67,6 +71,18 @@ export function projectFileRoutes(db: Db, storage: StorageService) {
     if (!contentType) {
       res.status(422).json({ error: "Only images, videos, PDFs and documents can be uploaded" });
       return;
+    }
+    if (isSaasMode()) {
+      const requestedPath = (req.body as Record<string, unknown> | undefined)?.path;
+      if (typeof requestedPath === "string" && /[\\/]/.test(requestedPath.trim())) {
+        res.status(422).json({ error: "Folders are not supported. Upload individual files." });
+        return;
+      }
+      const policy = checkUploadPolicy({ saasMode: true, contentType, buffer: file.buffer, filename: file.originalname });
+      if (!policy.ok) {
+        res.status(422).json({ error: policy.error });
+        return;
+      }
     }
     const actor = getActorInfo(req);
     const saved = await svc.add({

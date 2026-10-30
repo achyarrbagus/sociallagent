@@ -36,6 +36,7 @@ import {
   type CompanyImportTransferPartUploadResult,
   type CompanyImportTransferStatus,
 } from "@paperclipai/shared/company-import-transfer";
+import { isSaasMode } from "../saas-mode.js";
 import { badRequest, conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { PORTABLE_ZIP_UPLOAD_LIMIT_BYTES } from "../http/body-limits.js";
 import { logger } from "../middleware/logger.js";
@@ -70,7 +71,7 @@ import {
 import { isCloudManagedInstance } from "../services/cloud-instance.js";
 import { getHiddenSettings } from "../services/settings-visibility.js";
 import type { StorageService } from "../storage/types.js";
-import { assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo, hasCompanyAccess } from "./authz.js";
+import { assertBoard, assertCompanyAccess, assertInstanceAdmin, getActorInfo, hasCompanyAccess, isInstanceAdminRequest } from "./authz.js";
 import { COMPANY_IMPORT_ROUTE_PATH } from "./company-import-paths.js";
 
 // A company import can arrive one of two ways on the import + preview routes:
@@ -560,7 +561,16 @@ export function companyRoutes(db: Db, storage?: StorageService, options?: Compan
    * Export routes stay open either way — they are the tenant's
    * data-portability escape hatch.
    */
-  const importFloor = (_req: Request, _res: Response, next: NextFunction) => {
+  const importFloor = (req: Request, _res: Response, next: NextFunction) => {
+    // SaaS mode: ZIP packages (single-shot or chunked) are an archive upload
+    // path, so only instance admins may use them.
+    if (
+      isSaasMode() &&
+      (isMultipartImport(req) || isZipImport(req) || req.originalUrl.includes("/import/transfers")) &&
+      !isInstanceAdminRequest(req)
+    ) {
+      throw forbidden("Company import packages are limited to instance administrators");
+    }
     if (isCloudManagedInstance()) {
       throw forbidden("Company import is disabled on cloud-managed instances", {
         code: "cloud_managed",

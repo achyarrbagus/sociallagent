@@ -1,3 +1,4 @@
+import { isSaasMode } from "../saas-mode.js";
 import { supportsLocalAiLogin } from "../services/local-ai-login-policy.js";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { Router } from "express";
@@ -280,12 +281,14 @@ export function healthRoutes(
               serverVersion: serverVersion,
               commit,
               serverInfo,
+              ...(isSaasMode() ? { saasMode: true } : {}),
               ...(cloud ? { cloud } : {}),
               ...(hiddenSettings.length ? { hiddenSettings } : {}),
             }
           : {
               status: healthStatus,
               deploymentMode: opts.deploymentMode,
+              ...(isSaasMode() ? { saasMode: true } : {}),
               commit,
               ...(cloud ? { cloud } : {}),
               ...(hiddenSettings.length ? { hiddenSettings } : {}),
@@ -302,6 +305,7 @@ export function healthRoutes(
       res.json({
         status: healthStatus,
         deploymentMode: opts.deploymentMode,
+        ...(isSaasMode() ? { saasMode: true } : {}),
         deploymentExposure: opts.deploymentExposure,
         commit,
         warmStandby: true,
@@ -409,6 +413,7 @@ export function healthRoutes(
       res.json({
         status: healthStatus,
         deploymentMode: opts.deploymentMode,
+        ...(isSaasMode() ? { saasMode: true } : {}),
         deploymentExposure: opts.deploymentExposure,
         localAiLoginSupported: supportsLocalAiLogin(opts),
         commit,
@@ -433,6 +438,7 @@ export function healthRoutes(
       serverVersion,
       commit,
       deploymentMode: opts.deploymentMode,
+      ...(isSaasMode() ? { saasMode: true } : {}),
       deploymentExposure: opts.deploymentExposure,
         localAiLoginSupported: supportsLocalAiLogin(opts),
       authReady: opts.authReady,

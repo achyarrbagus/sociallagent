@@ -47,7 +47,8 @@ import {
   updateDocumentAnnotationThreadSchema,
   isUuidLike,
 } from "@paperclipai/shared";
-import { formatAttachmentSize, MAX_ATTACHMENT_BYTES, normalizeContentType } from "../attachment-types.js";
+import { checkUploadPolicy, formatAttachmentSize, MAX_ATTACHMENT_BYTES, normalizeContentType, uploadParserLimitBytes } from "../attachment-types.js";
+import { isSaasMode } from "../saas-mode.js";
 import { HttpError, badRequest, conflict, forbidden, notFound, unprocessable } from "../errors.js";
 import { validate } from "../middleware/validate.js";
 import { instanceSettingsService } from "../services/instance-settings.js";
@@ -1368,7 +1369,7 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const actor = getActorInfo(req);
 
     try {
-      await singleFileUpload(req, res, MAX_ATTACHMENT_BYTES);
+      await singleFileUpload(req, res, uploadParserLimitBytes(isSaasMode()));
     } catch (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === "LIMIT_FILE_SIZE") {
@@ -1383,6 +1384,13 @@ export function caseRoutes(db: Db, storage: StorageService) {
     const file = (req as Request & { file?: { mimetype: string; buffer: Buffer; originalname: string } }).file;
     if (!file) throw badRequest("Missing file field 'file'");
     if (file.buffer.length <= 0) throw unprocessable("Attachment is empty");
+    const uploadPolicy = checkUploadPolicy({
+      saasMode: isSaasMode(),
+      contentType: normalizeContentType(file.mimetype),
+      buffer: file.buffer,
+      filename: file.originalname,
+    });
+    if (!uploadPolicy.ok) throw unprocessable(uploadPolicy.error);
 
     const stored = await storage.putFile({
       companyId: caseRow.companyId,

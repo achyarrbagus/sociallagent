@@ -97,6 +97,17 @@ Queue and HTTP/2 sandbox callbacks admit `GET /api/assets/{assetId}/content`,
 including screenshot references in task descriptions. The controller still checks
 company and task visibility before opening storage.
 
+SaaS mode (`SOCIALAGENT_SAAS_MODE=true`): every user-facing upload route (issue
+attachments, case attachments, `assets/images`, company logo, project files)
+accepts one individual file per request from a fixed allowlist (PNG, JPEG, WebP,
+GIF, MP4, QuickTime, WebM, PDF, plain text, Markdown, CSV, `.docx`/`.xlsx`/`.pptx`)
+and judges the declared type against the file bytes. Archives, HTML and SVG are
+refused with 422; folder-style paths are refused with 422; non-video files are
+capped at the attachment limit and videos at `SOCIALAGENT_VIDEO_MAX_BYTES`
+(default 100 MB). Company-import ZIP packages (single-shot and chunked) are
+limited to instance administrators. Inbound chat/email channel attachments are
+not user uploads and keep their own policy.
+
 Gaps: Native API uploads are bounded; attachment reading has target/provider and
 permission conditions.
 

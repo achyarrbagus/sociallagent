@@ -190,3 +190,125 @@ export function formatAttachmentSize(bytes: number): string {
   const rounded = value.toFixed(1).replace(/\.0$/, "");
   return `${rounded} ${ATTACHMENT_SIZE_UNITS[unitIndex]}`;
 }
+
+// ---------- SaaS upload policy ----------
+//
+// In SaaS mode users upload individual media and document files only: no
+// archives, no HTML, no SVG, no folders. The declared type must be on the
+// allowlist AND the bytes must agree with it, so a renamed archive is judged
+// by what it is, not what it is called.
+
+const OFFICE_OOXML_TYPES: readonly string[] = [
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+];
+const SAAS_TEXT_TYPES: readonly string[] = ["text/plain", "text/markdown", "text/csv"];
+const SAAS_VIDEO_TYPES: readonly string[] = ["video/mp4", "video/quicktime", "video/webm"];
+
+export const SAAS_ALLOWED_TYPES: readonly string[] = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  ...SAAS_VIDEO_TYPES,
+  "application/pdf",
+  ...SAAS_TEXT_TYPES,
+  ...OFFICE_OOXML_TYPES,
+];
+
+export function effectiveAllowedTypes(saasMode: boolean): string[] {
+  return saasMode ? [...SAAS_ALLOWED_TYPES] : [...allowedPatterns];
+}
+
+/** Per-video cap in SaaS mode (`SOCIALAGENT_VIDEO_MAX_BYTES`, default 100 MB). */
+export function videoMaxBytes(): number {
+  return Number(process.env.SOCIALAGENT_VIDEO_MAX_BYTES) || 100 * 1024 * 1024;
+}
+
+export function maxUploadBytes(contentType: string, saasMode: boolean): number {
+  if (saasMode && normalizeContentType(contentType).startsWith("video/")) return videoMaxBytes();
+  return MAX_ATTACHMENT_BYTES;
+}
+
+/**
+ * The ceiling to hand multer for a route: in SaaS mode it must admit a video;
+ * the per-type cap is enforced after parsing by `checkUploadPolicy`.
+ */
+export function uploadParserLimitBytes(saasMode: boolean): number {
+  return saasMode ? Math.max(MAX_ATTACHMENT_BYTES, videoMaxBytes()) : MAX_ATTACHMENT_BYTES;
+}
+
+function startsWithBytes(buf: Buffer, bytes: number[], offset = 0): boolean {
+  if (buf.length < offset + bytes.length) return false;
+  return bytes.every((b, i) => buf[offset + i] === b);
+}
+
+function isZipMagic(buf: Buffer): boolean {
+  return startsWithBytes(buf, [0x50, 0x4b, 0x03, 0x04]) || startsWithBytes(buf, [0x50, 0x4b, 0x05, 0x06]);
+}
+
+function looksLikeMarkup(buf: Buffer): boolean {
+  const head = buf.subarray(0, 512).toString("utf8").replace(/^﻿/, "").trimStart().toLowerCase();
+  return head.startsWith("<!doctype html") || head.startsWith("<html") || head.startsWith("<svg") ||
+    head.startsWith("<?xml") && head.includes("<svg");
+}
+
+/** True when the leading bytes are consistent with the declared type. */
+export function bytesMatchDeclaredType(declaredType: string, buf: Buffer): boolean {
+  const type = normalizeContentType(declaredType);
+  if (buf.length === 0) return false;
+  switch (type) {
+    case "image/png": return startsWithBytes(buf, [0x89, 0x50, 0x4e, 0x47]);
+    case "image/jpeg": return startsWithBytes(buf, [0xff, 0xd8, 0xff]);
+    case "image/gif": return startsWithBytes(buf, [0x47, 0x49, 0x46, 0x38]);
+    case "image/webp": return startsWithBytes(buf, [0x52, 0x49, 0x46, 0x46]) && startsWithBytes(buf, [0x57, 0x45, 0x42, 0x50], 8);
+    case "video/mp4":
+    case "video/quicktime":
+      return startsWithBytes(buf, [0x66, 0x74, 0x79, 0x70], 4) ||
+        (type === "video/quicktime" && ["moov", "mdat", "wide", "free", "skip"].some((box) =>
+          buf.subarray(4, 8).toString("latin1") === box));
+    case "video/webm": return startsWithBytes(buf, [0x1a, 0x45, 0xdf, 0xa3]);
+    case "application/pdf": return startsWithBytes(buf, [0x25, 0x50, 0x44, 0x46]);
+    default:
+      if (OFFICE_OOXML_TYPES.includes(type)) return isZipMagic(buf);
+      if (SAAS_TEXT_TYPES.includes(type)) {
+        if (buf.subarray(0, 8192).includes(0)) return false;
+        if (isZipMagic(buf) || startsWithBytes(buf, [0x25, 0x50, 0x44, 0x46])) return false;
+        return !looksLikeMarkup(buf);
+      }
+      return false;
+  }
+}
+
+export type UploadPolicyResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Enforce the SaaS upload policy for one already-parsed file. Outside SaaS mode
+ * it is a no-op so each route keeps its existing allowlist. `imageOnly` is for
+ * routes that store pictures (assets/images, company logo).
+ */
+export function checkUploadPolicy(input: {
+  saasMode: boolean;
+  contentType: string;
+  buffer: Buffer;
+  filename?: string | null;
+  imageOnly?: boolean;
+}): UploadPolicyResult {
+  if (!input.saasMode) return { ok: true };
+  const type = normalizeContentType(input.contentType);
+  if (/[\\/]/.test(input.filename ?? "")) {
+    return { ok: false, error: "Folders are not supported. Upload individual files." };
+  }
+  if (!SAAS_ALLOWED_TYPES.includes(type) || (input.imageOnly && !type.startsWith("image/"))) {
+    return { ok: false, error: `Unsupported file type: ${type}. Upload an image, video, PDF or document.` };
+  }
+  const cap = maxUploadBytes(type, true);
+  if (input.buffer.length > cap) {
+    return { ok: false, error: `File is larger than the ${formatAttachmentSize(cap)} limit` };
+  }
+  if (!bytesMatchDeclaredType(type, input.buffer)) {
+    return { ok: false, error: "The file contents do not match its declared type" };
+  }
+  return { ok: true };
+}
