@@ -32,6 +32,8 @@ export type HealthStatus = {
   commit?: string | null;
   deploymentMode?: "local_trusted" | "authenticated";
   deploymentExposure?: "private" | "public";
+  /** Multi-tenant SaaS mode: individual media and document uploads only. Absent when off. */
+  saasMode?: boolean;
   localAiLoginSupported?: boolean;
   authReady?: boolean;
   bootstrapStatus?: "ready" | "bootstrap_pending";

@@ -9,10 +9,12 @@ import { queryKeys } from "../lib/queryKeys";
 import { trackRecentProject } from "../lib/recent-projects";
 import {
   formatBytes,
+  PROJECT_FILES_SAAS_ACCEPT,
   selectProjectFiles,
   uploadProjectFiles,
   type ProjectFileSelection,
 } from "../lib/project-file-upload";
+import { useSaasMode } from "../hooks/useSaasMode";
 import { ProjectTile } from "./ProjectTile";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
@@ -34,6 +36,7 @@ export function NewProjectDialog() {
  */
 export function NewProjectForm({ companyId, onClose }: { companyId: string; onClose: () => void }) {
   const client = useQueryClient();
+  const saasMode = useSaasMode();
   const [name, setName] = useState("");
   const [color] = useState(() => PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)]!);
   const [selection, setSelection] = useState<ProjectFileSelection | null>(null);
@@ -49,7 +52,7 @@ export function NewProjectForm({ companyId, onClose }: { companyId: string; onCl
       const files = selection?.files ?? [];
       if (files.length === 0) return [];
       setProgress({ done: 0, total: files.length });
-      const failed = await uploadProjectFiles(companyId, project.id, files, (done) => setProgress({ done, total: files.length }));
+      const failed = await uploadProjectFiles(companyId, project.id, files, (done) => setProgress({ done, total: files.length }), saasMode);
       setProgress(null);
       return failed;
     },
@@ -87,13 +90,15 @@ export function NewProjectForm({ companyId, onClose }: { companyId: string; onCl
           </div>
         </div>
         <div className="space-y-2 px-5 pb-1">
-          <div className="flex items-baseline gap-2"><span className="text-sm font-medium">Project folder</span><span className="text-xs text-muted-foreground">optional</span></div>
-          <p className="text-xs text-muted-foreground">Brand assets, briefs or references. Images, videos, PDFs and documents, up to 100 MB and 500 files.</p>
-          <input ref={folderInput} type="file" multiple hidden {...FOLDER_INPUT_PROPS}
-            onChange={(event) => { if (event.target.files?.length) setSelection(selectProjectFiles(event.target.files)); event.target.value = ""; }} />
+          <div className="flex items-baseline gap-2"><span className="text-sm font-medium">{saasMode ? "Project files" : "Project folder"}</span><span className="text-xs text-muted-foreground">optional</span></div>
+          <p className="text-xs text-muted-foreground">{saasMode
+            ? "Brand assets, briefs or references. Upload individual images, videos, PDFs and documents. Videos up to 100 MB, other files up to 10 MB."
+            : "Brand assets, briefs or references. Images, videos, PDFs and documents, up to 100 MB and 500 files."}</p>
+          <input ref={folderInput} type="file" multiple hidden {...(saasMode ? { accept: PROJECT_FILES_SAAS_ACCEPT } : FOLDER_INPUT_PROPS)}
+            onChange={(event) => { if (event.target.files?.length) setSelection(selectProjectFiles(event.target.files, undefined, saasMode)); event.target.value = ""; }} />
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => folderInput.current?.click()}>
-              <FolderUp className="size-4" aria-hidden />{selection ? "Choose another folder" : "Upload folder"}
+              <FolderUp className="size-4" aria-hidden />{saasMode ? (selection ? "Choose other files" : "Upload files") : (selection ? "Choose another folder" : "Upload folder")}
             </Button>
             {selection && !busy && <Button type="button" variant="ghost" size="sm" onClick={() => setSelection(null)}>Remove</Button>}
           </div>

@@ -5,9 +5,11 @@ import { projectFilesApi } from "../api/project-files";
 import {
   formatBytes,
   PROJECT_FILES_ACCEPT,
+  PROJECT_FILES_SAAS_ACCEPT,
   selectProjectFiles,
   uploadProjectFiles,
 } from "../lib/project-file-upload";
+import { useSaasMode } from "../hooks/useSaasMode";
 import { Button } from "./ui/button";
 
 const filesKey = (companyId: string, projectId: string) => ["project-files", companyId, projectId] as const;
@@ -21,6 +23,7 @@ const FOLDER_INPUT_PROPS = { webkitdirectory: "", directory: "" } as Record<stri
  */
 export function ProjectFilesPanel({ companyId, projectId }: { companyId: string; projectId: string }) {
   const client = useQueryClient();
+  const saasMode = useSaasMode();
   const folderInput = useRef<HTMLInputElement>(null);
   const filesInput = useRef<HTMLInputElement>(null);
   const files = useQuery({ queryKey: filesKey(companyId, projectId), queryFn: () => projectFilesApi.list(companyId, projectId) });
@@ -35,12 +38,12 @@ export function ProjectFilesPanel({ companyId, projectId }: { companyId: string;
   async function upload(list: FileList | null) {
     if (!list?.length) return;
     const current = files.data;
-    const selection = selectProjectFiles(list, { count: current?.files.length ?? 0, bytes: current?.totalBytes ?? 0 });
+    const selection = selectProjectFiles(list, { count: current?.files.length ?? 0, bytes: current?.totalBytes ?? 0 }, saasMode);
     if (selection.error) { setMessage(selection.error); return; }
     if (selection.files.length === 0) { setMessage("No supported files. Upload images, videos, PDFs or documents."); return; }
     setMessage(null);
     setProgress({ done: 0, total: selection.files.length });
-    const failed = await uploadProjectFiles(companyId, projectId, selection.files, (done) => setProgress({ done, total: selection.files.length }));
+    const failed = await uploadProjectFiles(companyId, projectId, selection.files, (done) => setProgress({ done, total: selection.files.length }), saasMode);
     setProgress(null);
     await client.invalidateQueries({ queryKey: filesKey(companyId, projectId) });
     const skipped = selection.skipped ? ` ${selection.skipped} unsupported ${selection.skipped === 1 ? "file was" : "files were"} skipped.` : "";
@@ -54,16 +57,20 @@ export function ProjectFilesPanel({ companyId, projectId }: { companyId: string;
         <div>
           <h3 id="project-files-heading" className="text-sm font-medium">Files</h3>
           <p className="text-xs text-muted-foreground">
-            Brand assets, briefs and references for this project. Images, videos, PDFs and documents, up to 100 MB and 500 files.
+            {saasMode
+              ? "Brand assets, briefs and references for this project. Upload individual images, videos, PDFs and documents. Videos up to 100 MB, other files up to 10 MB."
+              : "Brand assets, briefs and references for this project. Images, videos, PDFs and documents, up to 100 MB and 500 files."}
           </p>
         </div>
         <div className="flex gap-2">
-          <input ref={folderInput} type="file" multiple hidden {...FOLDER_INPUT_PROPS} onChange={(event) => { void upload(event.target.files); event.target.value = ""; }} />
-          <input ref={filesInput} type="file" multiple hidden accept={PROJECT_FILES_ACCEPT} onChange={(event) => { void upload(event.target.files); event.target.value = ""; }} />
-          <Button type="button" variant="outline" size="sm" disabled={Boolean(progress)} onClick={() => folderInput.current?.click()}>
-            <FolderUp className="size-4" aria-hidden />Upload folder
-          </Button>
-          <Button type="button" variant="ghost" size="sm" disabled={Boolean(progress)} onClick={() => filesInput.current?.click()}>Add files</Button>
+          {!saasMode && <input ref={folderInput} type="file" multiple hidden {...FOLDER_INPUT_PROPS} onChange={(event) => { void upload(event.target.files); event.target.value = ""; }} />}
+          <input ref={filesInput} type="file" multiple hidden accept={saasMode ? PROJECT_FILES_SAAS_ACCEPT : PROJECT_FILES_ACCEPT} onChange={(event) => { void upload(event.target.files); event.target.value = ""; }} />
+          {!saasMode && (
+            <Button type="button" variant="outline" size="sm" disabled={Boolean(progress)} onClick={() => folderInput.current?.click()}>
+              <FolderUp className="size-4" aria-hidden />Upload folder
+            </Button>
+          )}
+          <Button type="button" variant={saasMode ? "outline" : "ghost"} size="sm" disabled={Boolean(progress)} onClick={() => filesInput.current?.click()}>Add files</Button>
         </div>
       </div>
       {progress && <p role="status" className="text-sm text-muted-foreground">Uploading {progress.done} of {progress.total}…</p>}

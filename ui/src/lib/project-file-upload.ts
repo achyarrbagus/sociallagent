@@ -4,18 +4,24 @@ export const PROJECT_FILES_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 export const PROJECT_FILES_MAX_COUNT = 500;
 export const PROJECT_FILES_ACCEPT = "image/*,video/*,.pdf,.txt,.md,.csv,.rtf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp";
 
+/** SaaS mode: individual images, videos, PDFs, text and Office files only. */
+export const PROJECT_FILES_SAAS_ACCEPT = "image/png,image/jpeg,image/webp,image/gif,video/mp4,video/quicktime,video/webm,.pdf,.txt,.md,.csv,.docx,.xlsx,.pptx";
+const SAAS_EXTENSIONS = new Set(["png", "jpg", "jpeg", "webp", "gif", "mp4", "mov", "webm", "pdf", "txt", "md", "csv", "docx", "xlsx", "pptx"]);
+
 const DOCUMENT_EXTENSIONS = new Set(["pdf", "txt", "md", "csv", "rtf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp"]);
 const MEDIA_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "avif", "mp4", "mov", "webm", "m4v"]);
 
 /** Same rule as the server: images, videos, PDFs and documents. */
-export function isAllowedProjectFile(file: File) {
+export function isAllowedProjectFile(file: File, saasMode = false) {
+  if (saasMode) return SAAS_EXTENSIONS.has(file.name.toLowerCase().split(".").pop() ?? "");
   if (file.type.startsWith("image/") || file.type.startsWith("video/")) return true;
   const extension = file.name.toLowerCase().split(".").pop() ?? "";
   return DOCUMENT_EXTENSIONS.has(extension) || MEDIA_EXTENSIONS.has(extension);
 }
 
 /** The path inside the chosen folder, or the bare name for single files. */
-export function projectFilePath(file: File) {
+export function projectFilePath(file: File, saasMode = false) {
+  if (saasMode) return file.name;
   return (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
 }
 
@@ -32,9 +38,9 @@ export interface ProjectFileSelection {
 }
 
 /** Drops unsupported and hidden files, then checks the project limits before any upload. */
-export function selectProjectFiles(list: FileList | File[], existing = { count: 0, bytes: 0 }): ProjectFileSelection {
-  const all = [...list].filter((file) => !projectFilePath(file).split("/").some((part) => part.startsWith(".")));
-  const files = all.filter(isAllowedProjectFile);
+export function selectProjectFiles(list: FileList | File[], existing = { count: 0, bytes: 0 }, saasMode = false): ProjectFileSelection {
+  const all = [...list].filter((file) => !projectFilePath(file, saasMode).split("/").some((part) => part.startsWith(".")));
+  const files = all.filter((file) => isAllowedProjectFile(file, saasMode));
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
   const error = existing.count + files.length > PROJECT_FILES_MAX_COUNT
     ? `A project can hold at most ${PROJECT_FILES_MAX_COUNT} files.`
@@ -50,13 +56,14 @@ export async function uploadProjectFiles(
   projectId: string,
   files: File[],
   onProgress: (done: number) => void,
+  saasMode = false,
 ) {
   const failed: { path: string; error: string }[] = [];
   for (const [index, file] of files.entries()) {
     try {
-      await projectFilesApi.upload(companyId, projectId, file, projectFilePath(file));
+      await projectFilesApi.upload(companyId, projectId, file, projectFilePath(file, saasMode));
     } catch (error) {
-      failed.push({ path: projectFilePath(file), error: error instanceof Error ? error.message : "Upload failed" });
+      failed.push({ path: projectFilePath(file, saasMode), error: error instanceof Error ? error.message : "Upload failed" });
     }
     onProgress(index + 1);
   }
