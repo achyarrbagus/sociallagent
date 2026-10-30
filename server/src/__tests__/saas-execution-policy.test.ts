@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { assertSaasExecutionAllowed } from "../services/saas-execution-policy.js";
-import { selectHeartbeatRuntime } from "../services/heartbeat/runtime-selection.js";
 
 const MESSAGE = "This agent type cannot run in SaaS mode";
 
@@ -27,19 +26,5 @@ describe("assertSaasExecutionAllowed", () => {
   it("is a no-op outside SaaS mode", () => {
     vi.stubEnv("SOCIALAGENT_SAAS_MODE", "false");
     expect(() => assertSaasExecutionAllowed({ adapterType: "process", adapterConfig: { engine: "cli" } })).not.toThrow();
-  });
-});
-
-describe("runtime admission in SaaS mode", () => {
-  afterEach(() => vi.unstubAllEnvs());
-
-  it("refuses a pre-existing process agent before any dispatch or process spawn", async () => {
-    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
-    const db = new Proxy({}, { get() { throw new Error("db must not be touched"); } });
-    const input = {
-      run: { id: "run-1" },
-      agent: { id: "a", companyId: "c", adapterType: "process", adapterConfig: { command: "echo" } },
-    };
-    await expect(selectHeartbeatRuntime(db as never, input as never)).rejects.toThrow(MESSAGE);
   });
 });

@@ -22,6 +22,7 @@ import { executeHeartbeatRuntime, NativeSessionResumeScheduledError, NativeWorks
 import { preserveNativeFailedWorkspace } from "./native-runtime/native-failed-workspace-recovery.js";
 import { nativeRunHasNoWorkspaceAccess } from "./workspace-restore-recovery-state.js";
 import { selectHeartbeatRuntime } from "./heartbeat/runtime-selection.js";
+import { assertSaasExecutionAllowed } from "./saas-execution-policy.js";
 import { createHeartbeatRunCompletion } from "./heartbeat/run-completion.js";
 export {
   MAX_TURN_CONTINUATION_WAKE_REASON,
@@ -1958,6 +1959,10 @@ export function heartbeatService(
       if (selectedAdapter && selectedAdapter !== agent.adapterType) {
         throw new Error("Agent adapter changed during startup; start a new turn with the updated agent.");
       }
+
+      // SaaS admission: refuse host-executing agents before environment
+      // selection, workspace work or any lease acquisition.
+      assertSaasExecutionAllowed(agent);
 
       const dispatchIssueId = readNonEmptyString(parseObject(run.contextSnapshot).issueId);
       const resumingAdmittedConversationTurn = !!runOptions.nativeLeaseOwner
