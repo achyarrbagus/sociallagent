@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import {
   DEFAULT_ALLOWED_TYPES,
   formatAttachmentSize,
@@ -268,7 +268,46 @@ import {
   maxUploadBytes,
   uploadParserLimitBytes,
   videoMaxBytes,
+  DEFAULT_VIDEO_MAX_BYTES,
+  resetVideoMaxBytesWarningForTests,
 } from "../attachment-types.js";
+import { logger } from "../middleware/logger.js";
+
+/** A minimal stored (uncompressed) ZIP with the given entries. */
+function storedZip(entries: Record<string, string>): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  for (const [name, content] of Object.entries(entries)) {
+    const nameBuf = Buffer.from(name, "latin1");
+    const data = Buffer.from(content, "utf8");
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, nameBuf, data);
+    centrals.push(central, nameBuf);
+    offset += local.length + nameBuf.length + data.length;
+  }
+  const cd = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(Object.keys(entries).length, 8);
+  eocd.writeUInt16LE(Object.keys(entries).length, 10);
+  eocd.writeUInt32LE(cd.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, eocd]);
+}
 
 describe("SaaS upload policy", () => {
   const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0]);
@@ -311,10 +350,18 @@ describe("SaaS upload policy", () => {
     expect(check("text/plain", ZIP, "notes.txt").ok).toBe(false);
   });
 
-  it("allows ZIP magic only for the three Office types", () => {
+  it("allows ZIP bytes only for the three Office types, and only with an OOXML manifest", () => {
     const docx = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    expect(check(docx, ZIP, "brief.docx").ok).toBe(true);
-    expect(bytesMatchDeclaredType("application/pdf", ZIP)).toBe(false);
+    const xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    const ooxml = storedZip({
+      "[Content_Types].xml": '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+      "word/document.xml": "<w:document/>",
+    });
+    expect(check(docx, ooxml, "brief.docx").ok).toBe(true);
+    expect(check(xlsx, ooxml, "sheet.xlsx").ok).toBe(true);
+    expect(check(docx, ZIP, "brief.docx").ok).toBe(false);
+    expect(check(docx, storedZip({ "payload.exe": "MZ" }), "brief.docx").ok).toBe(false);
+    expect(bytesMatchDeclaredType("application/pdf", ooxml)).toBe(false);
   });
 
   it("sniffs text types for NULs and markup", () => {
@@ -333,5 +380,32 @@ describe("SaaS upload policy", () => {
 
   it("leaves non-SaaS behavior unchanged", () => {
     expect(checkUploadPolicy({ saasMode: false, contentType: "application/zip", buffer: ZIP, filename: "a/b.zip" }).ok).toBe(true);
+  });
+});
+
+describe("SOCIALAGENT_VIDEO_MAX_BYTES", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    resetVideoMaxBytesWarningForTests();
+  });
+
+  it("uses a positive integer value", () => {
+    vi.stubEnv("SOCIALAGENT_VIDEO_MAX_BYTES", "1048576");
+    expect(videoMaxBytes()).toBe(1048576);
+  });
+
+  it("defaults to 100 MB when unset", () => {
+    vi.stubEnv("SOCIALAGENT_VIDEO_MAX_BYTES", "");
+    expect(videoMaxBytes()).toBe(DEFAULT_VIDEO_MAX_BYTES);
+    expect(DEFAULT_VIDEO_MAX_BYTES).toBe(104857600);
+  });
+
+  it.each(["-5", "0", "1.5", "abc", "10MB", "1e3"])("falls back to the default and warns once for %s", value => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined as never);
+    vi.stubEnv("SOCIALAGENT_VIDEO_MAX_BYTES", value);
+    expect(videoMaxBytes()).toBe(DEFAULT_VIDEO_MAX_BYTES);
+    expect(videoMaxBytes()).toBe(DEFAULT_VIDEO_MAX_BYTES);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });

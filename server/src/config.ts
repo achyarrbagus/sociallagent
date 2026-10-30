@@ -9,6 +9,7 @@ import { maybeRepairLegacyWorktreeConfigAndEnvFiles } from "./worktree-config.js
 import { shouldLoadWorkingDirectoryEnv } from "./env-file-policy.js";
 import { applyEmptyWorktreeSigningSecrets } from "./dev-runner-worktree.js";
 import { isSaasMode } from "./saas-mode.js";
+import { parseSocialagentPublicUrl } from "./socialagent-public-url.js";
 import {
   AUTH_BASE_URL_MODES,
   BIND_MODES,
@@ -69,6 +70,8 @@ export interface Config {
    * `<url>/api/managed-gateway/v1` with a run-scoped token.
    */
   socialagentPublicUrl: string | undefined;
+  /** Why SOCIALAGENT_PUBLIC_URL was rejected (set and invalid), for startup logs. */
+  socialagentPublicUrlError?: string;
   deploymentMode: DeploymentMode;
   deploymentExposure: DeploymentExposure;
   bind: BindMode;
@@ -386,6 +389,7 @@ export function loadConfig(): Config {
   if (bindValidationErrors.length > 0) {
     throw new Error(bindValidationErrors[0]);
   }
+  const socialagentPublicUrl = parseSocialagentPublicUrl(process.env.SOCIALAGENT_PUBLIC_URL);
   const resolvedBind = resolveRuntimeBind({
     bind,
     host: configuredHost,
@@ -398,7 +402,8 @@ export function loadConfig(): Config {
 
   return {
     saasMode: isSaasMode(),
-    socialagentPublicUrl: process.env.SOCIALAGENT_PUBLIC_URL?.trim().replace(/\/+$/, "") || undefined,
+    socialagentPublicUrl: socialagentPublicUrl.url ?? undefined,
+    socialagentPublicUrlError: socialagentPublicUrl.error ?? undefined,
     deploymentMode,
     deploymentExposure,
     bind: resolvedBind.bind,

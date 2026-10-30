@@ -1053,7 +1053,9 @@ async function startServerWithDatabaseTeardown(
       );
     }
     await scrubStoredManagedGatewayKeys(db as any).catch((err) => logger.error({ err }, "Could not scrub stored 9Router keys from managed connections"));
-    if (!config.socialagentPublicUrl) {
+    if (config.socialagentPublicUrlError) {
+      logger.error(`${config.socialagentPublicUrlError}; managed 9Router runs will fail closed until it is fixed`);
+    } else if (!config.socialagentPublicUrl) {
       logger.error(
         "SOCIALAGENT_SAAS_MODE is enabled but SOCIALAGENT_PUBLIC_URL is not set; managed 9Router runs will fail closed until it is configured",
       );

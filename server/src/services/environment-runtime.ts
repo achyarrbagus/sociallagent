@@ -831,6 +831,22 @@ function getLeaseDriverKey(
   return leaseDriver ?? environment?.driver ?? "sandbox";
 }
 
+/**
+ * SaaS mode destroys a run's sandbox at release. When the provider cannot
+ * verify destroy (plugin worker down or without environmentDestroyLease) the
+ * release path runs instead; record that on the lease and warn so operators
+ * can find sandboxes that may outlive their run. No config or secrets logged.
+ */
+async function markSaasDestroyFallback(db: Db, lease: EnvironmentLease): Promise<void> {
+  logger.warn(
+    { leaseId: lease.id, companyId: lease.companyId, provider: lease.provider ?? null },
+    "SaaS sandbox lease could not be destroyed (provider cannot verify destroy); falling back to release",
+  );
+  await db.update(environmentLeases)
+    .set({ metadata: sql`coalesce(${environmentLeases.metadata}, '{}'::jsonb) || ${JSON.stringify({ saasDestroyFallback: "release" })}::jsonb` })
+    .where(and(eq(environmentLeases.id, lease.id), eq(environmentLeases.companyId, lease.companyId)));
+}
+
 function toEnvironmentLeaseSnapshot(row: typeof environmentLeases.$inferSelect): EnvironmentLease {
   return {
     id: row.id,
@@ -2614,17 +2630,16 @@ function createSandboxEnvironmentDriver(
       // stopped for a later run. A stop-and-retain release keeps the exact
       // lease for same-run workspace recovery and stays on its own path. A
       // plugin worker that cannot verify destroy falls back to its release.
-      if (
-        isSaasMode() &&
-        input.resourceDisposition !== "stop_and_retain" &&
-        saasSandboxLeaseCanBeDestroyed(input.lease)
-      ) {
-        return await destroyReusableSandboxLease({
-          environment: input.environment,
-          lease: input.lease,
-          failureReason: input.status === "failed" ? "adapter_or_run_failure" : undefined,
-          releaseStatus: input.status,
-        });
+      if (isSaasMode() && input.resourceDisposition !== "stop_and_retain") {
+        if (saasSandboxLeaseCanBeDestroyed(input.lease)) {
+          return await destroyReusableSandboxLease({
+            environment: input.environment,
+            lease: input.lease,
+            failureReason: input.status === "failed" ? "adapter_or_run_failure" : undefined,
+            releaseStatus: input.status,
+          });
+        }
+        await markSaasDestroyFallback(db, input.lease);
       }
 
       // Check if this lease was acquired through a plugin.
@@ -3803,6 +3818,9 @@ function createPluginEnvironmentDriver(
         } catch { return false; }
       })();
       const cleanupMethod = saasDestroy ? "destroy" : "release";
+      if (isSaasMode() && input.resourceDisposition !== "stop_and_retain" && !saasDestroy) {
+        await markSaasDestroyFallback(db, input.lease);
+      }
       await db.update(environmentLeases).set({ metadata: sql`coalesce(${environmentLeases.metadata}, '{}'::jsonb) || ${JSON.stringify({ pluginLeaseCleanupMethod: cleanupMethod })}::jsonb` }).where(and(eq(environmentLeases.id, input.lease.id), eq(environmentLeases.companyId, input.lease.companyId)));
       const taskStopped = await settleDispatchedEnvironmentTask(db, workerManager, input.lease) ||
         (input.lease.metadata?.runnerTaskLease === true && input.lease.metadata?.runnerTaskDispatched !== true);

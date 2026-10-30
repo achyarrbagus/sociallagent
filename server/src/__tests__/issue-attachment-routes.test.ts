@@ -307,6 +307,7 @@ describe("issue attachment routes", () => {
       ["text/html", Buffer.from("<html></html>"), "page.html", "text/html"],
       ["image/svg+xml", Buffer.from("<svg/>"), "logo.svg", "image/svg+xml"],
       ["an octet-stream file named x.zip", ZIP, "x.zip", "application/octet-stream"],
+      ["a plain ZIP declared as docx", ZIP, "brief.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
     ])("rejects %s with 422 and stores nothing", async (_label, body, filename, contentType) => {
       const storage = createStorageService();
       const res = await request(await createApp(storage)).post(url).attach("file", body, { filename, contentType });

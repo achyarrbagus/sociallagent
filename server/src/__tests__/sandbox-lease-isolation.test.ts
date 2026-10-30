@@ -14,6 +14,7 @@ import {
   projects,
 } from "@paperclipai/db";
 import { environmentRuntimeService } from "../services/environment-runtime.ts";
+import { logger } from "../middleware/logger.js";
 import type { PluginWorkerManager } from "../services/plugin-worker-manager.ts";
 import {
   getEmbeddedPostgresTestSupport,
@@ -48,7 +49,7 @@ describeEmbeddedPostgres("sandbox lease isolation", () => {
   });
 
   /** A fake plugin sandbox provider that records every lifecycle call. */
-  function createRecordingSandboxWorker(pluginId: string) {
+  function createRecordingSandboxWorker(pluginId: string, options: { supportsDestroy?: boolean } = {}) {
     let allocation = 0;
     const calls: Array<{ method: string; params: Record<string, any> }> = [];
     const manager = {
@@ -58,7 +59,7 @@ describeEmbeddedPostgres("sandbox lease isolation", () => {
           "environmentAcquireLease",
           "environmentResumeLease",
           "environmentReleaseLease",
-          "environmentDestroyLease",
+          ...(options.supportsDestroy === false ? [] : ["environmentDestroyLease"]),
         ],
       })),
       call: vi.fn(async (_id: string, method: string, params: Record<string, any>) => {
@@ -250,6 +251,28 @@ describeEmbeddedPostgres("sandbox lease isolation", () => {
     expect(worker.methodCalls("environmentResumeLease")).toHaveLength(0);
   });
 
+  it("marks and warns when a SaaS sandbox lease falls back from destroy to release", async () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+    const warn = vi.spyOn(logger, "warn");
+    const { pluginId, environment } = await seedSharedSandboxEnvironment();
+    const worker = createRecordingSandboxWorker(pluginId, { supportsDestroy: false });
+    const runtime = environmentRuntimeService(db, { pluginWorkerManager: worker.manager });
+    const tenant = await seedTenant();
+    const runId = await tenant.newRun();
+
+    const acquired = await acquireFor(runtime, environment, tenant, runId);
+    await runtime.releaseRunLeases(runId, "released");
+
+    expect(worker.methodCalls("environmentDestroyLease")).toHaveLength(0);
+    expect(worker.methodCalls("environmentReleaseLease")).toHaveLength(1);
+    const [row] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, acquired.lease.id));
+    expect(row!.metadata).toMatchObject({ saasDestroyFallback: "release" });
+    const fallbackWarnings = warn.mock.calls.filter(([, message]) => typeof message === "string" && message.includes("destroy"));
+    expect(fallbackWarnings).toHaveLength(1);
+    expect(fallbackWarnings[0]![0]).toMatchObject({ leaseId: acquired.lease.id, companyId: tenant.companyId });
+    warn.mockRestore();
+  });
+
   it("forces the ephemeral policy in SaaS mode for a warm plugin-driver environment", async () => {
     vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
     const pluginId = randomUUID();
@@ -291,6 +314,51 @@ describeEmbeddedPostgres("sandbox lease isolation", () => {
     await runtime.releaseRunLeases(runId, "released");
     expect(worker.methodCalls("environmentDestroyLease")).toHaveLength(1);
     expect(worker.methodCalls("environmentReleaseLease")).toHaveLength(0);
+  });
+
+  it("marks the lease when a SaaS plugin-driver release cannot destroy", async () => {
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+    const pluginId = randomUUID();
+    const tenant = await seedTenant();
+    const issueId = randomUUID();
+    await db.insert(issues).values({ id: issueId, companyId: tenant.companyId, title: "Warm task", status: "in_progress", assigneeAgentId: tenant.agentId });
+    await db.insert(plugins).values({
+      id: pluginId,
+      pluginKey: pluginId,
+      packageName: "fixture-warm",
+      version: "1.0.0",
+      status: "ready",
+      manifestJson: { capabilities: ["environment.drivers.register"], environmentDrivers: [{ driverKey: "tasks", supportsTasks: true, warmTaskVersion: 1 }] } as never,
+    });
+    const [environment] = await db.insert(environments).values({
+      id: randomUUID(),
+      name: `warm-${pluginId.slice(0, 8)}`,
+      driver: "plugin",
+      status: "active",
+      config: { pluginKey: pluginId, driverKey: "tasks", driverConfig: {}, runnerLifecycleMode: "warm", runnerIdleTimeoutMs: 300000 },
+    }).returning();
+    const worker = createRecordingSandboxWorker(pluginId, { supportsDestroy: false });
+    const runtime = environmentRuntimeService(db, { pluginWorkerManager: worker.manager });
+    const runId = await tenant.newRun();
+
+    const acquired = await runtime.acquireRunLease({
+      companyId: tenant.companyId,
+      environment: environment as never,
+      issueId,
+      agentId: tenant.agentId,
+      heartbeatRunId: runId,
+      persistedExecutionWorkspace: null,
+      adapterType: "paperclip_runner",
+    });
+
+    expect(acquired.lease.leasePolicy).toBe("ephemeral");
+    expect(acquired.lease.metadata?.runnerTaskLifecyclePolicy).toMatchObject({ mode: "per_turn" });
+
+    await runtime.releaseRunLeases(runId, "released");
+    expect(worker.methodCalls("environmentDestroyLease")).toHaveLength(0);
+    expect(worker.methodCalls("environmentReleaseLease")).toHaveLength(1);
+    const [row] = await db.select().from(environmentLeases).where(eq(environmentLeases.id, acquired.lease.id));
+    expect(row!.metadata).toMatchObject({ saasDestroyFallback: "release", pluginLeaseCleanupMethod: "release" });
   });
 
   it("never resumes a reusable lease owned by another company, even outside SaaS mode", async () => {

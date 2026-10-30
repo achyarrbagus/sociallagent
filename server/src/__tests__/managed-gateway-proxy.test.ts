@@ -376,4 +376,11 @@ describeEmbeddedPostgres("managed 9Router gateway proxy", () => {
     vi.stubEnv("SOCIALAGENT_PUBLIC_URL", "");
     await expect(managedRuntime("claude_local")).rejects.toThrow("SOCIALAGENT_PUBLIC_URL");
   });
+
+  it("fails a SaaS managed run when SOCIALAGENT_PUBLIC_URL is plain http on a public host", async () => {
+    enable();
+    vi.stubEnv("SOCIALAGENT_SAAS_MODE", "true");
+    vi.stubEnv("SOCIALAGENT_PUBLIC_URL", "http://socialagent.example.test");
+    await expect(managedRuntime("claude_local")).rejects.toThrow("SOCIALAGENT_PUBLIC_URL");
+  });
 });

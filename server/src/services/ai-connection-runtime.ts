@@ -411,7 +411,7 @@ export async function prepareManagedAiRuntime(
       const publicUrl = readManagedGatewayPublicUrl();
       if (!publicUrl) {
         throw unprocessable(
-          "SOCIALAGENT_PUBLIC_URL is not configured, so SocialAgent AI cannot run in SaaS mode. Ask the operator to set it.",
+          "SOCIALAGENT_PUBLIC_URL is not configured or is not an https URL, so SocialAgent AI cannot run in SaaS mode. Ask the operator to set it.",
           { code: "managed_gateway_public_url_missing" },
         );
       }

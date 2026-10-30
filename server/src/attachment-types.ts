@@ -1,3 +1,5 @@
+import { logger } from "./middleware/logger.js";
+
 /**
  * Shared attachment content-type configuration.
  *
@@ -221,9 +223,31 @@ export function effectiveAllowedTypes(saasMode: boolean): string[] {
   return saasMode ? [...SAAS_ALLOWED_TYPES] : [...allowedPatterns];
 }
 
-/** Per-video cap in SaaS mode (`SOCIALAGENT_VIDEO_MAX_BYTES`, default 100 MB). */
+export const DEFAULT_VIDEO_MAX_BYTES = 100 * 1024 * 1024;
+let warnedInvalidVideoMaxBytes = false;
+
+/** Test hook: re-arm the one-time invalid-value warning. */
+export function resetVideoMaxBytesWarningForTests() {
+  warnedInvalidVideoMaxBytes = false;
+}
+
+/**
+ * Per-video cap in SaaS mode (`SOCIALAGENT_VIDEO_MAX_BYTES`, default 100 MB).
+ * The value must be a positive integer number of bytes; anything else falls
+ * back to the default and logs one warning.
+ */
 export function videoMaxBytes(): number {
-  return Number(process.env.SOCIALAGENT_VIDEO_MAX_BYTES) || 100 * 1024 * 1024;
+  const raw = process.env.SOCIALAGENT_VIDEO_MAX_BYTES?.trim();
+  if (!raw) return DEFAULT_VIDEO_MAX_BYTES;
+  if (/^[1-9][0-9]*$/.test(raw) && Number.isSafeInteger(Number(raw))) return Number(raw);
+  if (!warnedInvalidVideoMaxBytes) {
+    warnedInvalidVideoMaxBytes = true;
+    logger.warn(
+      { defaultBytes: DEFAULT_VIDEO_MAX_BYTES },
+      "SOCIALAGENT_VIDEO_MAX_BYTES must be a positive integer number of bytes; using the default",
+    );
+  }
+  return DEFAULT_VIDEO_MAX_BYTES;
 }
 
 export function maxUploadBytes(contentType: string, saasMode: boolean): number {
@@ -246,6 +270,18 @@ function startsWithBytes(buf: Buffer, bytes: number[], offset = 0): boolean {
 
 function isZipMagic(buf: Buffer): boolean {
   return startsWithBytes(buf, [0x50, 0x4b, 0x03, 0x04]) || startsWithBytes(buf, [0x50, 0x4b, 0x05, 0x06]);
+}
+
+const OOXML_MANIFEST_ENTRY = Buffer.from("[Content_Types].xml", "latin1");
+
+/**
+ * An OOXML package (docx/xlsx/pptx) is a ZIP whose entries include
+ * `[Content_Types].xml`. Entry names are stored uncompressed in the local file
+ * headers and the central directory, so searching the bytes for the name is
+ * enough to tell an Office document from an arbitrary archive.
+ */
+function isOoxmlPackage(buf: Buffer): boolean {
+  return isZipMagic(buf) && buf.includes(OOXML_MANIFEST_ENTRY);
 }
 
 function looksLikeMarkup(buf: Buffer): boolean {
@@ -271,7 +307,7 @@ export function bytesMatchDeclaredType(declaredType: string, buf: Buffer): boole
     case "video/webm": return startsWithBytes(buf, [0x1a, 0x45, 0xdf, 0xa3]);
     case "application/pdf": return startsWithBytes(buf, [0x25, 0x50, 0x44, 0x46]);
     default:
-      if (OFFICE_OOXML_TYPES.includes(type)) return isZipMagic(buf);
+      if (OFFICE_OOXML_TYPES.includes(type)) return isOoxmlPackage(buf);
       if (SAAS_TEXT_TYPES.includes(type)) {
         if (buf.subarray(0, 8192).includes(0)) return false;
         if (isZipMagic(buf) || startsWithBytes(buf, [0x25, 0x50, 0x44, 0x46])) return false;

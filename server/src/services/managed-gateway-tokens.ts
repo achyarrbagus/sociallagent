@@ -6,6 +6,7 @@ import path from "node:path";
 import { logActivity } from "./activity-log.js";
 import { readManagedGatewayConfig } from "./managed-gateway.js";
 import { isSaasMode } from "../saas-mode.js";
+import { readSocialagentPublicUrl } from "../socialagent-public-url.js";
 import { unprocessable } from "../errors.js";
 
 /** Route prefix of the run-scoped gateway proxy (see routes/managed-gateway-proxy.ts). */
@@ -26,11 +27,11 @@ function hashToken(token: string) {
 
 /**
  * The server's public origin that sandboxes can reach (SOCIALAGENT_PUBLIC_URL),
- * without a trailing slash, or null when it is not configured.
+ * without a trailing slash, or null when it is not configured or invalid
+ * (not https on a non-loopback host).
  */
 export function readManagedGatewayPublicUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  const value = env.SOCIALAGENT_PUBLIC_URL?.trim().replace(/\/+$/, "");
-  return value ? value : null;
+  return readSocialagentPublicUrl(env);
 }
 
 /** The proxy base URL a sandbox uses in place of the 9Router base URL. */
