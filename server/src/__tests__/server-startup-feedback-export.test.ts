@@ -252,6 +252,7 @@ vi.mock("detect-port", () => ({
 vi.mock("@paperclipai/db", async (importOriginal) => ({
   ...await importOriginal<typeof import("@paperclipai/db")>(),
   createDb: createDbMock,
+  assertRuntimeRoleBypassesRls: vi.fn(async () => {}),
   ensurePostgresDatabase: vi.fn(),
   getPostgresDataDirectory: vi.fn(),
   inspectMigrations: vi.fn(async () => ({ status: "upToDate" })),

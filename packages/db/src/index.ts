@@ -1,5 +1,7 @@
 export {
+  assertRuntimeRoleBypassesRls,
   assertSessionCapableDatabaseUrl,
+  checkRuntimeRoleBypassesRls,
   createDb,
   withDedicatedDbConnection,
   livenessDb,

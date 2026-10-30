@@ -318,6 +318,40 @@ export function assertSessionCapableDatabaseUrl(url: string, name = "DATABASE_UR
   }
 }
 
+/**
+ * Migration 0386 enables row level security on every public table with no
+ * policies. Only the table owner (or a role with BYPASSRLS, or a superuser)
+ * still sees rows; any other runtime role silently reads zero rows. Fails fast
+ * with a clear message instead of starting a server that looks empty.
+ */
+export async function checkRuntimeRoleBypassesRls(sql: ReturnType<typeof postgres>): Promise<void> {
+  const rows = await sql<{ role: string; owns: boolean | null; bypass: boolean; superuser: boolean }[]>`
+    select current_user as role,
+      (select pg_has_role(current_user, c.relowner, 'USAGE')
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname = 'public' and c.relname = 'companies') as owns,
+      r.rolbypassrls as bypass,
+      r.rolsuper as superuser
+    from pg_roles r where r.rolname = current_user`;
+  const row = rows[0];
+  if (!row || row.owns === null) return; // no companies table yet (not migrated)
+  if (row.owns || row.bypass || row.superuser) return;
+  throw new Error(
+    `Database role "${row.role}" does not own public.companies and lacks BYPASSRLS. ` +
+      "Row level security is enabled on every public table with no policies, so this role would read zero rows. " +
+      "Connect DATABASE_URL as the role that owns the tables (the one that ran migrations) or grant it BYPASSRLS.",
+  );
+}
+
+export async function assertRuntimeRoleBypassesRls(url: string): Promise<void> {
+  const sql = createUtilitySql(url);
+  try {
+    await checkRuntimeRoleBypassesRls(sql);
+  } finally {
+    await sql.end();
+  }
+}
+
 export function createDb(url: string, options?: DatabaseClientOptions) {
   assertSessionCapableDatabaseUrl(url);
   const resolved = resolveDatabaseClientOptions(options ?? databaseClientOptionsFromEnv());

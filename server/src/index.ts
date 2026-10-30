@@ -62,6 +62,7 @@ import type { Request as ExpressRequest, RequestHandler } from "express";
 import { warnIfUnsupportedNodeVersion } from "@paperclipai/shared/node-version";
 import { and, eq } from "drizzle-orm";
 import {
+  assertRuntimeRoleBypassesRls,
   assertSessionCapableDatabaseUrl,
   createDb,
   ensurePostgresDatabase,
@@ -469,6 +470,7 @@ async function startServerWithDatabaseTeardown(
     }
     const migrationUrl = config.databaseMigrationUrl ?? config.databaseUrl;
     migrationSummary = await ensureMigrations(migrationUrl, "PostgreSQL");
+    await assertRuntimeRoleBypassesRls(config.databaseUrl);
   
     db = createDb(config.databaseUrl);
     pluginMigrationDb = config.databaseMigrationUrl ? createDb(config.databaseMigrationUrl) : db;

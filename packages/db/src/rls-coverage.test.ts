@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import postgres from "postgres";
 import { afterEach, describe, expect, it } from "vitest";
-import { assertSessionCapableDatabaseUrl, createDb } from "./client.js";
+import {
+  assertRuntimeRoleBypassesRls,
+  assertSessionCapableDatabaseUrl,
+  checkRuntimeRoleBypassesRls,
+  createDb,
+} from "./client.js";
 import {
   EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   getEmbeddedPostgresTestSupport,
@@ -130,6 +135,49 @@ describePostgres("row level security lockdown", () => {
       await sql.unsafe(`create table public.rls_future (id int)`);
       const [future] = await sql`select has_table_privilege('anon', 'public.rls_future', 'select') as a`;
       expect(future.a).toBe(false);
+    },
+    EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "startup role check passes for the table owner",
+    async () => {
+      const db = await startEmbeddedPostgresTestDatabase("paperclip-rls-role-owner-");
+      cleanups.push(db.cleanup);
+      await expect(assertRuntimeRoleBypassesRls(db.connectionString)).resolves.toBeUndefined();
+    },
+    EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "startup role check fails fast for a non-owner role without BYPASSRLS",
+    async () => {
+      const sql = await database();
+      await sql.unsafe(`create role rls_runtime_nonowner nologin nobypassrls`);
+      await sql.unsafe(`grant select on public.companies to rls_runtime_nonowner`);
+      await sql.unsafe(`set role rls_runtime_nonowner`);
+      try {
+        await expect(checkRuntimeRoleBypassesRls(sql)).rejects.toThrow(
+          /does not own public\.companies and lacks BYPASSRLS/,
+        );
+      } finally {
+        await sql.unsafe(`reset role`);
+      }
+    },
+    EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "startup role check passes for a non-owner role with BYPASSRLS",
+    async () => {
+      const sql = await database();
+      await sql.unsafe(`create role rls_runtime_bypass nologin bypassrls`);
+      await sql.unsafe(`set role rls_runtime_bypass`);
+      try {
+        await expect(checkRuntimeRoleBypassesRls(sql)).resolves.toBeUndefined();
+      } finally {
+        await sql.unsafe(`reset role`);
+      }
     },
     EMBEDDED_POSTGRES_TEST_TIMEOUT_MS,
   );

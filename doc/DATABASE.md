@@ -318,6 +318,8 @@ Supabase auto-exposes the `public` schema through its Data API (PostgREST) to th
 
 Also **disable the Data API** for the project (Project Settings > Data API) as defence in depth. Tables created after migrations still need RLS: `packages/db/src/rls-coverage.test.ts` fails when any `public` table lacks it, so a new table must enable RLS in its migration.
 
+**Runtime role requirement.** Because RLS is enabled with no policies, the role in `DATABASE_URL` must either own the tables (the role that ran the migrations) or have `BYPASSRLS` (superusers pass). Any other role silently reads zero rows. After migrations the server runs `assertRuntimeRoleBypassesRls` (`packages/db/src/client.ts`) against `DATABASE_URL` and refuses to start with `Database role "<role>" does not own public.companies and lacks BYPASSRLS` when this does not hold. Supabase's default `postgres` role owns tables it migrated, so the default setup passes. See also [`docs/deploy/saas.md`](../docs/deploy/saas.md).
+
 ### Client tuning (optional)
 
 All of these are optional; when unset, the driver defaults apply and behavior is unchanged — typical self-hosted setups need none of them:
