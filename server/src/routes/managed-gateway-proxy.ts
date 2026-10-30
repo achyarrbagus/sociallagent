@@ -40,6 +40,23 @@ function hasTraversal(pathAndQuery: string) {
   });
 }
 
+const ALLOWED_METHODS = new Set(["GET", "POST"]);
+// Inference endpoints relative to the gateway's /v1 base, each with optional
+// subpaths (e.g. messages/count_tokens, responses/<id>, models/<id>). An
+// optional leading `v1/` covers Anthropic clients, which append /v1/messages
+// to a base URL that already ends in /v1.
+const ALLOWED_PATH = /^\/(?:v1\/)?(?:responses|chat\/completions|completions|messages|models|embeddings)(?:\/[^?]*)?$/;
+
+/**
+ * Only inference calls go through the proxy; the 9Router dashboard, key and
+ * admin APIs never do, whatever the master key would allow.
+ */
+export function isAllowedManagedGatewayRequest(method: string, pathAndQuery: string) {
+  if (!ALLOWED_METHODS.has(method.toUpperCase())) return false;
+  const pathname = pathAndQuery.split("?")[0] ?? "";
+  return ALLOWED_PATH.test(pathname);
+}
+
 /**
  * The upstream URL for a proxied path, or null when the resolved URL leaves
  * the configured gateway origin or base path.
@@ -90,6 +107,10 @@ export function managedGatewayProxyRoutes(db: Db) {
     const target = managedGatewayUpstreamUrl(gateway.baseUrl, req.url);
     if (!target) {
       res.status(400).json({ error: "Invalid gateway path" });
+      return;
+    }
+    if (!isAllowedManagedGatewayRequest(req.method, req.url)) {
+      res.status(404).json({ error: "Not found" });
       return;
     }
     const declaredLength = Number(req.header("content-length") ?? 0);

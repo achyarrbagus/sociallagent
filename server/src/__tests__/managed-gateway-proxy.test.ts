@@ -194,6 +194,49 @@ describeEmbeddedPostgres("managed 9Router gateway proxy", () => {
     expect(upstreamRequests).toHaveLength(0);
   });
 
+  it.each([
+    ["GET", "/models"],
+    ["GET", "/models/gpt-5.5"],
+    ["POST", "/chat/completions"],
+    ["POST", "/completions"],
+    ["POST", "/embeddings"],
+    ["POST", "/messages/count_tokens"],
+    ["GET", "/responses/resp_123"],
+    ["POST", "/v1/messages"],
+  ])("forwards allowlisted inference path %s %s", async (method, pathAndQuery) => {
+    enable();
+    const { token } = await activeToken();
+    const response = await fetch(`${proxyBase}${pathAndQuery}`, {
+      method,
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: method === "POST" ? "{}" : undefined,
+    });
+    expect(response.status).toBe(200);
+    expect(upstreamRequests).toHaveLength(1);
+  });
+
+  it.each([
+    ["GET", "/dashboard/api/keys"],
+    ["GET", "/keys"],
+    ["POST", "/admin/users"],
+    ["GET", "/"],
+    ["GET", "/modelsx"],
+    ["PUT", "/models"],
+    ["DELETE", "/responses/resp_123"],
+    ["PATCH", "/chat/completions"],
+  ])("returns 404 for non-inference method/path %s %s without calling upstream", async (method, pathAndQuery) => {
+    enable();
+    const { token } = await activeToken();
+    const response = await fetch(`${proxyBase}${pathAndQuery}`, {
+      method,
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: method === "GET" ? undefined : "{}",
+    });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Not found" });
+    expect(upstreamRequests).toHaveLength(0);
+  });
+
   it("resolves upstream URLs only inside the gateway origin and base path", () => {
     const base = "https://9router.example/v1";
     expect(managedGatewayUpstreamUrl(base, "/responses?x=1")?.href).toBe("https://9router.example/v1/responses?x=1");
