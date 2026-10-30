@@ -3525,10 +3525,38 @@ export function refreshPaperclipWorkspaceEnvForExecution(input: {
   return shapedWorkspaceEnv;
 }
 
+/**
+ * Server-held secrets that must never reach an agent child process. Applies to
+ * the HOST-INHERITED environment only; env explicitly configured on an agent is
+ * merged on top after sanitizing and is not subject to these patterns.
+ */
+export const SERVER_SECRET_ENV_PATTERNS: readonly RegExp[] = [
+  /^DATABASE_URL$/i,
+  /^DATABASE_MIGRATION_URL$/i,
+  /^BETTER_AUTH_SECRET$/i,
+  /^SOCIALAGENT_/i,
+  /^PAPERCLIP_STORAGE_/i,
+  /^AWS_/i,
+  /^SUPABASE_/i,
+];
+
+export function isServerSecretEnvKey(key: string): boolean {
+  return SERVER_SECRET_ENV_PATTERNS.some((pattern) => pattern.test(key));
+}
+
+/** Removes only the server-held secrets from a host-inherited env. */
+export function stripServerSecretEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (!isServerSecretEnvKey(key)) env[key] = value;
+  }
+  return env;
+}
+
 export function sanitizeInheritedPaperclipEnv(
   baseEnv: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...baseEnv };
+  const env: NodeJS.ProcessEnv = stripServerSecretEnv(baseEnv);
   delete env.PAPERCLIPAI_CMD;
   for (const key of Object.keys(env)) {
     if (AGENT_IDENTITY_ENV_KEYS.includes(key.toUpperCase())) {

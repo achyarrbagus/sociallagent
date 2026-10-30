@@ -3360,6 +3360,8 @@ describe("runtime question fallback", () => {
   });
 });
 
+const SERVER_SECRET_KEYS = ["DATABASE_URL", "DATABASE_MIGRATION_URL", "BETTER_AUTH_SECRET", "SOCIALAGENT_9ROUTER_API_KEY", "PAPERCLIP_STORAGE_S3_SECRET", "AWS_SECRET_ACCESS_KEY", "SUPABASE_SERVICE_ROLE_KEY"];
+
 describe("native provider bootstrap environment", () => {
   it.each(["pi", "cursor", "copilot"] as const)("does not promote ambient %s credentials when bindings are omitted", agent => {
     const provider = { kind: "acpx", agent } as NativeExecutionInput["provider"];
@@ -3374,7 +3376,19 @@ describe("native provider bootstrap environment", () => {
   it("preserves existing qualified and legacy missing-environment behavior", () => {
     const host = { OPENAI_API_KEY: "existing-host-key", OPENROUTER_API_KEY: "existing-opencode-key" };
     for (const provider of [{ kind: "codex" }, { kind: "opencode" }, { kind: "acpx", agent: "codex" }, { kind: "acpx", agent: "claude" }]) {
-      expect(resolveNativeProviderEnvironment(provider as NativeExecutionInput["provider"], undefined, host)).toBe(host);
+      expect(resolveNativeProviderEnvironment(provider as NativeExecutionInput["provider"], undefined, host)).toEqual(host);
+    }
+  });
+
+  it("never returns server secrets from the host env when configured is undefined", () => {
+    const host = {
+      PATH: "/bin", OPENAI_API_KEY: "k", DATABASE_URL: "x", DATABASE_MIGRATION_URL: "x", BETTER_AUTH_SECRET: "x",
+      SOCIALAGENT_9ROUTER_API_KEY: "x", PAPERCLIP_STORAGE_S3_SECRET: "x", AWS_SECRET_ACCESS_KEY: "x", SUPABASE_SERVICE_ROLE_KEY: "x",
+    };
+    for (const provider of [{ kind: "codex" }, { kind: "opencode" }, { kind: "acpx", agent: "claude" }, { kind: "acpx", agent: "pi" }]) {
+      const env = resolveNativeProviderEnvironment(provider as NativeExecutionInput["provider"], undefined, host);
+      for (const key of SERVER_SECRET_KEYS) expect(env).not.toHaveProperty(key);
+      expect(env.PATH).toBe("/bin");
     }
   });
 

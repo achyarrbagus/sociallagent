@@ -1,3 +1,4 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 import type {
   AdapterEnvironmentCheck,
   AdapterEnvironmentTestContext,
@@ -192,7 +193,7 @@ export async function testEnvironment(
         });
       }
     }
-  const runtimeEnv = ensurePathInEnv({ ...process.env, ...env });
+  const runtimeEnv = ensurePathInEnv({ ...stripServerSecretEnv(process.env), ...env });
 
   try {
     await ensureAdapterExecutionTargetCommandResolvable(command, target, cwd, runtimeEnv);

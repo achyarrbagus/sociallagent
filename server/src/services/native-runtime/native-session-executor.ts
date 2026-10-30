@@ -10,6 +10,7 @@ import { resolvePluginTaskResume } from "../environment-task-runtime.js";
 import { environmentTaskResultSchema } from "@paperclipai/plugin-sdk";
 import { preparePluginRunnerCredentials } from "./plugin-runner-credentials.js";
 import { createPluginRunnerTaskOwner } from "./plugin-runner-task.js";
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 import { applyObservabilityEnvironment, type ProviderObservabilityLaunch } from "@paperclipai/adapter-utils/agent-observability";
 import { museRunnerBroker } from "../muse-runner-broker.js";
 import { nativeCaseHandoffResult } from "./native-case-handoff.js";
@@ -864,7 +865,7 @@ export function resolveNativeProviderEnvironment(
   if (provider.kind === "acpx" && ["pi", "cursor", "copilot"].includes(provider.agent)) {
     return buildNativeProviderEnvironment({}, host);
   }
-  return host;
+  return stripServerSecretEnv(host);
 }
 
 type PlanSynchronization = {

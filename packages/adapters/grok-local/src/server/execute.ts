@@ -1,3 +1,4 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
 import { withWorkspaceRestore } from "@paperclipai/adapter-utils/workspace-restore-result";
 import { cancellableSandboxStartup } from "@paperclipai/adapter-utils/acpx-engine/startup-cancellation";
@@ -374,7 +375,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
     // Explicit empty overrides clear inherited API keys in the child process.
     // Use the same precedence here when selecting its credential home.
     const isGrokSubscriptionMode = !hasNonEmptyEnvValue(
-      config.managedAiConnection ? env : { ...process.env, ...env },
+      config.managedAiConnection ? env : { ...stripServerSecretEnv(process.env), ...env },
       "XAI_API_KEY",
     );
     if (isGrokSubscriptionMode) {
@@ -480,7 +481,7 @@ async function executeTurn(ctx: AdapterExecutionContext): Promise<AdapterExecuti
 
     const runtimeExecutionTarget = overrideAdapterExecutionTargetRemoteCwd(executionTarget, effectiveExecutionCwd);
     const effectiveEnv = Object.fromEntries(
-      Object.entries({ ...process.env, ...env }).filter(
+      Object.entries({ ...stripServerSecretEnv(process.env), ...env }).filter(
         (entry): entry is [string, string] => typeof entry[1] === "string",
       ),
     );

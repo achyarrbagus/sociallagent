@@ -1,3 +1,4 @@
+import { stripServerSecretEnv } from "@paperclipai/adapter-utils/server-utils";
 import { asStringArray } from "@paperclipai/adapter-utils/server-utils";
 import { applyObservabilityEnvironment } from "@paperclipai/adapter-utils/agent-observability";
 import { prepareCodexObservabilityProfile, selectedCodexProfile, replaceCodexProfileArgs, disableCodexObservabilityArgs } from "@paperclipai/adapter-utils/codex-observability-profile";
@@ -733,7 +734,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
   if (configuredHomeIsManaged && configuredCodexHome) {
     const seedEnv = runtimeSkillDigest ? {
-      ...process.env, CODEX_HOME: runtimeCredentialHome ?? resolveManagedCodexHomeDir(process.env, agent.companyId),
+      ...stripServerSecretEnv(process.env), CODEX_HOME: runtimeCredentialHome ?? resolveManagedCodexHomeDir(process.env, agent.companyId),
     } : process.env;
     await seedManagedCodexHome(configuredCodexHome, seedEnv, onLog, {
       apiKey: configuredOpenAiApiKey,
@@ -1034,7 +1035,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       }
     }
     const effectiveEnv = Object.fromEntries(
-      Object.entries({ ...process.env, ...env }).filter(
+      Object.entries({ ...stripServerSecretEnv(process.env), ...env }).filter(
         (entry): entry is [string, string] => typeof entry[1] === "string",
       ),
     );
