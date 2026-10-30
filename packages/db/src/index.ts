@@ -1,4 +1,5 @@
 export {
+  assertSessionCapableDatabaseUrl,
   createDb,
   withDedicatedDbConnection,
   livenessDb,

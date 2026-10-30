@@ -54,13 +54,9 @@ For production, use a hosted provider like [Supabase](https://supabase.com/).
 2. Copy the connection string from Project Settings > Database
 3. Set `DATABASE_URL` in your `.env`
 
-Use the **direct connection** (port 5432) for migrations and the **pooled connection** (port 6543) for the application.
+Use a **direct connection** or the Supavisor **session pooler** (both port 5432) for `DATABASE_URL`, and a direct connection for `DATABASE_MIGRATION_URL`. The transaction pooler (port 6543, or `pgbouncer=true`) is rejected at startup because the server relies on `LISTEN`, advisory locks and prepared statements.
 
-If using connection pooling (transaction mode), disable prepared statements via the environment — no source edits needed:
-
-```sh
-DATABASE_PREPARED_STATEMENTS=false
-```
+Disable the project's Data API (Project Settings > Data API). Migration `0386_rls_lockdown` also enables Row Level Security on every `public` table and revokes `anon`/`authenticated` privileges. See `doc/DATABASE.md` "Data API lockdown".
 
 Related optional client tuning: `DATABASE_POOL_MAX`, `DATABASE_IDLE_TIMEOUT_SECONDS`, `DATABASE_CONNECT_TIMEOUT_SECONDS`, `DATABASE_MAX_LIFETIME_SECONDS`, `DATABASE_APPLICATION_NAME`. Driver defaults apply when unset, except that idle pooled connections close after 60 seconds (`DATABASE_IDLE_TIMEOUT_SECONDS=0` keeps them open) and the pool reports `application_name=paperclip`. See [Connection pool settings](#connection-pool-settings).
 
@@ -75,7 +71,7 @@ The server opens one postgres.js pool for its own queries (and a second one when
 | `DATABASE_CONNECT_TIMEOUT_SECONDS` | `30` (driver) | Give up on a connection attempt after this long. |
 | `DATABASE_MAX_LIFETIME_SECONDS` | 30–60 min, randomized (driver) | Recycle a pooled connection once it is this old. |
 | `DATABASE_APPLICATION_NAME` | `paperclip` | Value of `application_name` in `pg_stat_activity`, so you can find Paperclip's backends: `SELECT * FROM pg_stat_activity WHERE application_name = 'paperclip';` |
-| `DATABASE_PREPARED_STATEMENTS` | `true` (driver) | Set `false` behind a transaction-mode pooler (see above). |
+| `DATABASE_PREPARED_STATEMENTS` | `true` (driver) | Transaction-mode poolers are not supported. |
 
 The server ends its pools during shutdown (SIGINT/SIGTERM) and when startup fails after the pool was opened, so a restarting server does not leave idle backends behind. Size `max_connections` on the PostgreSQL side for at least `DATABASE_POOL_MAX` per server process plus your other clients. Each server process also opens up to 2 connections (`application_name=paperclip-controller-lease`) for agent-run lease renewals, so they never queue behind slow application queries; count those too.
 

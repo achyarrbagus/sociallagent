@@ -294,7 +294,32 @@ export async function closeLivenessDb(db: Db, timeoutSeconds: number): Promise<v
   await livenessDbs.get(db)?.$client.end({ timeout: timeoutSeconds });
 }
 
+/**
+ * Rejects a connection URL that points at a transaction-mode pooler (Supabase
+ * Supavisor port 6543, or `pgbouncer=true`). The server relies on session
+ * state (`LISTEN`, `pg_try_advisory_lock`, prepared statements) that a
+ * transaction pooler silently breaks. Direct and session-pooler URLs pass, as
+ * do embedded/test URLs on any other port. The error never includes the URL.
+ */
+export function assertSessionCapableDatabaseUrl(url: string, name = "DATABASE_URL"): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    // postgres.js tolerates values URL() rejects (e.g. an empty string that
+    // falls back to PG* env vars); let the driver decide.
+    return;
+  }
+  const pgbouncer = parsed.searchParams.get("pgbouncer")?.toLowerCase() === "true";
+  if (parsed.port === "6543" || pgbouncer) {
+    throw new Error(
+      `${name} points at a transaction pooler (port 6543); use a direct or session-pooler connection`,
+    );
+  }
+}
+
 export function createDb(url: string, options?: DatabaseClientOptions) {
+  assertSessionCapableDatabaseUrl(url);
   const resolved = resolveDatabaseClientOptions(options ?? databaseClientOptionsFromEnv());
   return createDbClient(url, resolved);
 }

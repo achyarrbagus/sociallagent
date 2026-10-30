@@ -62,6 +62,7 @@ import type { Request as ExpressRequest, RequestHandler } from "express";
 import { warnIfUnsupportedNodeVersion } from "@paperclipai/shared/node-version";
 import { and, eq } from "drizzle-orm";
 import {
+  assertSessionCapableDatabaseUrl,
   createDb,
   ensurePostgresDatabase,
   formatEmbeddedPostgresError,
@@ -462,6 +463,10 @@ async function startServerWithDatabaseTeardown(
     | { mode: "embedded-postgres"; dataDir: string; port: number };
   assertCloudDatabaseContract();
   if (config.databaseUrl) {
+    assertSessionCapableDatabaseUrl(config.databaseUrl, "DATABASE_URL");
+    if (config.databaseMigrationUrl) {
+      assertSessionCapableDatabaseUrl(config.databaseMigrationUrl, "DATABASE_MIGRATION_URL");
+    }
     const migrationUrl = config.databaseMigrationUrl ?? config.databaseUrl;
     migrationSummary = await ensureMigrations(migrationUrl, "PostgreSQL");
   

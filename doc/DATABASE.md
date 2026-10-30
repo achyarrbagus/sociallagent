@@ -285,43 +285,45 @@ For production, use a hosted PostgreSQL provider. [Supabase](https://supabase.co
 
 ### Connection string
 
-Supabase offers two connection modes:
+Supabase offers three connection modes. Paperclip needs session state (`LISTEN`, `pg_try_advisory_lock`, prepared statements), so only the first two are supported:
 
-**Direct connection** (port 5432) — use for migrations and one-off scripts:
+**Direct connection** (port 5432) — use for migrations and the application when your network supports it:
+
+```
+postgres://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+```
+
+**Supavisor session pooler** (port 5432 on the pooler host) — use for the application on IPv4-only networks:
 
 ```
 postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
 ```
 
-**Connection pooling via Supavisor** (port 6543) — use for the application:
-
-```
-postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-```
+**Supavisor transaction pooler** (port 6543) — **not supported.** The server refuses to start when `DATABASE_URL` or `DATABASE_MIGRATION_URL` uses port 6543 or has `pgbouncer=true`.
 
 ### Configure
 
-For the application runtime, use a direct PostgreSQL connection unless the database client has explicit prepared-statement configuration for your pooling mode:
-
 ```sh
 DATABASE_URL=postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
+# Direct connection, used for startup schema checks/migrations and plugin namespace migrations.
+DATABASE_MIGRATION_URL=postgres://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 ```
 
-If you later run the app with a pooled runtime URL, set `DATABASE_MIGRATION_URL` to the direct connection URL. Paperclip uses it for startup schema checks/migrations and plugin namespace migrations, while the app continues to use `DATABASE_URL` for runtime queries:
+### Data API lockdown (multi-tenant)
 
-```sh
-DATABASE_URL=postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
-DATABASE_MIGRATION_URL=postgres://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres
-```
+Supabase auto-exposes the `public` schema through its Data API (PostgREST) to the `anon` and `authenticated` roles. Paperclip does not use the Data API, and tenant isolation lives in the server, not in database policies. Migration `0386_rls_lockdown` therefore:
 
-If your hosted database requires transaction-pooling-only connections (pgbouncer transaction mode, Supavisor port 6543, Neon `-pooler` endpoints), set `DATABASE_PREPARED_STATEMENTS=false` so the client does not rely on session-scoped prepared statements, and keep `DATABASE_MIGRATION_URL` on a direct connection. Do not edit database client source files as part of deployment setup.
+- enables Row Level Security (no policies, no `FORCE`) on every `public` table, so `anon`/`authenticated` see no rows while the owning server role bypasses RLS;
+- when the `anon`/`authenticated` roles exist, revokes their privileges on existing tables and sequences and on future ones (`ALTER DEFAULT PRIVILEGES`).
+
+Also **disable the Data API** for the project (Project Settings > Data API) as defence in depth. Tables created after migrations still need RLS: `packages/db/src/rls-coverage.test.ts` fails when any `public` table lacks it, so a new table must enable RLS in its migration.
 
 ### Client tuning (optional)
 
 All of these are optional; when unset, the driver defaults apply and behavior is unchanged — typical self-hosted setups need none of them:
 
 ```sh
-DATABASE_PREPARED_STATEMENTS=false   # required for transaction-mode poolers; default: enabled
+DATABASE_PREPARED_STATEMENTS=false   # default: enabled (transaction poolers are not supported)
 DATABASE_POOL_MAX=25                 # connection pool size; default: 10
 DATABASE_IDLE_TIMEOUT_SECONDS=60     # close idle pooled connections; default: 60 (0 = keep open)
 DATABASE_CONNECT_TIMEOUT_SECONDS=10  # default: 30
