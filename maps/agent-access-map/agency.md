@@ -96,8 +96,11 @@ that bearer token (stored as a SHA-256 hash, bound to one company; a `run`
 token needs its heartbeat row in that company to exist and be
 queued/running, a `probe` token lives at most 15 minutes; 401 `Invalid or
 expired gateway token` otherwise). Paths that leave the gateway base (`..`,
-`%2e%2e`, `\`, `%5c`) get 400. It forwards method, path, query and body
-(20 MB limit) to `SOCIALAGENT_9ROUTER_BASE_URL` with the server's key and
+`%2e%2e`, `\`, `%5c`) get 400. Only `GET`/`POST` on the inference paths
+`responses`, `chat/completions`, `completions`, `messages`, `models` and
+`embeddings` (with subpaths, optionally behind `v1/`) are forwarded; any other
+method or path (dashboard, keys, admin) gets 404 `Not found` before any
+upstream call. It forwards method, path, query and body (20 MB limit) to `SOCIALAGENT_9ROUTER_BASE_URL` with the server's key and
 streams the response. Board sessions and agent API keys are not accepted.
 In SaaS mode the company's stored managed credential is the placeholder
 `managed-gateway-proxied` (startup overwrites every stored version that held
