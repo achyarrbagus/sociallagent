@@ -287,10 +287,6 @@ describe("Connectors landing page", () => {
     await renderBrowse(false);
     const assistantButton = () => container.querySelector('[aria-label="Set up Assistant Connection (MCP)"]');
     expect(assistantButton()).not.toBeNull();
-    await clickButton("Composio", container);
-    expect(assistantButton()).toBeNull();
-    await clickButton("Arcade", container);
-    expect(assistantButton()).toBeNull();
     await clickButton("All", container);
     await search("assistant");
     expect(assistantButton()).not.toBeNull();
@@ -408,25 +404,26 @@ describe("Connectors landing page", () => {
     return document.querySelector<HTMLElement>('[role="menu"]')!;
   }
 
-  it("defaults to SocialAgent with five chips, expands search to All, and retains explicit source scope", async () => {
+  it("defaults to SocialAgent with three chips, expands search to All, and retains explicit source scope", async () => {
     aggregatorCatalogMock.push(indexedApp("Remote App", ["composio"]));
     await renderBrowse(false);
-    expect(container.querySelector('[aria-label="App filters"]')?.textContent).toBe("PaperclipComposioArcadeInstalledAll");
+    expect(container.querySelector('[aria-label="App filters"]')?.textContent).toBe("SocialAgentInstalledAll");
     expect(container.querySelector('[data-app-slug="remote-app"]')).toBeNull();
     await search("Remote App");
     expect(container.querySelector('[aria-checked="true"]')?.textContent).toBe("All");
     expect(container.querySelector('[data-app-slug="remote-app"]')).toBeTruthy();
     await search("");
     expect(container.querySelector('[aria-checked="true"]')?.textContent).toBe("SocialAgent");
-    await clickButton("Arcade", container);
+    await clickButton("Installed", container);
     await search("Remote App");
-    expect(container.querySelector('[aria-checked="true"]')?.textContent).toBe("Arcade");
+    expect(container.querySelector('[aria-checked="true"]')?.textContent).toBe("Installed");
     expect(container.textContent).toContain("No connectors match");
     await clickButton("Clear search", container);
-    expect(container.querySelector('[aria-checked="true"]')?.textContent).toBe("Arcade");
+    expect(container.querySelector('[aria-checked="true"]')?.textContent).toBe("Installed");
   });
 
-  it.each(["composio", "arcade"] as const)("scopes %s to its catalog and accounts without native catalog overlaps", async (provider) => {
+  // SocialAgent hides the Composio and Arcade tabs; re-enable with them.
+  it.skip.each(["composio", "arcade"] as const)("scopes %s to its catalog and accounts without native catalog overlaps", async (provider) => {
     const otherProvider = provider === "composio" ? "arcade" : "composio";
     const providerName = provider === "composio" ? "Composio" : "Arcade";
     aggregatorCatalogMock.push(indexedApp("Notion", [provider]), indexedApp("Remote App", [provider]), indexedApp("Other App", [otherProvider]));
@@ -478,9 +475,6 @@ describe("Connectors landing page", () => {
     expect(row.querySelectorAll('button[aria-label="Manage Work connection"]')).toHaveLength(4);
     expect(row.textContent).toContain("Native");
     for (const provider of ["Composio", "Arcade", "Executor"]) expect(row.textContent).toContain(`Managed by ${provider}`);
-    await clickButton("Arcade", container);
-    expect(container.querySelectorAll('[data-app-slug="notion"] button[aria-label="Manage Work connection"]')).toHaveLength(4);
-    expect(container.querySelector('[data-app-slug="notion"] button[aria-label="Connect Notion"]')).toBeNull();
   });
 
   it("offers only provider management in imported account menus", async () => {

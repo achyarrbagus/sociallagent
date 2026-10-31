@@ -60,7 +60,8 @@
 | `server/src/services/delivery-work-notifications.ts` (modify) | `agencyPublications` queue |
 | `server/src/routes/openapi.ts` (modify) | Document new routes |
 | `ui/src/api/agency-social.ts` (create) | API client |
-| `ui/src/components/agency/SocialAccounts.tsx` (create) | Brand "Social accounts" panel |
+| `ui/src/components/agency/SocialAccountDialog.tsx` (create) | Connect / manage dialog opened from Connectors |
+| `ui/src/pages/apps/Browse.tsx` (modify) | Social platform rows in the SocialAgent tab and Installed |
 | `ui/src/components/agency/ContentSchedule.tsx` (modify) | Connected-account scheduling and per-row status |
 | `packages/teams-catalog/.../publishing-coordinator/AGENTS.md` (modify) | How to propose a plan |
 | `doc/agency-content.md` (modify) | Document the feature |
@@ -166,7 +167,7 @@
   - `test`: re-verifies; success sets `status: "active"`, `lastVerifiedAt`, `displayName`, `tokenExpiresAt`; failure sets `status: "needs_reconnect"` and returns 422.
   - `remove`: deletes the row, then `secrets.remove(secretId)`; scheduled connector rows for the account become `cancelled` with `failureReason: "Cancelled: the social account was removed."`.
   - Activity actions: `agency.social_account.connected|tested|credentials_replaced|removed`, details `{ accountId, platform, displayName }` only.
-- Routes (all owner-only, under `/companies/:companyId/agency`): `GET /brands/:brandId/social-accounts`, `POST /brands/:brandId/social-accounts` (201), `POST /social-accounts/:accountId/test`, `PUT /social-accounts/:accountId/credentials`, `DELETE /social-accounts/:accountId` (204). Brand must belong to the company (404 "Brand not found").
+- Routes (all owner-only, under `/companies/:companyId/agency`): `GET /social-accounts` (all brands, each with `brandId` and `brandName`), `GET /brands/:brandId/social-accounts`, `POST /brands/:brandId/social-accounts` (201), `POST /social-accounts/:accountId/test`, `PUT /social-accounts/:accountId/credentials`, `DELETE /social-accounts/:accountId` (204). Brand must belong to the company (404 "Brand not found").
 
 - [ ] **Step 1: Write failing tests** (fake adapter injected through `deps.adapters` whose `verify` returns `{ externalAccountId: "123", displayName: "Coffee Page", tokenExpiresAt: null }` or throws):
   - `connects an account and never returns the token` — response JSON string does not contain the token; `credentialFieldsConfigured` equals the adapter's keys; a `company_secrets` row exists; `activity_log.details` does not contain the token.
@@ -318,23 +319,23 @@
 - [ ] **Step 4: Run** the plan tests and `agency-content.integration.test.ts` — expect PASS.
 - [ ] **Step 5: Commit** `feat(agency): cancel connected posts when approval lapses`.
 
-### Task 8: UI — Social accounts panel and connected scheduling
+### Task 8: UI — Social connectors in Connectors and connected scheduling
 
 **Files:**
-- Create: `ui/src/api/agency-social.ts`, `ui/src/components/agency/SocialAccounts.tsx`, `ui/src/components/agency/SocialAccounts.test.tsx`
-- Modify: the brand view in `ui/src/pages/Agency.tsx` (render `<SocialAccounts brandId companyId />` for owners), `ui/src/components/agency/ContentSchedule.tsx`, `server/src/routes/agency-social.ts` (`GET /companies/:companyId/agency/social-platforms` → `[{ platform, label, credentialFields }]` from the registry, any company member)
+- Create: `ui/src/api/agency-social.ts`, `ui/src/components/agency/SocialAccountDialog.tsx`, `ui/src/components/agency/SocialAccountDialog.test.tsx`
+- Modify: `ui/src/pages/apps/Browse.tsx` (rows), `ui/src/pages/apps/Browse.test.tsx`, `ui/src/components/agency/ContentSchedule.tsx`, `server/src/routes/agency-social.ts` (`GET /companies/:companyId/agency/social-platforms` → `[{ platform, label, credentialFields }]` from the registry, any company member)
 
 **Interfaces:**
 - Consumes: routes from Tasks 3, 5; `AgencyPublication` view fields (Task 6).
-- Produces: `agencySocialApi = { platforms(companyId), list(companyId, brandId), connect(companyId, brandId, body), test(companyId, id), replace(companyId, id, credentials), remove(companyId, id), scheduleConnected(companyId, body) }`.
+- Produces: `agencySocialApi = { platforms(companyId), listAll(companyId), list(companyId, brandId), connect(companyId, brandId, body), test(companyId, id), replace(companyId, id, credentials), remove(companyId, id), scheduleConnected(companyId, body) }`.
 - Behavior:
-  - Panel lists connected accounts (platform icon from the existing brand library if present, `displayName`, status badge "Connected"/"Needs reconnect", last verified time) with Test, Replace credentials, Remove (confirmation dialog).
-  - "Connect account" opens a form for one platform: write-only password inputs per `credentialFields` with their `help` text, a link "How to create a developer app" per platform (Facebook: `https://developers.facebook.com/docs/pages-api/getting-started`), footer Cancel left / Connect right (DESIGN.md). Errors are shown inline; the form keeps entered values on error.
+  - Connectors → **SocialAgent** tab shows one row per platform with an adapter (Plan 1: Facebook), using the existing catalog row layout, with "Connect". Search matches the platform name. The **Installed** tab lists each connected account (`displayName`, brand name, status badge "Connected"/"Needs reconnect", last verified time) with Test, Replace credentials and Remove (confirmation dialog) in its menu. Owner-only: non-owners see the rows without actions.
+  - "Connect" opens `SocialAccountDialog` for one platform: a required brand select (active brands without an account for that platform), write-only password inputs per `credentialFields` with their `help` text, a link "How to create a developer app" per platform (Facebook: `https://developers.facebook.com/docs/pages-api/getting-started`), footer Cancel left / Connect right (DESIGN.md). Errors are shown inline; the form keeps entered values on error.
   - Platforms without an adapter are not offered.
   - ContentSchedule: when the brand has connected accounts, show checkboxes per account, an optional per-account text override (with live character count against `maxTextLength` returned by the platforms endpoint — add `maxTextLength` to that response), date/time in brand timezone, and a "Schedule" button calling `scheduleConnected`. Rows show `publishing` as "Posting…", `published` with "View post" link, `failed` with the reason, `cancelled` with the reason.
 
-- [ ] **Step 1: Write failing tests** (`SocialAccounts.test.tsx`, Vitest + Testing Library, mock API): `shows connected accounts with their status`; `connect form never pre-fills a token and shows the provider error inline`; `remove asks for confirmation`.
-- [ ] **Step 2: Run** `cd ui && bunx vitest run src/components/agency/SocialAccounts.test.tsx` — expect FAIL.
+- [ ] **Step 1: Write failing tests** (Vitest + Testing Library, mock API): in `Browse.test.tsx` `lists Facebook in the SocialAgent tab and connected accounts in Installed`; in `SocialAccountDialog.test.tsx` `connect form requires a brand, never pre-fills a token and shows the provider error inline`, `remove asks for confirmation`.
+- [ ] **Step 2: Run** `cd ui && bunx vitest run src/components/agency/SocialAccountDialog.test.tsx src/pages/apps/Browse.test.tsx` — expect FAIL (Browse has 5 known pre-existing assistant failures; only the new tests matter).
 - [ ] **Step 3: Implement** components and wiring.
 - [ ] **Step 4: Run** the tests, `bun run check:token-gates`, and `cd ui && bunx tsc --noEmit -p .` — expect PASS.
 - [ ] **Step 5: Commit** `feat(agency-ui): connect social accounts and schedule to them`.
