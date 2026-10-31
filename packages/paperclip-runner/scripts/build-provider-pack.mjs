@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -13,10 +14,12 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { parseProviderPackArguments, materializeCandidateProviderPack, providerPackProviders, providerPackManifestFields } from "./candidate-provider-pack.mjs";
@@ -90,6 +93,9 @@ function sha256Tree(root) {
 
 function writePortableNodeShim(name, entrypoint) {
   const shimPath = join(temporaryRoot, "node_modules", ".bin", name);
+  // Bun links .bin entries to the package's own script; writing through that
+  // link would overwrite the package file instead of replacing the command.
+  rmSync(shimPath, { force: true });
   writeFileSync(
     shimPath,
     [
@@ -103,21 +109,141 @@ function writePortableNodeShim(name, entrypoint) {
   chmodSync(shimPath, 0o755);
 }
 
-try {
-  const deployed = spawnSync(
-    "pnpm",
-    [
-      "--filter",
-      "@paperclipai/paperclip-runner",
-      "deploy",
-      "--prod",
-      temporaryRoot,
-    ],
-    { cwd: workspaceRoot, encoding: "utf8", stdio: "inherit" },
-  );
-  if (deployed.status !== 0) {
-    throw new Error(`pnpm deploy failed with exit code ${deployed.status}`);
+function runInstallStep(command, args, cwd) {
+  const result = spawnSync(command, args, { cwd, encoding: "utf8", stdio: "inherit" });
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed with exit code ${result.status ?? result.signal}`);
   }
+}
+
+// Dependency lifecycle scripts the pack needs. pnpm 9 ran every dependency
+// script during `pnpm deploy`; Bun blocks them unless trusted. OpenCode's
+// postinstall copies its native binary over the bin/opencode.exe placeholder,
+// and esbuild's verifies its platform binary.
+const PACK_TRUSTED_DEPENDENCIES = ["esbuild", "opencode-ai"];
+
+/** Workspace packages the manifest names with a workspace: specifier, in any dependency section. */
+function workspaceDependencyNames(manifest) {
+  const names = new Set();
+  for (const section of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"]) {
+    for (const [name, specifier] of Object.entries(manifest[section] ?? {})) {
+      if (typeof specifier === "string" && specifier.startsWith("workspace:")) names.add(name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Bun has no `pnpm deploy`. Reproduce it: unpack the Runner as it would be
+ * published (`bun pm pack` honours its `files` list) into a minimal copy of the
+ * workspace, install its production dependencies from the workspace bun.lock
+ * with the isolated linker, then move the package store into the package so
+ * the pack is self-contained and relocatable.
+ */
+function deployRunnerPackage(target) {
+  const stage = join(temporaryParent, "workspace");
+  const tarballs = join(temporaryParent, "tarball");
+  const runnerRelative = relative(workspaceRoot, packageRoot);
+  const stagedRunner = join(stage, runnerRelative);
+  mkdirSync(stagedRunner, { recursive: true });
+  mkdirSync(tarballs);
+
+  runInstallStep("bun", ["pm", "pack", "--ignore-scripts", "--quiet", "--destination", tarballs], packageRoot);
+  const tarball = readdirSync(tarballs).find((name) => name.endsWith(".tgz"));
+  if (!tarball) throw new Error("bun pm pack produced no tarball");
+  runInstallStep("tar", ["-xzf", join(tarballs, tarball), "-C", stagedRunner, "--strip-components=1"], stage);
+
+  // A frozen install compares the staged manifests with bun.lock, so stage the
+  // source manifests (bun pm pack rewrites workspace: specifiers) together with
+  // every workspace the Runner names, even dev-only ones that production mode
+  // never installs. Absent unrelated workspaces are skipped by Bun.
+  copyFileSync(join(packageRoot, "package.json"), join(stagedRunner, "package.json"));
+  for (const file of ["package.json", "bun.lock"]) copyFileSync(join(workspaceRoot, file), join(stage, file));
+  cpSync(join(workspaceRoot, "patches"), join(stage, "patches"), { recursive: true });
+  const pending = [...workspaceDependencyNames(JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")))];
+  const staged = new Set();
+  while (pending.length) {
+    const name = pending.pop();
+    if (staged.has(name)) continue;
+    staged.add(name);
+    // Workspace packages may not export ./package.json, so follow the
+    // installed workspace link instead of resolving through `exports`.
+    const linked = [packageRoot, workspaceRoot]
+      .map((directory) => join(directory, "node_modules", name, "package.json"))
+      .find((path) => existsSync(path));
+    if (!linked) throw new Error(`Workspace dependency ${name} is not installed`);
+    const manifestPath = realpathSync(linked);
+    const workspaceRelative = relative(workspaceRoot, dirname(manifestPath));
+    if (workspaceRelative.startsWith("..")) throw new Error(`Workspace dependency ${name} resolves outside the workspace`);
+    mkdirSync(join(stage, workspaceRelative), { recursive: true });
+    copyFileSync(manifestPath, join(stage, workspaceRelative, "package.json"));
+    pending.push(...workspaceDependencyNames(JSON.parse(readFileSync(manifestPath, "utf8"))));
+  }
+
+  runInstallStep("bun", [
+    "install",
+    "--production",
+    "--frozen-lockfile",
+    // `pnpm deploy` never ran the Runner's own postinstall; Bun would, and it
+    // materializes Copilot assets the build writes itself further down.
+    "--ignore-scripts",
+    "--omit=peer",
+    "--linker=isolated",
+    "--filter",
+    JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).name,
+  ], stage);
+  runInstallStep("bun", ["pm", "trust", ...PACK_TRUSTED_DEPENDENCIES], stage);
+
+  // Move the store under the package and repoint the package's own links.
+  // Links inside the store are relative to the store and move with it.
+  const stageStore = join(stage, "node_modules", ".bun");
+  const packStore = join(stagedRunner, "node_modules", ".bun");
+  const relink = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (path === packStore) continue;
+      if (entry.isSymbolicLink()) {
+        const resolved = resolve(directory, readlinkSync(path));
+        if (resolved.startsWith(`${stageStore}${sep}`)) {
+          unlinkSync(path);
+          symlinkSync(relative(directory, join(packStore, relative(stageStore, resolved))), path);
+        }
+      } else if (entry.isDirectory()) {
+        relink(path);
+      }
+    }
+  };
+  relink(join(stagedRunner, "node_modules"));
+  renameSync(stageStore, packStore);
+  renameSync(stagedRunner, target);
+}
+
+/** Every link in the pack must resolve to a path inside the pack. */
+function assertPackIsSelfContained(root) {
+  const realRoot = realpathSync(root);
+  const visit = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isSymbolicLink()) {
+        let target;
+        try {
+          target = realpathSync(path);
+        } catch {
+          throw new Error(`Provider pack link ${relative(root, path)} is dangling`);
+        }
+        if (target !== realRoot && !target.startsWith(`${realRoot}${sep}`)) {
+          throw new Error(`Provider pack link ${relative(root, path)} points outside the pack`);
+        }
+      } else if (entry.isDirectory()) {
+        visit(path);
+      }
+    }
+  };
+  visit(root);
+}
+
+try {
+  deployRunnerPackage(temporaryRoot);
   removeControllerArtifactsFromProviderPack(temporaryRoot);
   const foreignLibcPackages = removeForeignLibcPackagesFromProviderPack(temporaryRoot, providerPackLibc());
   if (foreignLibcPackages.length) {
@@ -125,7 +251,7 @@ try {
   }
 
   // Fail the image build if a bridge silently brings back an older/private
-  // provider CLI. A direct dependency alone does not deduplicate pnpm's graph.
+  // provider CLI. A direct dependency alone does not deduplicate the graph.
   const packRequire = createRequire(join(temporaryRoot, "package.json"));
   const codexAcpRequire = createRequire(packRequire.resolve("@agentclientprotocol/codex-acp/package.json"));
   if (realpathSync(codexAcpRequire.resolve("@openai/codex/package.json")) !==
@@ -185,11 +311,11 @@ try {
       sha256: sha256Tree(join(temporaryRoot, assetPath)) };
   }
 
-  // pnpm's generated .bin shims embed the temporary deployment directory in
-  // NODE_PATH. That makes an otherwise identical provider pack hash differ on
-  // every build and leaks a nonexistent host path after relocation. Replace
-  // every provider-facing shim with a pack-relative launcher that always uses
-  // the pinned Node executable owned by this pack.
+  // Installer-generated .bin entries either embed the temporary deployment
+  // directory (pnpm's NODE_PATH shims) or link into the package and run with
+  // whatever Node is first on PATH (Bun). Replace every provider-facing entry
+  // with a pack-relative launcher that always uses the pinned Node executable
+  // owned by this pack.
   // The image exposes these same installations to every adapter. Never add a
   // separate global/runner-only CLI version; refresh these packages and their
   // qualification digests together to the latest stable releases.
@@ -222,20 +348,7 @@ try {
     "@agentclientprotocol/codex-acp/dist/index.js",
   );
 
-  // pnpm deploy may retain a workspace self-link under its virtual store. It
-  // points outside the immutable pack and is not needed by the deployed
-  // package, so it must not be staged or captured.
-  rmSync(
-    join(
-      temporaryRoot,
-      "node_modules",
-      ".pnpm",
-      "node_modules",
-      "@paperclipai",
-      "paperclip-runner",
-    ),
-    { recursive: true, force: true },
-  );
+  assertPackIsSelfContained(temporaryRoot);
 
   for (const shimName of readdirSync(
     join(temporaryRoot, "node_modules", ".bin"),
@@ -250,7 +363,7 @@ try {
   }
 
   // Exercise a clean import from the deployed dependency graph. This catches
-  // malformed patch hunks that can look correct in an existing pnpm store but
+  // malformed patch hunks that can look correct in an existing package store but
   // land inside the wrong function when applied to a fresh acpx tarball.
   const acpxImport = spawnSync(
     join(temporaryRoot, "node_modules", "node", "bin", "node"),
@@ -274,9 +387,9 @@ try {
   const opencodeCommand = "node_modules/.bin/opencode";
   const opencodeExecutable = "node_modules/opencode-ai/bin/opencode.exe";
   const nodeCommand = "node_modules/node/bin/node";
-  const productionLock = "pnpm-lock.yaml";
+  const productionLock = "bun.lock";
   copyFileSync(
-    join(workspaceRoot, "pnpm-lock.yaml"),
+    join(workspaceRoot, "bun.lock"),
     join(temporaryRoot, productionLock),
   );
   for (const relativePath of [

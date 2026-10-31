@@ -58,18 +58,20 @@ Merge into `main` only after the Docker image builds and runs.
 4. ~~Remove `pnpm-lock.yaml`~~ (done 2026-10-31). `scripts/provision-worktree*.sh`
    install with Bun when a checkout has `bun.lock` and fall back to pnpm for
    branches that still carry only `pnpm-lock.yaml`.
-5. Still open:
-   - Remote provider pack. `packages/paperclip-runner/scripts/build-provider-pack.mjs`
-     runs `pnpm deploy` and copies `pnpm-lock.yaml`, and
-     `native-session-executor.ts` expects that artifact. The Bun Docker image has
-     neither pnpm nor the file, so a build with `PAPERCLIP_BUILD_COMMIT` set fails
-     at that stage, and an unstamped build skips the pack (no remote OpenCode/ACPX).
-     It needs a Bun replacement for `pnpm deploy`.
+5. ~~Remote provider pack~~ (done 2026-10-31). `build-provider-pack.mjs`
+   replaces `pnpm deploy` with `bun pm pack` plus a filtered
+   `bun install --production --frozen-lockfile --linker=isolated` in a staged
+   copy of the workspace, then moves the `node_modules/.bun` store into the pack.
+   It trusts only the `esbuild` and `opencode-ai` lifecycle scripts, and it fails
+   when a link points outside the pack. The pack ships `bun.lock` as its
+   `productionLock`. `docker/daytona-runner/Dockerfile` and the
+   `tests/runner-e2e` image-content inputs use Bun and `bun.lock`.
+6. Still open:
    - Move standalone sandbox-provider installs and `paperclipai install` from a
      git checkout (`plugin-loader.ts`, `build-standalone-public-packages.mjs`
      still look for per-package `pnpm-lock.yaml`).
-   - `docker/daytona-runner` and `tests/runner-e2e` still use pnpm (upstream
-     runner e2e infrastructure).
+   - The upstream runner workflows (`docker-runner-check.yml`,
+     `runner-full-stack-e2e.yml`, ...) still hash `pnpm-lock.yaml`.
 
 ## Notes
 

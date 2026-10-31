@@ -20,7 +20,7 @@ export const DAYTONA_IMAGE_INPUT_PATHS = [
   "docker/daytona-runner/Dockerfile",
   "package.json",
   "patches",
-  "pnpm-lock.yaml",
+  "bun.lock",
   "pnpm-workspace.yaml",
   "scripts/link-plugin-dev-sdk.mjs",
   "tsconfig.base.json",

@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import { pnpmStoreEntryOf, removePnpmStoreEntries } from "./provider-pack-runtime-tree.mjs";
 
 export function writePortableExecutableShim(packRoot, name, executable) {
   const shimPath = join(packRoot, "node_modules", ".bin", name);
+  // Bun links .bin entries to the package's own script; writing through that
+  // link would overwrite the package file instead of replacing the command.
+  rmSync(shimPath, { force: true });
   writeFileSync(
     shimPath,
     [

@@ -124,3 +124,31 @@ test("refuses store entry names that escape the pnpm virtual store", () => {
 function lstatExists(path) {
   try { lstatSync(path); return true; } catch { return false; }
 }
+
+test("prunes foreign-libc packages from Bun's isolated store", () => {
+  const root = mkdtempSync(join(tmpdir(), "provider-pack-bun-libc-"));
+  try {
+    const pack = join(root, "pack");
+    const bunPackage = (entry, name, manifest = {}) => {
+      const path = join(pack, "node_modules", ".bun", entry, "node_modules", name);
+      mkdirSync(path, { recursive: true });
+      writeFileSync(join(path, "package.json"), JSON.stringify({ name, version: "1.0.0", ...manifest }));
+    };
+    const bunLink = (from, entry, name) => {
+      const path = join(pack, "node_modules", from, name);
+      mkdirSync(dirname(path), { recursive: true });
+      symlinkSync(relative(dirname(path), join(pack, "node_modules", ".bun", entry, "node_modules", name)), path);
+      return path;
+    };
+    bunPackage("tool-linux-x64@1.0.0", "tool-linux-x64", { libc: ["glibc"] });
+    bunPackage("tool-linux-x64-musl@1.0.0", "tool-linux-x64-musl", { libc: ["musl"] });
+    const kept = bunLink(".", "tool-linux-x64@1.0.0", "tool-linux-x64");
+    const pruned = bunLink(".bun/node_modules", "tool-linux-x64-musl@1.0.0", "tool-linux-x64-musl");
+
+    assert.deepEqual(removeForeignLibcPackagesFromProviderPack(pack, "glibc"), ["tool-linux-x64-musl@1.0.0"]);
+    assert.equal(lstatSync(kept).isSymbolicLink(), true);
+    assert.equal(existsSync(join(pack, "node_modules", ".bun", "tool-linux-x64-musl@1.0.0")), false);
+    assert.throws(() => lstatSync(pruned));
+    assert.equal(existsSync(join(pack, "node_modules", ".pnpm")), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

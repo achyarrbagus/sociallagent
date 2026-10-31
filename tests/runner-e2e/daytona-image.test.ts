@@ -131,6 +131,7 @@ describe("runner E2E Daytona image contract", () => {
     );
     expect(extractDaytonaBaseImages(dockerfile)).toEqual([
       "rust:1.97-bookworm@sha256:408fe88047cef61a2087653b0c5255fa51c0f2d6d94ddedd7a2562a9b91a46f6",
+      "oven/bun:1.4.4-debian@sha256:b740c3f5600e6360684f240d31c67ffb759def968bfa98ed98c4cce970707735",
       "node:24.21.0-bookworm@sha256:5a750d3be5e5c80275f8c9a5367c3aed99c2875656590c8d0701c7ee687f5f0a",
       "daytonaio/sandbox:0.8.0@sha256:eadf88e4391072b7ad4bed27d9cadfc9fe9d8ed375d9219d34c2ccb518f213e3",
     ]);
@@ -228,7 +229,7 @@ describe("runner E2E Daytona image contract", () => {
       workflow.indexOf(`--format '{{json .Image}}'`),
     );
     const providerInstall = dockerfile.indexOf(
-      "pnpm install --frozen-lockfile --filter '@paperclipai/paperclip-runner...'",
+      "bun install --frozen-lockfile --filter '@paperclipai/paperclip-runner'",
     );
     const runnerSourceCopy = dockerfile.indexOf(
       "COPY packages ./packages",
@@ -252,7 +253,7 @@ describe("runner E2E Daytona image contract", () => {
     for (const requiredPath of [
       ".dockerignore",
       "docker/daytona-runner/Dockerfile",
-      "pnpm-lock.yaml",
+      "bun.lock",
       "patches",
       "packages/paperclip-eval-kernel/src",
       "packages/paperclip-runner/package.json",
@@ -306,7 +307,7 @@ describe("runner E2E Daytona image contract", () => {
     const inputPaths = [
       "docker/daytona-runner/Dockerfile",
       "package.json",
-      "pnpm-lock.yaml",
+      "bun.lock",
       "packages/paperclip-runner/package.json",
       "packages/paperclip-runner/src",
       "packages/paperclip-runner/runner/crates",
@@ -339,7 +340,7 @@ describe("runner E2E Daytona image contract", () => {
       );
       await writeFile(path.join(root, "package.json"), '{"private":true}\n');
       await writeFile(
-        path.join(root, "pnpm-lock.yaml"),
+        path.join(root, "bun.lock"),
         "lockfileVersion: 9\n",
       );
       await writeFile(
@@ -395,7 +396,7 @@ describe("runner E2E Daytona image contract", () => {
       for (const relativePath of [
         "docker/daytona-runner/Dockerfile",
         "package.json",
-        "pnpm-lock.yaml",
+        "bun.lock",
         "packages/paperclip-runner/package.json",
         "packages/paperclip-runner/src/runner.ts",
         "packages/paperclip-runner/scripts/materialize-pi-distribution.mjs",

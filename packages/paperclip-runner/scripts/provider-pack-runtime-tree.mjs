@@ -13,8 +13,19 @@ export function providerPackLibc(platform = process.platform, report = () => pro
   return report().header.glibcVersionRuntime ? "glibc" : "musl";
 }
 
+/**
+ * The isolated package store inside the pack. Bun's isolated linker writes
+ * node_modules/.bun and pnpm wrote node_modules/.pnpm; both keep one entry per
+ * package version whose node_modules holds the package itself as the only real
+ * directory and links to its dependencies beside it.
+ */
+export function providerPackStore(packRoot) {
+  const bun = join(packRoot, "node_modules", ".bun");
+  return existsSync(bun) ? bun : join(packRoot, "node_modules", ".pnpm");
+}
+
 function ownPackageManifests(entryRoot) {
-  // In pnpm's virtual store an entry's own package is the only real directory
+  // In the isolated store an entry's own package is the only real directory
   // under its node_modules; every dependency beside it is a symlink.
   const modules = join(entryRoot, "node_modules");
   if (!existsSync(modules)) return [];
@@ -33,14 +44,14 @@ function ownPackageManifests(entryRoot) {
 }
 
 /**
- * Remove whole pnpm virtual-store entries and every link that resolves into
- * them, so no dangling dependency slot survives into the immutable pack.
+ * Remove whole store entries and every link that resolves into them, so no
+ * dangling dependency slot survives into the immutable pack.
  */
 export function removePnpmStoreEntries(packRoot, entryNames) {
-  const store = join(packRoot, "node_modules", ".pnpm");
+  const store = providerPackStore(packRoot);
   const removed = entryNames.map(name => {
     const path = resolve(store, name);
-    if (dirname(path) !== store || name === "node_modules") throw new Error(`Refusing to remove pnpm store path ${name}`);
+    if (dirname(path) !== store || name === "node_modules") throw new Error(`Refusing to remove package store path ${name}`);
     return path;
   });
   if (!removed.length) return;
@@ -61,13 +72,13 @@ export function removePnpmStoreEntries(packRoot, entryNames) {
 }
 
 /**
- * pnpm keeps optional platform packages for every libc on the target OS/CPU.
+ * The installer keeps optional platform packages for every libc on the target OS/CPU.
  * The pack only runs its own copied Node, so packages built for the other libc
  * can never load; the Claude and OpenCode musl builds add 400-600 MB per pack.
  */
 export function removeForeignLibcPackagesFromProviderPack(packRoot, libc) {
   if (!libc) return [];
-  const store = join(packRoot, "node_modules", ".pnpm");
+  const store = providerPackStore(packRoot);
   const foreign = readdirSync(store, { withFileTypes: true })
     .filter(entry => entry.isDirectory() && entry.name !== "node_modules")
     .map(entry => entry.name)
@@ -80,11 +91,11 @@ export function removeForeignLibcPackagesFromProviderPack(packRoot, libc) {
   return foreign;
 }
 
-/** The pnpm virtual-store entry that owns a resolved package path inside the pack. */
+/** The store entry that owns a resolved package path inside the pack. */
 export function pnpmStoreEntryOf(packRoot, path) {
-  const parts = relative(realpathSync(join(packRoot, "node_modules", ".pnpm")), realpathSync(path)).split(sep);
+  const parts = relative(realpathSync(providerPackStore(packRoot)), realpathSync(path)).split(sep);
   if (parts.length < 2 || parts[0] === ".." || parts[0] === "node_modules" || basename(parts[0]) !== parts[0]) {
-    throw new Error(`${path} is not inside the provider pack's pnpm store`);
+    throw new Error(`${path} is not inside the provider pack's package store`);
   }
   return parts[0];
 }
