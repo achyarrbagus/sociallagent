@@ -304,7 +304,8 @@ RUN set -eu; \
   for name in $CLOUD_BUNDLED_PLUGINS; do \
     dir="packages/plugins/sandbox-providers/$name"; \
     test -d "$dir" || { echo "ERROR: unknown sandbox provider '$name'" >&2; exit 1; }; \
-    (cd "$dir" && bun install --no-save && bun run build); \
+    if [ -f "$dir/bun.lock" ]; then lock_flag=--frozen-lockfile; else lock_flag=--no-save; fi; \
+    (cd "$dir" && bun install --config=/dev/null "$lock_flag" && bun run build); \
     test -f "$dir/dist/manifest.js" || { echo "ERROR: $dir is missing dist/manifest.js after build" >&2; exit 1; }; \
   done
 

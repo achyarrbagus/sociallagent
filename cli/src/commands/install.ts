@@ -84,6 +84,64 @@ export function resolveGitInstallWorkspacePackages(checkoutPath: string): Releas
   return ordered;
 }
 
+function listCheckoutWorkspaceDirs(checkoutPath: string): string[] {
+  const rootManifest = JSON.parse(fs.readFileSync(path.join(checkoutPath, "package.json"), "utf8")) as { workspaces?: unknown };
+  const patterns = Array.isArray(rootManifest.workspaces) ? rootManifest.workspaces.filter((entry): entry is string => typeof entry === "string") : [];
+  const excluded = patterns.filter((pattern) => pattern.startsWith("!")).map((pattern) => pattern.slice(1).replace(/\/\*\*$/, ""));
+  const dirs: string[] = [];
+  for (const pattern of patterns.filter((entry) => !entry.startsWith("!"))) {
+    const candidates = pattern.endsWith("/*")
+      ? (fs.existsSync(path.join(checkoutPath, pattern.slice(0, -2)))
+        ? fs.readdirSync(path.join(checkoutPath, pattern.slice(0, -2)), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => `${pattern.slice(0, -2)}/${entry.name}`)
+        : [])
+      : [pattern];
+    for (const dir of candidates) {
+      if (excluded.some((exclusion) => dir === exclusion || dir.startsWith(`${exclusion}/`))) continue;
+      if (fs.existsSync(path.join(checkoutPath, dir, "package.json"))) dirs.push(dir);
+    }
+  }
+  return dirs;
+}
+
+/**
+ * Workspace packages a Bun checkout builds before packing, dependencies first.
+ * Matches `pnpm --filter @paperclipai/server...`: the server and every
+ * workspace package it reaches, devDependencies included, because the server
+ * build compiles against them.
+ */
+export function resolveGitInstallBuildPackages(checkoutPath: string): ReleasePackageEntry[] {
+  const packageByName = new Map<string, { entry: ReleasePackageEntry; manifest: Record<string, unknown> }>();
+  for (const dir of listCheckoutWorkspaceDirs(checkoutPath)) {
+    const manifest = JSON.parse(fs.readFileSync(path.join(checkoutPath, dir, "package.json"), "utf8")) as Record<string, unknown>;
+    if (typeof manifest.name === "string") packageByName.set(manifest.name, { entry: { dir, name: manifest.name }, manifest });
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const ordered: ReleasePackageEntry[] = [];
+  const visit = (packageName: string): void => {
+    if (visited.has(packageName)) return;
+    if (visiting.has(packageName)) throw new Error(`Circular workspace dependency while building ${packageName}.`);
+    const workspacePackage = packageByName.get(packageName);
+    if (!workspacePackage) throw new Error(`Git install cannot build workspace dependency ${packageName}; it is not a workspace package of the checkout.`);
+    visiting.add(packageName);
+    for (const section of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"] as const) {
+      const dependencies = workspacePackage.manifest[section];
+      if (!dependencies || typeof dependencies !== "object") continue;
+      for (const [dependencyName, specifier] of Object.entries(dependencies)) {
+        if (typeof specifier === "string" && specifier.startsWith("workspace:")) visit(dependencyName);
+      }
+    }
+    visiting.delete(packageName);
+    visited.add(packageName);
+    ordered.push(workspacePackage.entry);
+  };
+  visit("@paperclipai/server");
+  return ordered.filter(({ name }) => {
+    const scripts = packageByName.get(name)?.manifest.scripts;
+    return Boolean(scripts && typeof scripts === "object" && "build" in scripts);
+  });
+}
+
 export function assertSupportedNodeVersion(): void {
   if (!isSupportedNodeVersion(process.versions.node)) {
     throw new Error(`Installing or updating Paperclip requires Node.js ${MINIMUM_NODE_VERSION} or newer (found ${process.version} at ${process.execPath}). Put a supported Node bin directory first on PATH and run 'npx paperclipai@latest install --yes' to re-pin an existing managed install.`);
@@ -239,7 +297,7 @@ export async function installNpmPayload(
 function gitBuildEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   const env = { ...process.env, ...extra };
   // Source builds need devDependencies (esbuild, typescript); ambient NODE_ENV=production
-  // makes pnpm/npm omit them, so the checkout build must not inherit it.
+  // makes bun/pnpm/npm omit them, so the checkout build must not inherit it.
   delete env.NODE_ENV;
   return env;
 }
@@ -267,8 +325,8 @@ export async function installGitPayload(repo: string, sha: string, runCommand: C
   const stagedPayload = path.join(stagingRoot, "payload");
   fs.rmSync(stagingRoot, { recursive: true, force: true });
   fs.mkdirSync(checkoutPath, { recursive: true, mode: 0o700 });
-  // Workspace build scripts invoke bare `pnpm`; on a machine where pnpm exists only
-  // through corepack, nothing puts it on PATH, so provision a shim into the staging dir.
+  // Pre-Bun workspace build scripts invoke bare `pnpm`; on a machine where pnpm exists
+  // only through corepack, nothing puts it on PATH, so provision a shim into the staging dir.
   const pnpmShimDir = path.join(stagingRoot, "pnpm-bin");
   fs.mkdirSync(pnpmShimDir, { recursive: true, mode: 0o700 });
   const buildEnv = (extra: NodeJS.ProcessEnv = {}) =>
@@ -276,12 +334,52 @@ export async function installGitPayload(repo: string, sha: string, runCommand: C
   try {
     await runGitHubCurl(["--fail", "--silent", "--show-error", "--location", "--output", archivePath, `https://codeload.github.com/${repo}/tar.gz/${sha}`], runCommand, { maxBuffer: 4 * 1024 * 1024 });
     await runCommand("tar", ["-xzf", archivePath, "--strip-components=1", "-C", checkoutPath], { maxBuffer: 4 * 1024 * 1024 });
-    await runCommand("corepack", ["enable", "pnpm", "--install-directory", pnpmShimDir], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 4 * 1024 * 1024 });
-    await runCommand("corepack", ["pnpm", "install", "--frozen-lockfile"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
-    await runCommand("bash", ["scripts/build-npm.sh", "--skip-checks", "--skip-typecheck"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
-    await runCommand("corepack", ["pnpm", "-r", "--filter", "@paperclipai/server...", "--if-present", "run", "build"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
+    // Checkouts from before the Bun migration carry only pnpm-lock.yaml.
+    const usesBun = fs.existsSync(path.join(checkoutPath, "bun.lock"));
+    if (usesBun) {
+      try {
+        await runCommand("bun", ["--version"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 1024 * 1024 });
+      } catch (error) {
+        throw new Error("Installing from a git ref needs Bun (https://bun.sh) on PATH to build the checkout.", { cause: error });
+      }
+      await runCommand("bun", ["install", "--frozen-lockfile"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
+    } else {
+      await runCommand("corepack", ["enable", "pnpm", "--install-directory", pnpmShimDir], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 4 * 1024 * 1024 });
+      await runCommand("corepack", ["pnpm", "install", "--frozen-lockfile"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
+    }
+    if (usesBun) {
+      for (const buildPackage of resolveGitInstallBuildPackages(checkoutPath)) {
+        await runCommand("bun", ["run", "build"], { cwd: path.join(checkoutPath, buildPackage.dir), env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
+      }
+    } else {
+      await runCommand("corepack", ["pnpm", "-r", "--filter", "@paperclipai/server...", "--if-present", "run", "build"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
+    }
+    // The server bundles its dependencies, so it is staged by
+    // prepare-bundled-package.mjs, which never runs its prepack. Copy the UI
+    // build into server/ui-dist first, as the release flow does.
+    if (fs.existsSync(path.join(checkoutPath, "scripts", "prepare-server-ui-dist.sh"))) {
+      await runCommand("bash", ["scripts/prepare-server-ui-dist.sh"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
+    }
     const metadata = JSON.parse(fs.readFileSync(path.join(checkoutPath, "cli", "package.json"), "utf8")) as { version: string };
     const workspacePackages = resolveGitInstallWorkspacePackages(checkoutPath);
+    // Packages that publish `skills` ship a copy of the repository skills, as
+    // the release flow stages them; nothing in the checkout creates it.
+    const repositorySkills = path.join(checkoutPath, "skills");
+    for (const workspacePackage of workspacePackages) {
+      const packageDir = path.join(checkoutPath, workspacePackage.dir);
+      const { files } = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf8")) as { files?: unknown };
+      if (!Array.isArray(files) || !files.includes("skills") || !fs.existsSync(repositorySkills)) continue;
+      fs.rmSync(path.join(packageDir, "skills"), { recursive: true, force: true });
+      fs.cpSync(repositorySkills, path.join(packageDir, "skills"), { recursive: true });
+    }
+    // Packing rewrites each workspace: specifier with one release version, so
+    // set every release package to the CLI version first, as the release flow
+    // does between the workspace build and the CLI bundle. It must follow the
+    // frozen install, which checks the original manifests against the lockfile.
+    if (fs.existsSync(path.join(checkoutPath, "scripts", "release-package-map.mjs"))) {
+      await runCommand(process.execPath, [path.join(checkoutPath, "scripts", "release-package-map.mjs"), "set-version", metadata.version], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 16 * 1024 * 1024 });
+    }
+    await runCommand("bash", ["scripts/build-npm.sh", "--skip-checks", "--skip-typecheck"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
     for (const [index, workspacePackage] of workspacePackages.entries()) {
       const packageDir = path.join(checkoutPath, workspacePackage.dir);
       const packageJson = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf8")) as { bundleDependencies?: string[]; bundledDependencies?: string[] };
@@ -289,9 +387,15 @@ export async function installGitPayload(repo: string, sha: string, runCommand: C
       if (bundledDependencies.length > 0) {
         const stagedPackage = path.join(stagingRoot, `workspace-package-${index}`);
         await runCommand(process.execPath, [path.join(checkoutPath, "scripts", "prepare-bundled-package.mjs"), packageDir, stagedPackage], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
-        await runCommand("npm", ["pack", stagedPackage, "--pack-destination", stagingRoot], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 16 * 1024 * 1024 });
+        // The staged copy is already built and has no repository around it, so
+        // its prepack cannot run there; the release flow packs it the same way.
+        await runCommand("npm", ["pack", stagedPackage, "--pack-destination", stagingRoot, "--ignore-scripts"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 16 * 1024 * 1024 });
       } else {
-        await runCommand("corepack", ["pnpm", "--dir", workspacePackage.dir, "pack", "--pack-destination", stagingRoot], { cwd: checkoutPath, env: buildEnv({ PAPERCLIP_RELEASE_REUSE_UI_DIST: "1" }), maxBuffer: 32 * 1024 * 1024 });
+        if (usesBun) {
+          await runCommand("bun", ["pm", "pack", "--destination", stagingRoot], { cwd: packageDir, env: buildEnv({ PAPERCLIP_RELEASE_REUSE_UI_DIST: "1" }), maxBuffer: 32 * 1024 * 1024 });
+        } else {
+          await runCommand("corepack", ["pnpm", "--dir", workspacePackage.dir, "pack", "--pack-destination", stagingRoot], { cwd: checkoutPath, env: buildEnv({ PAPERCLIP_RELEASE_REUSE_UI_DIST: "1" }), maxBuffer: 32 * 1024 * 1024 });
+        }
       }
     }
     await runCommand("npm", ["pack", "--pack-destination", stagingRoot], { cwd: path.join(checkoutPath, "cli"), env: buildEnv(), maxBuffer: 16 * 1024 * 1024 });

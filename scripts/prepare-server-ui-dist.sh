@@ -21,7 +21,7 @@ if [ "$should_reuse_existing_ui_dist" = true ] && [ -f "$UI_DIST/index.html" ]; 
   echo "  -> Reusing existing @paperclipai/ui dist output"
 else
   echo "  -> Building @paperclipai/ui..."
-  pnpm --dir "$REPO_ROOT" --filter @paperclipai/ui build
+  (cd "$REPO_ROOT" && bun run --filter @paperclipai/ui build)
 fi
 
 if [ ! -f "$UI_DIST/index.html" ]; then

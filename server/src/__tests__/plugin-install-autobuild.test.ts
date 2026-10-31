@@ -214,20 +214,32 @@ describe("ensureLocalPluginBuilt", () => {
   });
 
   it.each([
-    undefined,
-    "allowBuilds:\n  protobufjs: false\n",
-    "packages:\n  - ../untrusted\ndangerouslyAllowAllBuilds: true\n",
-  ])("bootstraps standalone plugins without trusting workspace policy: %s", async (localPolicy) => {
+    { policy: "none" },
+    { policy: "bunfig", bunfig: '[install]\nregistry = "http://127.0.0.1:9/"\n' },
+    { policy: "trustedDependencies", trustedDependencies: ["untrusted-postinstall"] },
+    { policy: "lockfile", lockfile: true },
+  ])("bootstraps standalone plugins without trusting plugin install policy: $policy", async (localPolicy) => {
     const fixture = await createBundledPluginFixture("standalone", { rootDir: standaloneRepoPluginRoot });
     cleanupPaths.add(fixture.packageRoot);
 
-    if (localPolicy) await writeFile(path.join(fixture.packageRoot, "pnpm-workspace.yaml"), localPolicy);
-    const installArgs = ["install", "--ignore-workspace", ...(localPolicy ? ["--ignore-scripts"] : []), "--no-lockfile"];
+    if (localPolicy.bunfig) await writeFile(path.join(fixture.packageRoot, "bunfig.toml"), localPolicy.bunfig);
+    if (localPolicy.lockfile) await writeFile(path.join(fixture.packageRoot, "bun.lock"), "{}\n");
+    if (localPolicy.trustedDependencies) {
+      const manifestPath = path.join(fixture.packageRoot, "package.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+      await writeFile(manifestPath, JSON.stringify({ ...manifest, trustedDependencies: localPolicy.trustedDependencies }));
+    }
+    const installArgs = [
+      "install",
+      `--config=${os.devNull}`,
+      ...(localPolicy.trustedDependencies ? ["--ignore-scripts"] : []),
+      localPolicy.lockfile ? "--frozen-lockfile" : "--no-save",
+    ];
     const execStub = vi.fn(async (_file: string, args: readonly string[]) => {
       if (args.join(" ") === installArgs.join(" ")) {
         await mkdir(path.join(fixture.packageRoot, "node_modules", "@paperclipai", "plugin-sdk"), { recursive: true });
       }
-      if (args.join(" ") === "build") {
+      if (args.join(" ") === "run build") {
         await mkdir(path.join(fixture.distDir, "ui"), { recursive: true });
         await writeFile(path.join(fixture.distDir, "manifest.js"), "export default {};\n", "utf8");
         await writeFile(path.join(fixture.distDir, "worker.js"), "export {};\n", "utf8");
@@ -244,14 +256,14 @@ describe("ensureLocalPluginBuilt", () => {
     expect(execStub).toHaveBeenCalledTimes(2);
     expect(execStub).toHaveBeenNthCalledWith(
       1,
-      "pnpm",
+      "bun",
       installArgs,
       { cwd: fixture.packageRoot, timeout: 120_000 },
     );
     expect(execStub).toHaveBeenNthCalledWith(
       2,
-      "pnpm",
-      ["build"],
+      "bun",
+      ["run", "build"],
       { cwd: fixture.packageRoot, timeout: 120_000 },
     );
   });
@@ -276,8 +288,8 @@ describe("ensureLocalPluginBuilt", () => {
     expect(execStub).toHaveBeenCalledTimes(1);
     expect(execStub).toHaveBeenNthCalledWith(
       1,
-      "pnpm",
-      ["install", "--ignore-workspace", "--no-lockfile"],
+      "bun",
+      ["install", `--config=${os.devNull}`, "--no-save"],
       { cwd: fixture.packageRoot, timeout: 120_000 },
     );
   });
@@ -327,7 +339,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
     expect(mockLifecycle.load).toHaveBeenCalledTimes(1);
   }, 60_000);
 
-  it("auto-builds standalone bundled local plugins outside the root pnpm workspace", async () => {
+  it("auto-builds standalone bundled local plugins outside the root workspace", async () => {
     const fixture = await createBundledPluginFixture("standalone-success", { rootDir: standaloneRepoPluginRoot });
     cleanupPaths.add(fixture.packageRoot);
     const app = await createInstallApp(db);
@@ -401,7 +413,7 @@ describeEmbeddedPostgres("plugin install auto-build route", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toContain("does not appear to be a Paperclip plugin (no manifest found)");
     expect(res.body.error).toContain(path.relative(REPO_ROOT, fixture.packageRoot));
-    expect(res.body.error).toContain("pnpm install --ignore-workspace --no-lockfile && pnpm build");
+    expect(res.body.error).toContain(`bun install --config=${os.devNull} --no-save && bun run build`);
     expect(existsSync(path.join(fixture.distDir, "manifest.js"))).toBe(false);
     expect(mockLifecycle.load).not.toHaveBeenCalled();
   }, 20_000);

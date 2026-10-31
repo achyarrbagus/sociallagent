@@ -37,7 +37,7 @@ fi
 if [ "$skip_typecheck" = false ]; then
   echo "  [2/6] Type-checking..."
   cd "$REPO_ROOT"
-  corepack pnpm -r typecheck
+  bun run typecheck
 else
   echo "  [2/6] Skipping type-check (--skip-typecheck)"
 fi

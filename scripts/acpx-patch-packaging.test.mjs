@@ -741,9 +741,9 @@ test("bundled package dry runs preview without querying published versions", () 
   assert.doesNotMatch(releaseLib, /run_bundled_npm_publish publish "\.\/\$tarball"/);
 });
 
-test("npm builds use corepack instead of requiring a global pnpm", () => {
-  assert.match(buildNpmScript, /corepack pnpm -r typecheck/);
-  assert.doesNotMatch(buildNpmScript, /^\s*pnpm -r typecheck/m);
+test("npm builds type-check with Bun instead of requiring a global pnpm", () => {
+  assert.match(buildNpmScript, /^\s*bun run typecheck$/m);
+  assert.doesNotMatch(buildNpmScript, /pnpm -r typecheck/);
 });
 
 

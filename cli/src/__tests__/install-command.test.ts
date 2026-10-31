@@ -115,8 +115,8 @@ describe("managed install commands", () => {
     expect(runCommand.mock.calls[0]?.[0]).toBe(process.execPath);
   });
 
-  const createGitCheckoutRunCommand = (sha: string) =>
-    vi.fn(async (file: string, args: string[], _options?: Parameters<CommandRunner>[2]) => {
+  const createGitCheckoutRunCommand = (sha: string, { bun = false }: { bun?: boolean } = {}) =>
+    vi.fn(async (file: string, args: string[], options?: Parameters<CommandRunner>[2]) => {
       if (file === "curl" && !args.includes("--output")) return { stdout: JSON.stringify({ sha }), stderr: "" };
       if (file === "curl") { fs.writeFileSync(args[args.indexOf("--output") + 1], "archive"); return { stdout: "", stderr: "" }; }
       if (file === "tar") {
@@ -133,6 +133,25 @@ describe("managed install commands", () => {
         for (const workspacePackage of packages) {
           fs.mkdirSync(path.join(checkout, workspacePackage.dir), { recursive: true });
           fs.writeFileSync(path.join(checkout, workspacePackage.dir, "package.json"), JSON.stringify(workspacePackage.packageJson));
+        }
+        if (bun) {
+          fs.writeFileSync(path.join(checkout, "scripts", "prepare-server-ui-dist.sh"), "");
+          fs.writeFileSync(path.join(checkout, "scripts", "release-package-map.mjs"), "");
+          fs.mkdirSync(path.join(checkout, "skills", "paperclip"), { recursive: true });
+          fs.writeFileSync(path.join(checkout, "skills", "paperclip", "SKILL.md"), "skill\n");
+          fs.writeFileSync(path.join(checkout, "bun.lock"), "{}\n");
+          fs.writeFileSync(path.join(checkout, "package.json"), JSON.stringify({ workspaces: ["packages/*", "server", "cli"] }));
+          const server = path.join(checkout, "server", "package.json");
+          fs.writeFileSync(server, JSON.stringify({ ...JSON.parse(fs.readFileSync(server, "utf8")), scripts: { build: "tsc" }, files: ["dist", "skills"] }));
+        }
+        return { stdout: "", stderr: "" };
+      }
+      if (file === "bun") {
+        if (args[0] === "pm" && args[1] === "pack") {
+          const destination = args[args.indexOf("--destination") + 1];
+          const packageName = String(options?.cwd).endsWith("server") ? "paperclipai-server" : "paperclipai-shared";
+          if (packageName === "paperclipai-server") expect(fs.readFileSync(path.join(String(options?.cwd), "skills", "paperclip", "SKILL.md"), "utf8")).toBe("skill\n");
+          fs.writeFileSync(path.join(destination, `${packageName}-0.3.1.tgz`), "package");
         }
         return { stdout: "", stderr: "" };
       }
@@ -157,6 +176,7 @@ describe("managed install commands", () => {
         fs.writeFileSync(path.join(args[2], "package.json"), JSON.stringify({ name: "@paperclipai/db", version: "0.3.1" }));
         return { stdout: "", stderr: "" };
       }
+      if (file === process.execPath && args[0]?.endsWith("release-package-map.mjs")) return { stdout: "", stderr: "" };
       if (file === process.execPath) return { stdout: "0.3.1\n", stderr: "" };
       throw new Error(`Unexpected command: ${file} ${args.join(" ")}`);
     });
@@ -176,6 +196,39 @@ describe("managed install commands", () => {
     expect(runCommand.mock.calls.filter(([command, args]) => command === "npm" && args[0] === "pack")).toHaveLength(2);
     const installCall = runCommand.mock.calls.find(([command, args]) => command === "npm" && args[0] === "install");
     expect(installCall?.[1].filter((arg) => arg.endsWith(".tgz"))).toHaveLength(4);
+  });
+
+  it("builds Bun checkouts with Bun and packs the server closure", async () => {
+    const sha = "e".repeat(40);
+    const runCommand = createGitCheckoutRunCommand(sha, { bun: true });
+    await expect(installGitPayload("paperclipai/paperclip", sha, runCommand, resolveInstallStorePaths())).resolves.toMatchObject({ version: "0.3.1", reused: false });
+    expect(runCommand.mock.calls.filter(([command]) => command === "corepack")).toHaveLength(0);
+    expect(runCommand.mock.calls.filter(([command, args]) => command === "bun" && args.join(" ") === "install --frozen-lockfile")).toHaveLength(1);
+    const builds = runCommand.mock.calls.filter(([command, args]) => command === "bun" && args.join(" ") === "run build");
+    expect(builds.map(([, , options]) => path.basename(String(options?.cwd)))).toEqual(["server"]);
+    const packs = runCommand.mock.calls.filter(([command, args]) => command === "bun" && args[0] === "pm" && args[1] === "pack");
+    expect(packs.map(([, , options]) => path.basename(String(options?.cwd)))).toEqual(["shared", "server"]);
+    const uiDist = runCommand.mock.calls.findIndex(([command, args]) => command === "bash" && args[0] === "scripts/prepare-server-ui-dist.sh");
+    expect(uiDist).toBeGreaterThan(runCommand.mock.calls.indexOf(builds.at(-1)!));
+    expect(uiDist).toBeLessThan(runCommand.mock.calls.indexOf(packs[0]!));
+    const calls = runCommand.mock.calls;
+    const setVersion = calls.findIndex(([command, args]) => command === process.execPath && args[0]?.endsWith("release-package-map.mjs"));
+    expect(calls[setVersion]?.[1].slice(1)).toEqual(["set-version", "0.3.1"]);
+    expect(setVersion).toBeGreaterThan(calls.findIndex(([command, args]) => command === "bun" && args[0] === "install"));
+    expect(setVersion).toBeLessThan(calls.findIndex(([command, args]) => command === "bash" && args[0] === "scripts/build-npm.sh"));
+    expect(setVersion).toBeLessThan(calls.indexOf(packs[0]!));
+    for (const [, , options] of [...builds, ...packs]) expect(options?.env).not.toHaveProperty("NODE_ENV");
+    expect(packs.every(([, , options]) => options?.env?.PAPERCLIP_RELEASE_REUSE_UI_DIST === "1")).toBe(true);
+  });
+
+  it("explains that git installs of Bun checkouts need Bun", async () => {
+    const sha = "f".repeat(40);
+    const checkoutRunCommand = createGitCheckoutRunCommand(sha, { bun: true });
+    const runCommand = vi.fn(async (file: string, args: string[], options?: Parameters<CommandRunner>[2]) => {
+      if (file === "bun") throw Object.assign(new Error("spawn bun ENOENT"), { code: "ENOENT" });
+      return checkoutRunCommand(file, args, options);
+    });
+    await expect(installGitPayload("paperclipai/paperclip", sha, runCommand, resolveInstallStorePaths())).rejects.toThrow("needs Bun");
   });
 
   it("builds git checkouts with NODE_ENV cleared so ambient production mode keeps devDependencies", async () => {

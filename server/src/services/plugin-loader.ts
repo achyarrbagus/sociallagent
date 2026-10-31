@@ -802,19 +802,23 @@ function formatLocalPluginManualBuildHint(
 
 function buildStandaloneBundledPluginInstallArgs(
   packageRoot: string,
+  pkgJson: Record<string, unknown>,
 ): string[] {
-  const packageLockfilePath = path.join(packageRoot, "pnpm-lock.yaml");
-  // Never let plugin-supplied workspace settings broaden dependency resolution
-  // or script execution. When a plugin declares a local install policy, disable
-  // dependency lifecycle scripts instead of loading that workspace configuration.
-  const scriptArgs = existsSync(path.join(packageRoot, "pnpm-workspace.yaml")) ? ["--ignore-scripts"] : [];
-  return ["install", "--ignore-workspace", ...scriptArgs, existsSync(packageLockfilePath) ? "--frozen-lockfile" : "--no-lockfile"];
+  // Never let plugin-supplied install settings broaden dependency resolution or
+  // script execution. An empty --config replaces any bunfig.toml the plugin
+  // ships (registry, scopes, lifecycle policy). Bun runs dependency lifecycle
+  // scripts only for trusted packages, so a plugin that declares its own
+  // trustedDependencies installs with every lifecycle script disabled.
+  const scriptArgs = pkgJson["trustedDependencies"] !== undefined ? ["--ignore-scripts"] : [];
+  const lockfileArgs = existsSync(path.join(packageRoot, "bun.lock")) ? ["--frozen-lockfile"] : ["--no-save"];
+  return ["install", `--config=${os.devNull}`, ...scriptArgs, ...lockfileArgs];
 }
 
 function buildStandaloneBundledPluginInstallCommand(
   packageRoot: string,
+  pkgJson: Record<string, unknown>,
 ): string {
-  return `pnpm ${buildStandaloneBundledPluginInstallArgs(packageRoot).join(" ")}`;
+  return `bun ${buildStandaloneBundledPluginInstallArgs(packageRoot, pkgJson).join(" ")}`;
 }
 
 function buildLocalPluginRecoveryCommand(
@@ -825,8 +829,8 @@ function buildLocalPluginRecoveryCommand(
   if (isStandaloneBundledPluginPath(packageRoot, { repoRoot: options.repoRoot })) {
     const repoRoot = options.repoRoot ?? REPO_ROOT;
     const relativePath = path.relative(repoRoot, packageRoot) || ".";
-    const installCommand = buildStandaloneBundledPluginInstallCommand(packageRoot);
-    return `cd ${relativePath} && ${installCommand} && pnpm build`;
+    const installCommand = buildStandaloneBundledPluginInstallCommand(packageRoot, pkgJson);
+    return `cd ${relativePath} && ${installCommand} && bun run build`;
   }
 
   return buildLocalPluginBuildCommand(pkgJson);
@@ -849,16 +853,16 @@ function buildLocalPluginBuildCommands(
 
     if (shouldInstallStandaloneRuntime) {
       commands.push({
-        file: "pnpm",
-        args: buildStandaloneBundledPluginInstallArgs(packageRoot),
+        file: "bun",
+        args: buildStandaloneBundledPluginInstallArgs(packageRoot, pkgJson),
         cwd: packageRoot,
       });
     }
 
     if (options.needsBuild !== false) {
       commands.push({
-        file: "pnpm",
-        args: ["build"],
+        file: "bun",
+        args: ["run", "build"],
         cwd: packageRoot,
       });
     }
@@ -868,8 +872,8 @@ function buildLocalPluginBuildCommands(
   const packageName = pkgJson["name"];
   if (typeof packageName !== "string" || packageName.trim().length === 0) return [];
   return [{
-    file: "pnpm",
-    args: ["--filter", packageName, "build"],
+    file: "bun",
+    args: ["run", "--filter", packageName, "build"],
     cwd: options.repoRoot ?? REPO_ROOT,
   }];
 }

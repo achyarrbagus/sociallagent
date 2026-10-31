@@ -2,7 +2,7 @@
 
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
-import { availableParallelism } from "node:os";
+import { availableParallelism, devNull } from "node:os";
 import path, { dirname } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -115,11 +115,12 @@ async function runCaptured(command, args, cwd, log) {
   }
 }
 
-// Each standalone package installs into its own directory (`--ignore-workspace`)
-// and builds into its own `dist`, so there is no shared mutable state between
-// packages beyond pnpm's content-addressable global store, which is safe for
-// concurrent access. Buffer each package's output and flush it as one block so
-// interleaved parallel logs stay readable.
+// Each standalone package installs into its own directory (it is outside the
+// root workspace, so Bun treats it as its own project) and builds into its own
+// `dist`, so there is no shared mutable state between packages beyond Bun's
+// global package cache, which is safe for concurrent access. Buffer each
+// package's output and flush it as one block so interleaved parallel logs stay
+// readable.
 async function prepareAndBuildPackage(pkg) {
   const logs = [];
   const log = (line) => logs.push(line);
@@ -127,7 +128,7 @@ async function prepareAndBuildPackage(pkg) {
   const pkgDir = path.join(repoRoot, pkg.dir);
   const pkgJson = readPackageJson(pkg.dir);
   const nodeModulesDir = path.join(pkgDir, "node_modules");
-  const packageLockfilePath = path.join(pkgDir, "pnpm-lock.yaml");
+  const packageLockfilePath = path.join(pkgDir, "bun.lock");
 
   log(`  Preparing standalone package ${pkg.name} (${pkg.dir})`);
   try {
@@ -135,16 +136,18 @@ async function prepareAndBuildPackage(pkg) {
       rmSync(nodeModulesDir, { force: true, recursive: true });
     }
 
-    const installArgs = existsSync(packageLockfilePath)
-      ? ["install", "--ignore-workspace", "--frozen-lockfile"]
-      : [
-        "install",
-        "--ignore-workspace",
-        "--no-lockfile",
+    const installArgs = [
+      "install",
+      // Ignore any bunfig.toml the package ships; release builds resolve
+      // against the operator's registry configuration only.
+      `--config=${devNull}`,
+      ...(existsSync(packageLockfilePath)
+        ? ["--frozen-lockfile"]
         // Standalone packages intentionally avoid committed lockfile churn in the repo.
-      ];
+        : ["--no-save"]),
+    ];
 
-    await runCaptured("pnpm", installArgs, pkgDir, log);
+    await runCaptured("bun", installArgs, pkgDir, log);
 
     // The fresh install above wipes node_modules and no longer fires a
     // per-plugin postinstall (removed for supply-chain safety), so link the
@@ -152,7 +155,7 @@ async function prepareAndBuildPackage(pkg) {
     linkSdkInto(pkgDir);
 
     if (pkgJson.scripts?.build) {
-      await runCaptured("pnpm", ["run", "build"], pkgDir, log);
+      await runCaptured("bun", ["run", "build"], pkgDir, log);
     } else {
       log("    i No build script; skipped build");
     }
@@ -226,7 +229,7 @@ async function main() {
     .filter(({ dir }) => !isWorkspacePackage(dir, workspaceEntries));
 
   if (standalonePackages.length === 0) {
-    console.log("  i No standalone public packages detected outside the pnpm workspace");
+    console.log("  i No standalone public packages detected outside the root workspace");
     return;
   }
 

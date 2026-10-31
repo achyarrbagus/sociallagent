@@ -66,12 +66,32 @@ Merge into `main` only after the Docker image builds and runs.
    when a link points outside the pack. The pack ships `bun.lock` as its
    `productionLock`. `docker/daytona-runner/Dockerfile` and the
    `tests/runner-e2e` image-content inputs use Bun and `bun.lock`.
-6. Still open:
-   - Move standalone sandbox-provider installs and `paperclipai install` from a
-     git checkout (`plugin-loader.ts`, `build-standalone-public-packages.mjs`
-     still look for per-package `pnpm-lock.yaml`).
+6. ~~Standalone installs~~ (done 2026-10-31). Repo-bundled standalone plugins
+   (`plugin-loader.ts`) and `scripts/build-standalone-public-packages.mjs` install
+   with `bun install --config=/dev/null`, so a plugin-supplied `bunfig.toml`
+   cannot change the registry or install policy. A plugin that declares its own
+   `trustedDependencies` installs with `--ignore-scripts`. A package with
+   `bun.lock` installs with `--frozen-lockfile`; one without it uses `--no-save`.
+   The Daytona sandbox provider ships `bun.lock` instead of `pnpm-lock.yaml`
+   and its local `pnpm-workspace.yaml`. `paperclipai install` from a git ref
+   builds a checkout that has `bun.lock` with Bun (`bun install`,
+   `bun run build` over the server's workspace closure, `bun pm pack`). It
+   keeps the corepack pnpm path for older refs that carry only
+   `pnpm-lock.yaml`. Both paths now run `scripts/prepare-server-ui-dist.sh`
+   before packing, because the server bundles its dependencies and is staged
+   without its prepack (the git install failed on a missing `server/ui-dist`
+   since the server gained `bundleDependencies`). That script builds the UI
+   with Bun. Packages whose `files` list `skills` get a copy of the
+   repository `skills/` before packing, as the release flow stages them.
+   After the workspace build, the install sets every release package to the
+   CLI version (`release-package-map.mjs set-version`) before it bundles the
+   CLI and packs, as the release flow does. Without that step, the server's
+   `workspace:*` edge to `@paperclipai/plugin-sdk` (1.0.0) was published as
+   `0.3.1`. Staged bundled packages are packed with `npm pack --ignore-scripts`.
+7. Still open:
    - The upstream runner workflows (`docker-runner-check.yml`,
-     `runner-full-stack-e2e.yml`, ...) still hash `pnpm-lock.yaml`.
+     `runner-full-stack-e2e.yml`, ...) still hash `pnpm-lock.yaml`. Disable
+     them with `gh workflow disable` (needs `gh auth login`).
 
 ## Notes
 
