@@ -1,6 +1,6 @@
 version: 2
 updates:
-  - package-ecosystem: npm
+  - package-ecosystem: bun
     directory: "/"
     schedule:
       interval: weekly
@@ -14,7 +14,7 @@ updates:
     open-pull-requests-limit: 20
     labels:
       - "dependencies"
-    # Dependabot's npm parser reads only dependencies, devDependencies, and
+    # Dependabot's bun parser, like its npm parser, reads only dependencies, devDependencies, and
     # optionalDependencies — never peerDependencies. It cannot see the
     # optional OpenTelemetry peer dependencies in server/package.json, so it
     # never bumps their declared versions. The same limit applies to the
