@@ -88,6 +88,11 @@ Merge into `main` only after the Docker image builds and runs.
    CLI and packs, as the release flow does. Without that step, the server's
    `workspace:*` edge to `@paperclipai/plugin-sdk` (1.0.0) was published as
    `0.3.1`. Staged bundled packages are packed with `npm pack --ignore-scripts`.
+   Full check after items 5 and 6 (2026-10-31, `2b5dcf355`): `bun run typecheck`
+   and `bun run build` pass. `bun run test:run`: 24,805 passed, 25 failed.
+   The 18 `nested-clone-migration` failures pass when the file runs alone (load
+   flakiness). The other 7 (`ai-connections` 4, `workspace-runtime` 2,
+   `runner-api` 1) fail on their own too, in code the migration did not touch.
 7. Still open:
    - The upstream runner workflows (`docker-runner-check.yml`,
      `runner-full-stack-e2e.yml`, ...) still hash `pnpm-lock.yaml`. Disable
