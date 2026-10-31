@@ -107,15 +107,35 @@ base_cli_healthy() {
   (cd "$base_cwd" && node "$base_cli_runner_path" "$base_cli_entry_path" --help >/dev/null 2>&1)
 }
 
+# Prints the package manager that owns a checkout's lockfile. The repository
+# installs with Bun (bun.lock); branches cut before the Bun migration carry
+# only pnpm-lock.yaml and keep installing with pnpm.
+workspace_package_manager() {
+  local dir="$1"
+  [[ -f "$dir/package.json" ]] || return 1
+  if [[ -f "$dir/bun.lock" ]]; then
+    echo bun
+  elif [[ -f "$dir/pnpm-lock.yaml" ]]; then
+    echo pnpm
+  else
+    return 1
+  fi
+}
+
 repair_base_workspace_install() {
-  command -v pnpm >/dev/null 2>&1 || return 1
-  [[ -f "$base_cwd/package.json" && -f "$base_cwd/pnpm-lock.yaml" ]] || return 1
-  echo "Base workspace CLI at $base_cli_entry_path failed its health check (typically dangling pnpm symlinks after a partial install); repairing with pnpm install in $base_cwd." >&2
+  local manager
+  manager="$(workspace_package_manager "$base_cwd")" || return 1
+  command -v "$manager" >/dev/null 2>&1 || return 1
+  echo "Base workspace CLI at $base_cli_entry_path failed its health check (typically dangling symlinks after a partial install); repairing with $manager install in $base_cwd." >&2
   local repair_cmd=(pnpm install --prod=false --force --frozen-lockfile --config.confirmModulesPurge=false)
   # pnpm 9.15.4 calls the deprecated url.parse() in toNerfDart on every
   # install. Node 24 reports that call as DEP0169. Remove this flag when the
   # pinned pnpm no longer calls url.parse() in that path.
   local repair_node_options="${NODE_OPTIONS:-} --disable-warning=DEP0169"
+  if [[ "$manager" == "bun" ]]; then
+    repair_cmd=(bun install --force --frozen-lockfile)
+    repair_node_options="${NODE_OPTIONS:-}"
+  fi
   local repair_lock_dir=""
   if command -v git >/dev/null 2>&1; then
     repair_lock_dir="$(git -C "$base_cwd" rev-parse --absolute-git-dir 2>/dev/null || true)"
@@ -151,6 +171,14 @@ run_ensure_seeded() {
     (
       cd "$worktree_cwd" &&
         node "$base_cli_runner_path" "$base_cli_entry_path" worktree ensure-seeded --config "$worktree_config_path" ${source_config_args[@]+"${source_config_args[@]}"}
+    )
+    return
+  fi
+
+  if command -v bun >/dev/null 2>&1 && bun run paperclipai --help >/dev/null 2>&1; then
+    (
+      cd "$worktree_cwd" &&
+        bun run paperclipai worktree ensure-seeded --config "$worktree_config_path" ${source_config_args[@]+"${source_config_args[@]}"}
     )
     return
   fi

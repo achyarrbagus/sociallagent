@@ -50,11 +50,26 @@ Merge into `main` only after the Docker image builds and runs.
 ## Next steps
 
 1. ~~Docker build and smoke run~~ (done).
-2. Merge `chore/bun` into `main` and push.
-3. Later:
-   - move the CI workflows to Bun;
-   - move standalone sandbox-provider installs and `paperclipai install` from a git checkout;
-   - remove `pnpm-lock.yaml` once CI no longer needs it.
+2. ~~Merge `chore/bun` into `main` and push~~ (done, `519331e84`).
+3. ~~CI on Bun~~ (done 2026-10-31): `.github/workflows/ci.yml` runs on `main`
+   pushes and pull requests; Dependabot uses the `bun` ecosystem. The upstream
+   workflows still use pnpm and should be disabled in the fork's Actions
+   settings (`gh workflow disable`).
+4. ~~Remove `pnpm-lock.yaml`~~ (done 2026-10-31). `scripts/provision-worktree*.sh`
+   install with Bun when a checkout has `bun.lock` and fall back to pnpm for
+   branches that still carry only `pnpm-lock.yaml`.
+5. Still open:
+   - Remote provider pack. `packages/paperclip-runner/scripts/build-provider-pack.mjs`
+     runs `pnpm deploy` and copies `pnpm-lock.yaml`, and
+     `native-session-executor.ts` expects that artifact. The Bun Docker image has
+     neither pnpm nor the file, so a build with `PAPERCLIP_BUILD_COMMIT` set fails
+     at that stage, and an unstamped build skips the pack (no remote OpenCode/ACPX).
+     It needs a Bun replacement for `pnpm deploy`.
+   - Move standalone sandbox-provider installs and `paperclipai install` from a
+     git checkout (`plugin-loader.ts`, `build-standalone-public-packages.mjs`
+     still look for per-package `pnpm-lock.yaml`).
+   - `docker/daytona-runner` and `tests/runner-e2e` still use pnpm (upstream
+     runner e2e infrastructure).
 
 ## Notes
 

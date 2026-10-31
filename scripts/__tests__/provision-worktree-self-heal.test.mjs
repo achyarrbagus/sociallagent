@@ -536,7 +536,7 @@ test("runtime provisioning guards every optional source-config expansion for Bas
     .split("\n")
     .filter((line) => line.includes("worktree ensure-seeded --config"));
 
-  assert.equal(ensureSeededLines.length, 3);
+  assert.equal(ensureSeededLines.length, 4);
   for (const line of ensureSeededLines) {
     assert.ok(
       line.includes('${source_config_args[@]+"${source_config_args[@]}"}'),
@@ -682,6 +682,75 @@ esac
     if (calls.length === 2) assert.match(calls[1], /--no-frozen-lockfile/);
   });
 }
+
+for (const failure of ["frozen-lockfile", "ENOTFOUND", "retry-fails"]) {
+  test(`bun dependency provisioning preserves failures and bounds recovery: ${failure}`, () => {
+    const baseCwd = makeBaseWorkspace({ helpExit: 0, initExit: 0 });
+    const bin = makeTempDir("paperclip-fake-bun-");
+    const frozenError = failure === "ENOTFOUND" ? "ENOTFOUND" : "error: lockfile had changes, but lockfile is frozen";
+    fs.writeFileSync(path.join(bin, "bun"), `#!/bin/sh
+printf '%s\\n' "$*" >> bun-calls
+case "$*" in
+  install*--frozen-lockfile*) echo '${frozenError}' >&2; exit 42 ;;
+  install*) ${failure === "retry-fails" ? "exit 43" : "mkdir -p node_modules; exit 0"} ;;
+  *) exit 1 ;;
+esac
+`, { mode: 0o700 });
+    const { result, worktreeCwd } = runProvision(baseCwd, {
+      pathPrefix: bin,
+      setupWorktree(root) {
+        fs.writeFileSync(path.join(root, "package.json"), "{}\n");
+        fs.writeFileSync(path.join(root, "bun.lock"), "{}\n");
+      },
+    });
+    const recovers = failure === "frozen-lockfile";
+    assert.equal(result.status, recovers ? 0 : failure === "ENOTFOUND" ? 42 : 1, result.stderr);
+    assert.equal(fs.existsSync(path.join(worktreeCwd, ".paperclip/bun-install-fingerprint")), recovers);
+    assert.equal(fs.existsSync(path.join(worktreeCwd, ".paperclip/pnpm-install-fingerprint")), false);
+    const calls = fs.readFileSync(path.join(worktreeCwd, "bun-calls"), "utf8").trim().split("\n").filter((call) => call.startsWith("install"));
+    assert.equal(calls[0], "install --frozen-lockfile");
+    assert.equal(calls.length, failure === "ENOTFOUND" ? 1 : 2);
+    if (calls.length === 2) assert.equal(calls[1], "install");
+  });
+}
+
+test("bun.lock takes precedence over a leftover pnpm-lock.yaml", () => {
+  const baseCwd = makeBaseWorkspace({ helpExit: 0, initExit: 0 });
+  const bin = makeTempDir("paperclip-both-locks-");
+  for (const manager of ["bun", "pnpm"]) {
+    fs.writeFileSync(path.join(bin, manager), `#!/bin/sh\ncase "$1" in install) echo ${manager} >> manager-calls; mkdir -p node_modules ;; esac\n`, { mode: 0o700 });
+  }
+  const { result, worktreeCwd } = runProvision(baseCwd, {
+    pathPrefix: bin,
+    setupWorktree(root) {
+      fs.writeFileSync(path.join(root, "package.json"), "{}\n");
+      fs.writeFileSync(path.join(root, "bun.lock"), "{}\n");
+      fs.writeFileSync(path.join(root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+    },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(fs.readFileSync(path.join(worktreeCwd, "manager-calls"), "utf8"), "bun\n");
+});
+
+test("bun patch content changes invalidate an otherwise matching install fingerprint", () => {
+  const baseCwd = makeBaseWorkspace({ helpExit: 0, initExit: 0 });
+  const bin = makeTempDir("paperclip-patch-bun-");
+  fs.writeFileSync(path.join(bin, "bun"), '#!/bin/sh\ncase "$1" in install) echo install >> bun-calls; mkdir -p node_modules cli/node_modules ;; esac\n', { mode: 0o700 });
+  const first = runProvision(baseCwd, { pathPrefix: bin, setupWorktree(root) {
+    fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ patchedDependencies: { "dependency@1": "patches/dependency.diff" } }));
+    fs.writeFileSync(path.join(root, "bun.lock"), "{}\n");
+    fs.mkdirSync(path.join(root, "patches"));
+    fs.writeFileSync(path.join(root, "patches/dependency.diff"), "first patch");
+  } });
+  assert.equal(first.result.status, 0, first.result.stderr);
+  const options = { pathPrefix: bin, existingWorktree: first.worktreeCwd };
+  const callsPath = path.join(first.worktreeCwd, "bun-calls");
+  assert.equal(runProvision(baseCwd, options).result.status, 0);
+  assert.equal(fs.readFileSync(callsPath, "utf8"), "install\n");
+  fs.writeFileSync(path.join(first.worktreeCwd, "patches/dependency.diff"), "changed patch");
+  assert.equal(runProvision(baseCwd, options).result.status, 0);
+  assert.equal(fs.readFileSync(callsPath, "utf8"), "install\ninstall\n");
+});
 
 test("patch content changes invalidate an otherwise matching install fingerprint", () => {
   const baseCwd = makeBaseWorkspace({ helpExit: 0, initExit: 0 });

@@ -73,7 +73,7 @@ try {
   const [version] = await db.$client.unsafe("SELECT version() AS version");
   const settings = await db.$client.unsafe("SELECT name, setting, unit FROM pg_settings WHERE name IN ('shared_buffers','work_mem','effective_cache_size','jit') ORDER BY name");
   console.log(JSON.stringify({ baselineRevision, treatmentRevision, node: process.version,
-    dependencyLockfileSha256: createHash("sha256").update(readFileSync(new URL("../pnpm-lock.yaml", import.meta.url))).digest("hex"),
+    dependencyLockfileSha256: createHash("sha256").update(readFileSync(new URL("../bun.lock", import.meta.url))).digest("hex"),
     postgres: version.version, settings, fixtureRuns: 1, queries: { baseline, treatment }, results }, null, 2));
 } finally {
   try {

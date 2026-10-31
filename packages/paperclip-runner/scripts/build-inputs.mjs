@@ -40,7 +40,7 @@
 // and brace-expansion patches into dist; and the root files the Runner's
 // tsconfig and dependency graph read. The toolchain pins live inside the
 // package (rust-toolchain.toml, runner/Cargo.lock), and the TypeScript version
-// comes from pnpm-lock.yaml, so both are covered.
+// comes from bun.lock, so both are covered.
 //
 // Outputs: the server build vendors packages/paperclip-runner/dist wholesale
 // (`cp -Rf ../packages/paperclip-runner/dist/. dist/vendor/paperclip-runner/`),
@@ -69,8 +69,8 @@ const RUNNER_PACKAGE_RELATIVE = "packages/paperclip-runner";
 const EVAL_KERNEL_PACKAGE_RELATIVE = "packages/paperclip-eval-kernel";
 const ROOT_INPUT_DIRECTORIES = ["patches"];
 const ROOT_INPUT_FILES = [
+  "bun.lock",
   "package.json",
-  "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "tsconfig.base.json",
 ];

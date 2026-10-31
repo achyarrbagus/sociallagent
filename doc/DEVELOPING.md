@@ -127,15 +127,16 @@ Current implementation status:
 ## Prerequisites
 
 - Node.js 24.11+
-- pnpm 9+
+- Bun 1.4.4+
 
 ## Dependency Lockfile Policy
 
-GitHub Actions owns `pnpm-lock.yaml`.
+Bun owns the lockfile: `bun.lock` at the repository root. There is no
+`pnpm-lock.yaml`.
 
-- Do not commit `pnpm-lock.yaml` in pull requests.
-- Pull request CI validates dependency resolution when manifests change.
-- Pushes to `master` regenerate `pnpm-lock.yaml` with `pnpm install --lockfile-only --no-frozen-lockfile`, commit it back if needed, and then run verification with `--frozen-lockfile`.
+- Commit `bun.lock` together with the manifest change that produced it (`bun install`, `bun add`, `bun remove`).
+- CI (`.github/workflows/ci.yml`) installs with `bun install --frozen-lockfile`, so a manifest change without its matching `bun.lock` update fails CI.
+- `pnpm-workspace.yaml` stays as the workspace-root marker that the Copilot postinstall and the plugin loader look for.
 
 ## Trusted PR Workflow
 

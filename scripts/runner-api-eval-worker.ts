@@ -48,7 +48,7 @@ function fileDigest(path: string): Promise<string | null> {
 const runtimeBuild = {
   runnerBinarySha256: await fileDigest(defaultCapabilityRunnerdBinary()),
   workerSourceSha256: await fileDigest(resolve("scripts/runner-api-eval-worker.ts")),
-  lockfileSha256: await fileDigest(resolve("pnpm-lock.yaml")),
+  lockfileSha256: await fileDigest(resolve("bun.lock")),
 };
 output({ ready: true });
 const record = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};

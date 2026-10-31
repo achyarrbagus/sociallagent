@@ -18,7 +18,7 @@ skills/** @cryppadotta @devinfoley @nickyleach @forgottendev
 # Package files — dependency changes require review
 # package.json matches recursively at all depths (covers root + all workspaces)
 package.json @cryppadotta @devinfoley @nickyleach @forgottendev
-pnpm-lock.yaml @cryppadotta @devinfoley @nickyleach @forgottendev
+bun.lock @cryppadotta @devinfoley @nickyleach @forgottendev
 pnpm-workspace.yaml @cryppadotta @devinfoley @nickyleach @forgottendev
 .npmrc @cryppadotta @devinfoley @nickyleach @forgottendev
 

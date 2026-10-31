@@ -27,4 +27,4 @@ extension identity, while Lezer parsers and syntax highlighters require shared
 `NodeProp` IDs. Multiple Lezer copies can crash code-block highlighting with
 `tags is not iterable`. `src/lib/codemirror-single-instance.test.ts` checks the
 installed dependency graph and highlights sample code through the editor's real
-language dependencies. GitHub Actions owns regeneration of `pnpm-lock.yaml`.
+language dependencies. `bun.lock` pins that graph.
