@@ -355,6 +355,7 @@
 
 ## Later plans (not part of Plan 1)
 
-- **Plan 2 — X:** OAuth 1.0a request signing, `GET /2/users/me` verify, media upload (`/2/media/upload`, chunked for video), `POST /2/tweets` with up to 4 media ids; `maxTextLength: 280`.
-- **Plan 3 — Instagram:** signed public media route (`GET /api/public/agency-media/:token`, HMAC over asset id + publication id + expiry, 1 hour), container → `media_publish`, carousel containers, Reels for video, token expiry display/refresh.
-- **Plan 4 — TikTok:** refresh-token exchange with rotated refresh token stored back to the vault, video `FILE_UPLOAD`, photo `PULL_FROM_URL` via the Plan 3 signed route, `SELF_ONLY` until the user's app is audited, `publish_id` status polling as the checkpoint.
+- **Plan 2 — X:** `doc/plans/2026-10-31-social-publishing-plan-2-x.md`.
+- **Plan 3 — LinkedIn:** `doc/plans/2026-10-31-social-publishing-plan-3-linkedin.md`.
+- **Plan 4 — Instagram:** signed public media route (`GET /api/public/agency-media/:token`, HMAC over asset id + publication id + expiry, 1 hour), container → `media_publish`, carousel containers, Reels for video, token expiry display/refresh.
+- **Plan 5 — TikTok:** refresh-token exchange with rotated refresh token stored back to the vault, video `FILE_UPLOAD`, photo `PULL_FROM_URL` via the Plan 4 signed route, `SELF_ONLY` until the user's app is audited, `publish_id` status polling as the checkpoint.

@@ -50,8 +50,8 @@ every selected platform and records each result.
 - OAuth "Log in with X/Facebook/TikTok", or a Paperclip-owned provider app.
 - Stories, Reels-specific options beyond "video on Instagram is a Reel", polls,
   threads (multi-tweet), first comments, alt text, location tags, user tags.
-- LinkedIn and YouTube native connectors (the platform enum keeps them for
-  manual posts).
+- YouTube native connector (the platform enum keeps it for manual posts).
+  LinkedIn was added to scope by the user on 2026-10-31 (Plan 3).
 - Analytics, comments or inbox ingestion from the platforms.
 - Editing or deleting a post after publication.
 - Automatic retry of a failed post. The user reschedules it.
@@ -217,5 +217,7 @@ twice.
   claim/crash/double-server tests, token redaction tests, proposal validation.
 - Live proof against real test accounts is required before calling a platform
   supported; record it per platform and type, and say "not run" where missing.
-- Order of delivery: suggested Facebook → X → Instagram → TikTok (easiest first),
-  each shippable on its own.
+- Order of delivery: Plan 1 Facebook (with the shared foundation), Plan 2 X
+  (`2026-10-31-social-publishing-plan-2-x.md`), Plan 3 LinkedIn
+  (`2026-10-31-social-publishing-plan-3-linkedin.md`), then Instagram and
+  TikTok, each shippable on its own.
