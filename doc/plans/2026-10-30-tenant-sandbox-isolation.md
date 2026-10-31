@@ -58,13 +58,13 @@
 **Interfaces:**
 - Produces: `config.saasMode: boolean` from `SOCIALAGENT_SAAS_MODE === "true"`; `isSaasMode(): boolean` exported from `server/src/config.ts` for code without the config object.
 
-- [ ] **Step 1: Write the failing tests** in `environment-selection.test.ts`:
+- [x] **Step 1: Write the failing tests** in `environment-selection.test.ts`:
   - `it("selects the managed sandbox in SaaS mode even when the agent default is local")`: with `saasMode` true, `enableManagedSandboxOnly` false, agent `defaultEnvironmentId` = local env id, an active `sandbox` environment → selected environment id is the sandbox id.
   - `it("fails closed in SaaS mode when no managed sandbox is active")` → rejects with `ManagedSandboxUnavailableError`.
-- [ ] **Step 2: Run** `cd server && npx vitest run src/services/heartbeat/environment-selection.test.ts` → both FAIL.
-- [ ] **Step 3: Implement.** In `selectHeartbeatEnvironment`, `managedSandboxOnly = saasMode || experimental.enableManagedSandboxOnly === true`. At startup, when `saasMode` is true and `findManagedSandboxEnvironment()` returns null, log an error naming the missing sandbox environment (do not exit; runs already fail closed).
-- [ ] **Step 4: Run** the test file → PASS.
-- [ ] **Step 5: Commit** `feat(saas): force managed sandbox execution in SaaS mode`.
+- [x] **Step 2: Run** `cd server && npx vitest run src/services/heartbeat/environment-selection.test.ts` → both FAIL.
+- [x] **Step 3: Implement.** In `selectHeartbeatEnvironment`, `managedSandboxOnly = saasMode || experimental.enableManagedSandboxOnly === true`. At startup, when `saasMode` is true and `findManagedSandboxEnvironment()` returns null, log an error naming the missing sandbox environment (do not exit; runs already fail closed).
+- [x] **Step 4: Run** the test file → PASS.
+- [x] **Step 5: Commit** `feat(saas): force managed sandbox execution in SaaS mode`.
 
 ### Task 2: Refuse host-executing adapters and engines in SaaS mode
 
@@ -77,11 +77,11 @@
 - Consumes: `config.saasMode` (Task 1).
 - Produces: `assertSaasExecutionAllowed(agent: { adapterType: string; adapterConfig: unknown }): void` in `server/src/services/saas-execution-policy.ts`; throws `unprocessable("This agent type cannot run in SaaS mode")` for adapter types `process`, `http`, and any agent whose resolved engine is the legacy CLI engine.
 
-- [ ] **Step 1: Write the failing tests:** hiring an agent with `adapterType: "process"` in SaaS mode → 422; patching an existing agent to `engine: "cli"` → 422; a pre-existing `process` agent's run is refused at admission with the same message and never spawns a process (assert no `processPid` recorded).
-- [ ] **Step 2: Run** `cd server && npx vitest run src/__tests__/environment-selection-route-guards.test.ts` → FAIL.
-- [ ] **Step 3: Implement** `assertSaasExecutionAllowed` and call it from the hire/patch routes and before dispatch in runtime selection.
-- [ ] **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `feat(saas): refuse host-executing agents in SaaS mode`.
+- [x] **Step 1: Write the failing tests:** hiring an agent with `adapterType: "process"` in SaaS mode → 422; patching an existing agent to `engine: "cli"` → 422; a pre-existing `process` agent's run is refused at admission with the same message and never spawns a process (assert no `processPid` recorded).
+- [x] **Step 2: Run** `cd server && npx vitest run src/__tests__/environment-selection-route-guards.test.ts` → FAIL.
+- [x] **Step 3: Implement** `assertSaasExecutionAllowed` and call it from the hire/patch routes and before dispatch in runtime selection.
+- [x] **Step 4: Run** → PASS.
+- [x] **Step 5: Commit** `feat(saas): refuse host-executing agents in SaaS mode`.
 
 ### Task 3: One ephemeral sandbox per run lease, never shared across companies
 
@@ -93,14 +93,14 @@
 - Consumes: `config.saasMode`.
 - Produces: in SaaS mode the effective lease policy for `driver: "sandbox"` and `driver: "plugin"` environments is `"ephemeral"` regardless of environment config; lease reuse requires `lease.companyId === run.companyId`.
 
-- [ ] **Step 1: Write the failing tests** with a fake sandbox provider that records `onEnvironmentAcquireLease` calls:
+- [x] **Step 1: Write the failing tests** with a fake sandbox provider that records `onEnvironmentAcquireLease` calls:
   - `it("acquires distinct provider sandboxes for concurrent runs of two companies")`: two companies, one run each, started together → two acquire calls, two different provider lease ids.
   - `it("destroys a released SaaS lease instead of retaining it for reuse")`: after release → `onEnvironmentDestroyLease` called; a following run of another company acquires a new lease.
   - `it("forces the ephemeral policy in SaaS mode when the environment asks to retain")`.
-- [ ] **Step 2: Run** → FAIL on the policy and destroy assertions.
-- [ ] **Step 3: Implement** the policy override and the company check on reuse.
-- [ ] **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `feat(saas): one ephemeral sandbox per run lease`.
+- [x] **Step 2: Run** → FAIL on the policy and destroy assertions.
+- [x] **Step 3: Implement** the policy override and the company check on reuse.
+- [x] **Step 4: Run** → PASS.
+- [x] **Step 5: Commit** `feat(saas): one ephemeral sandbox per run lease`.
 
 ### Task 4: Run-scoped gateway proxy so the 9Router master key stays on the server
 
@@ -118,16 +118,16 @@
   - `issueRunGatewayToken(db, { companyId, runId, expiresAt }): Promise<string>` returns the plaintext token once; stores only its SHA-256 hash.
   - `revokeRunGatewayTokens(db, runId): Promise<void>`, called when the run reaches a terminal status.
   - Route `ALL /api/managed-gateway/v1/*`: `Authorization: Bearer <token>`; valid only when unexpired, unrevoked and the run is non-terminal; forwards method, path and body to `SOCIALAGENT_9ROUTER_BASE_URL` with the master key; streams the response back.
-- [ ] **Step 1: Write the failing tests** (upstream mocked with a local HTTP server):
+- [x] **Step 1: Write the failing tests** (upstream mocked with a local HTTP server):
   - valid token for an active run → request reaches upstream with `Authorization: Bearer <master key>` and the client response is streamed back;
   - token after the run is terminal → 401, upstream not called;
   - unknown or expired token → 401;
   - `it("never writes the master key into the sandbox auth file")`: build the runtime for a managed agent in SaaS mode and assert the generated `auth.json` and env contain the run token and `SOCIALAGENT_PUBLIC_URL/api/managed-gateway/v1`, and do not contain the master key string.
-- [ ] **Step 2: Run** `cd server && npx vitest run src/__tests__/managed-gateway-proxy.test.ts` → FAIL.
-- [ ] **Step 3: Implement** schema, migration (`bun run db:generate`, then make the SQL idempotent like 0383), token service, proxy route, runtime change, and revocation on run terminalization.
-- [ ] **Step 4: Run** the test file and `npx vitest run packages/db/src/migration-snapshot-drift.test.ts` → PASS.
-- [ ] **Step 5: Update** `maps/agent-access-map/` for the new endpoint and run `node scripts/check-maps.mjs`.
-- [ ] **Step 6: Commit** `feat(saas): run-scoped gateway proxy keeps the 9Router key on the server`.
+- [x] **Step 2: Run** `cd server && npx vitest run src/__tests__/managed-gateway-proxy.test.ts` → FAIL.
+- [x] **Step 3: Implement** schema, migration (`bun run db:generate`, then make the SQL idempotent like 0383), token service, proxy route, runtime change, and revocation on run terminalization.
+- [x] **Step 4: Run** the test file and `npx vitest run packages/db/src/migration-snapshot-drift.test.ts` → PASS.
+- [x] **Step 5: Update** `maps/agent-access-map/` for the new endpoint and run `node scripts/check-maps.mjs`.
+- [x] **Step 6: Commit** `feat(saas): run-scoped gateway proxy keeps the 9Router key on the server`.
 
 ### Task 5: Strip server secrets from every agent child process
 
@@ -139,11 +139,11 @@
 **Interfaces:**
 - Produces: `SERVER_SECRET_ENV_PATTERNS: readonly RegExp[]` exported from `server-utils.ts`, matching exactly the Global Constraints secret list; `sanitizeInheritedPaperclipEnv` removes every match.
 
-- [ ] **Step 1: Write the failing tests:** `sanitizeInheritedPaperclipEnv({ DATABASE_URL: "x", BETTER_AUTH_SECRET: "x", SOCIALAGENT_9ROUTER_API_KEY: "x", AWS_SECRET_ACCESS_KEY: "x", SUPABASE_SERVICE_ROLE_KEY: "x", PATH: "/bin" })` returns `{ PATH: "/bin" }`; `resolveNativeProviderEnvironment` with `configured` undefined returns no key matching the patterns.
-- [ ] **Step 2: Run** `npx vitest run packages/adapter-utils/src/server-utils-env.test.ts` → FAIL.
-- [ ] **Step 3: Implement** the patterns and apply them in both places.
-- [ ] **Step 4: Run** both test files → PASS.
-- [ ] **Step 5: Commit** `fix(security): never pass server secrets to agent processes`.
+- [x] **Step 1: Write the failing tests:** `sanitizeInheritedPaperclipEnv({ DATABASE_URL: "x", BETTER_AUTH_SECRET: "x", SOCIALAGENT_9ROUTER_API_KEY: "x", AWS_SECRET_ACCESS_KEY: "x", SUPABASE_SERVICE_ROLE_KEY: "x", PATH: "/bin" })` returns `{ PATH: "/bin" }`; `resolveNativeProviderEnvironment` with `configured` undefined returns no key matching the patterns.
+- [x] **Step 2: Run** `npx vitest run packages/adapter-utils/src/server-utils-env.test.ts` → FAIL.
+- [x] **Step 3: Implement** the patterns and apply them in both places.
+- [x] **Step 4: Run** both test files → PASS.
+- [x] **Step 5: Commit** `fix(security): never pass server secrets to agent processes`.
 
 ### Task 6: Supabase Postgres connection rules and Data API lockdown
 
@@ -156,14 +156,14 @@
 **Interfaces:**
 - Produces: `assertSessionCapableDatabaseUrl(url: string): void` in `packages/db/src/client.ts`; throws `"DATABASE_URL points at a transaction pooler (port 6543); use a direct or session-pooler connection"` when the port is 6543 or the URL has `pgbouncer=true`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `assertSessionCapableDatabaseUrl("postgresql://u:p@aws-0.pooler.supabase.com:6543/postgres")` throws; port 5432 passes.
   - `it("enables row level security on every public table")`: after migrations on embedded Postgres, `select relname from pg_class join pg_namespace n on n.oid = relnamespace where n.nspname = 'public' and relkind = 'r' and not relrowsecurity` returns no rows.
   - `it("keeps the server role able to read and write")`: the owner connection inserts and selects a company row.
-- [ ] **Step 2: Run** `npx vitest run packages/db/src/rls-coverage.test.ts` → FAIL.
-- [ ] **Step 3: Implement:** call the validator in `createDb`; migration loops over `pg_tables where schemaname = 'public'` and runs `ALTER TABLE … ENABLE ROW LEVEL SECURITY` (no policies, no `FORCE`, so the owning server role bypasses RLS while Supabase `anon`/`authenticated` see nothing); when roles `anon` and `authenticated` exist, `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated`. Document: disable the Supabase Data API for the project, use a session/direct URL, set `DATABASE_MIGRATION_URL` to the direct connection.
-- [ ] **Step 4: Run** the test file and the drift test → PASS.
-- [ ] **Step 5: Commit** `feat(saas): Supabase-safe connections and RLS lockdown`.
+- [x] **Step 2: Run** `npx vitest run packages/db/src/rls-coverage.test.ts` → FAIL.
+- [x] **Step 3: Implement:** call the validator in `createDb`; migration loops over `pg_tables where schemaname = 'public'` and runs `ALTER TABLE … ENABLE ROW LEVEL SECURITY` (no policies, no `FORCE`, so the owning server role bypasses RLS while Supabase `anon`/`authenticated` see nothing); when roles `anon` and `authenticated` exist, `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated`. Document: disable the Supabase Data API for the project, use a session/direct URL, set `DATABASE_MIGRATION_URL` to the direct connection.
+- [x] **Step 4: Run** the test file and the drift test → PASS.
+- [x] **Step 5: Commit** `feat(saas): Supabase-safe connections and RLS lockdown`.
 
 ### Task 7: Supabase Storage through the S3 provider
 
@@ -177,11 +177,11 @@
 **Interfaces:**
 - Produces: when both new keys are set, the S3 client uses them instead of the default AWS chain (so no `AWS_*` variables need to exist in the server env); `storage:smoke` does put → head → get → delete of one object under a throwaway company prefix and exits non-zero on any mismatch.
 
-- [ ] **Step 1: Write the failing test:** constructing the provider with explicit keys passes `credentials: { accessKeyId, secretAccessKey }` to the client (spy on the client constructor).
-- [ ] **Step 2: Run** → FAIL.
-- [ ] **Step 3: Implement** the option and the smoke script. Document Supabase values: `PAPERCLIP_STORAGE_PROVIDER=s3`, `PAPERCLIP_STORAGE_S3_ENDPOINT=https://<project-ref>.supabase.co/storage/v1/s3`, `PAPERCLIP_STORAGE_S3_REGION=<project region>`, `PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE=true`, private bucket, S3 access keys from the Supabase dashboard; the project's per-file upload limit must be at least `SOCIALAGENT_VIDEO_MAX_BYTES`.
-- [ ] **Step 4: Run** the test → PASS; run `bun run storage:smoke` against a Supabase project → prints `ok`.
-- [ ] **Step 5: Commit** `feat(saas): Supabase Storage via the S3 provider`.
+- [x] **Step 1: Write the failing test:** constructing the provider with explicit keys passes `credentials: { accessKeyId, secretAccessKey }` to the client (spy on the client constructor).
+- [x] **Step 2: Run** → FAIL.
+- [x] **Step 3: Implement** the option and the smoke script. Document Supabase values: `PAPERCLIP_STORAGE_PROVIDER=s3`, `PAPERCLIP_STORAGE_S3_ENDPOINT=https://<project-ref>.supabase.co/storage/v1/s3`, `PAPERCLIP_STORAGE_S3_REGION=<project region>`, `PAPERCLIP_STORAGE_S3_FORCE_PATH_STYLE=true`, private bucket, S3 access keys from the Supabase dashboard; the project's per-file upload limit must be at least `SOCIALAGENT_VIDEO_MAX_BYTES`.
+- [x] **Step 4: Run** the test → PASS; run `bun run storage:smoke` against a Supabase project → prints `ok`.
+- [x] **Step 5: Commit** `feat(saas): Supabase Storage via the S3 provider`.
 
 ### Task 8: Upload policy — individual media and document files only
 
@@ -196,17 +196,17 @@
 - Consumes: `config.saasMode`; the UI reads it from the existing health/instance payload as `saasMode: boolean`.
 - Produces: `SAAS_ALLOWED_TYPES: readonly string[]` (Global Constraints list); `effectiveAllowedTypes(saasMode: boolean): string[]`; `maxUploadBytes(contentType: string, saasMode: boolean): number` (video → `SOCIALAGENT_VIDEO_MAX_BYTES`, else `MAX_ATTACHMENT_BYTES`).
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - SaaS mode rejects `application/zip`, `application/x-zip-compressed`, `text/html`, `image/svg+xml` with 422; accepts `video/mp4` at 50 MB; rejects `video/mp4` above `SOCIALAGENT_VIDEO_MAX_BYTES`.
   - `it("judges a renamed archive by its bytes")`: a file named `brief.pdf` with declared type `application/pdf` but ZIP magic bytes (`50 4B 03 04`) → 422.
   - Project files in SaaS mode: filename `assets/logo.png` → 422 ("Folders are not supported"); `logo.png` → 201.
   - Company import ZIP by a non-admin board user in SaaS mode → 403.
   - UI: `ProjectFilesPanel` in SaaS mode renders no input with a `webkitdirectory` attribute.
-- [ ] **Step 2: Run** the three test files → FAIL.
-- [ ] **Step 3: Implement** the allowlist, a small magic-byte sniff for PDF (`%PDF`), PNG, JPEG, GIF, WebP, MP4/QuickTime (`ftyp`), WebM (`1A 45 DF A3`) and ZIP-based Office files (allowed only when the declared type is an Office type), the path-separator rejection, the import gate, and the UI flag.
-- [ ] **Step 4: Run** the tests and `bun run check:token-gates` → PASS.
-- [ ] **Step 5: Update** `maps/feature-map/` upload entries; run `node scripts/check-maps.mjs`.
-- [ ] **Step 6: Commit** `feat(saas): individual media and document uploads only`.
+- [x] **Step 2: Run** the three test files → FAIL.
+- [x] **Step 3: Implement** the allowlist, a small magic-byte sniff for PDF (`%PDF`), PNG, JPEG, GIF, WebP, MP4/QuickTime (`ftyp`), WebM (`1A 45 DF A3`) and ZIP-based Office files (allowed only when the declared type is an Office type), the path-separator rejection, the import gate, and the UI flag.
+- [x] **Step 4: Run** the tests and `bun run check:token-gates` → PASS.
+- [x] **Step 5: Update** `maps/feature-map/` upload entries; run `node scripts/check-maps.mjs`.
+- [x] **Step 6: Commit** `feat(saas): individual media and document uploads only`.
 
 ### Task 9: Hand-off verification
 
