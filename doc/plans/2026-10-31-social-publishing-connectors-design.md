@@ -171,6 +171,10 @@ twice.
 
 ## Calls made by the designer (not yet confirmed by the user)
 
+- **Setup location.** Accounts are connected on the brand page ("Social
+  accounts"), not in the MCP Connectors catalog. They are stored in agency
+  tables with tokens in the instance vault (`company_secrets`, system binding),
+  because the Connectors pipeline is built for MCP tool connections.
 - **Brand binding.** Setup asks which brand the account belongs to. A new
   brand↔connection mapping (one connection per platform per brand) stores it;
   connections and grants stay company-scoped. A proposal slot must use a
