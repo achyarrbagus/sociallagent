@@ -186,7 +186,7 @@ describe("CloudAccessGate", () => {
     mockHealthApi.get.mockResolvedValue({ deploymentMode: "authenticated", deploymentExposure: "public", bootstrapStatus: "bootstrap_pending" });
     mockAuthApi.getSession.mockResolvedValue({ user: { id: "invitee" } });
     const root = renderGate(container, true);
-    await waitForText(container, "This SocialAgent is waiting on its first admin");
+    await waitForText(container, "SocialAgent menunggu administrator pertama");
     expect(container.textContent).not.toContain("Outlet content");
     unmountRoot(root);
   });
@@ -235,11 +235,11 @@ describe("CloudAccessGate", () => {
     mockAuthApi.getSession.mockResolvedValue(null);
 
     const root = renderGate(container);
-    await waitForText(container, "Finish setting up this SocialAgent");
+    await waitForText(container, "Selesaikan pengaturan SocialAgent");
 
-    expect(container.textContent).toContain("Finish setting up this SocialAgent");
-    expect(container.textContent).toContain("Sign in / Create account");
-    expect(container.textContent).toContain("npx paperclipai auth bootstrap-ceo");
+    expect(container.textContent).toContain("Selesaikan pengaturan SocialAgent");
+    expect(container.textContent).toContain("Masuk / Buat akun");
+    expect(container.textContent).toContain("Hubungi pengelola server");
     expect(mockAccessApi.getCurrentBoardAccess).not.toHaveBeenCalled();
 
     unmountRoot(root);
@@ -260,24 +260,24 @@ describe("CloudAccessGate", () => {
     mockAccessApi.claimBootstrapAdmin.mockResolvedValue({ claimed: true, userId: "user-1" });
 
     const root = renderGate(container);
-    await waitForText(container, "Claim this instance");
+    await waitForText(container, "Jadi administrator");
 
-    expect(container.textContent).toContain("Claim this instance");
-    expect(container.textContent).toContain("Signed in as user@example.com");
+    expect(container.textContent).toContain("Jadi administrator");
+    expect(container.textContent).toContain("Masuk sebagai user@example.com");
     expect(mockAccessApi.getCurrentBoardAccess).not.toHaveBeenCalled();
 
     const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
-      candidate.textContent?.includes("Claim this instance"),
+      candidate.textContent?.includes("Jadi administrator"),
     );
     expect(button).toBeTruthy();
     flushSync(() => {
       button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    await waitForText(container, "You're the instance admin");
+    await waitForText(container, "Anda adalah administrator SocialAgent");
 
     expect(mockAccessApi.claimBootstrapAdmin).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("You're the instance admin");
-    expect(container.textContent).toContain("Continue to dashboard");
+    expect(container.textContent).toContain("Anda adalah administrator SocialAgent");
+    expect(container.textContent).toContain("Lanjut ke dashboard");
 
     unmountRoot(root);
   });
@@ -296,12 +296,12 @@ describe("CloudAccessGate", () => {
     });
 
     const root = renderGate(container);
-    await waitForText(container, "This SocialAgent is waiting on its first admin");
+    await waitForText(container, "SocialAgent menunggu administrator pertama");
 
-    expect(container.textContent).toContain("This SocialAgent is waiting on its first admin");
-    expect(container.textContent).toContain("invite-only mode");
-    expect(container.textContent).not.toContain("Claim this instance");
-    expect(container.textContent).not.toContain("Sign in / Create account");
+    expect(container.textContent).toContain("SocialAgent menunggu administrator pertama");
+    expect(container.textContent).toContain("tautan undangan administrator");
+    expect(container.textContent).not.toContain("Jadi administrator");
+    expect(container.textContent).not.toContain("Masuk / Buat akun");
     expect(mockAccessApi.claimBootstrapAdmin).not.toHaveBeenCalled();
 
     unmountRoot(root);

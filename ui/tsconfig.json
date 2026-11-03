@@ -16,5 +16,6 @@
       "lexical": ["./node_modules/lexical/index.d.ts"]
     }
   },
-  "include": ["src", "storybook", "vitest.setup.ts"]
+  "include": ["src", "storybook", "vitest.setup.ts"],
+  "exclude": ["src/app"]
 }

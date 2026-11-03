@@ -320,7 +320,7 @@ export interface ReferencedSourceGitIgnoreScan {
  * config always wins over repository-local config.
  */
 function buildHardenedGitEnv(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {};
+  const env = Object.create(null) as NodeJS.ProcessEnv;
   for (const [key, value] of Object.entries(process.env)) {
     if (key.startsWith("GIT_") || value === undefined) continue;
     env[key] = value;

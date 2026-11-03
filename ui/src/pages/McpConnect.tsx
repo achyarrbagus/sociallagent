@@ -1,3 +1,5 @@
+"use client";
+
 import { SocialAgentMark } from "@/components/SocialAgentMark";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,8 +36,14 @@ export function McpConnectPage({ agentPairingOnly = false }: { agentPairingOnly?
   return <McpConnectRequest key={id} id={id} agentPairingOnly={agentPairingOnly} />;
 }
 
+function readInitialDeviceCode() {
+  return typeof window === "undefined"
+    ? ""
+    : new URLSearchParams(window.location.search).get("user_code") ?? "";
+}
+
 export function McpDevicePage({ initialCode }: { initialCode?: string } = {}) {
-  const [code, setCode] = useState(initialCode ?? new URLSearchParams(window.location.search).get("user_code") ?? "");
+  const [code, setCode] = useState(initialCode ?? readInitialDeviceCode());
   const [submitted, setSubmitted] = useState(code);
   if (submitted) return <McpConnectRequest key={submitted} id={submitted} device onEditCode={() => setSubmitted("")} />;
   return <div className="mx-auto max-w-xl py-10"><Card className="space-y-4 p-6"><div className="flex items-center gap-3"><SocialAgentMark className="size-8 shrink-0" /><h1 className="min-w-0 text-xl font-semibold">Connect your assistant to SocialAgent</h1></div>

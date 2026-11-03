@@ -9,6 +9,7 @@ server/ui-dist/
 server/dist-runtime/
 packages/paperclip-runner/runner/target/
 ui/storybook-static/
+ui/.next/
 ui/storybook/generated/
 ui/storybook/.storybook/preview.tsx
 maps/generated/

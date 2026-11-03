@@ -11,7 +11,7 @@ export function useDesignSandbox() { return useContext(DesignSandboxContext); }
 /** Local integration experiment. Neither production builds nor ordinary dev
  * instances enable this through browser storage alone. */
 export function DesignSandboxProvider({ children }: { children: ReactNode }) {
-  const available = import.meta.env.DEV && import.meta.env.VITE_PAPERCLIP_DESIGN_SANDBOX === "true";
+  const available = import.meta.env?.DEV === true && import.meta.env?.VITE_PAPERCLIP_DESIGN_SANDBOX === "true";
   const [selected, setSelected] = useState(() => {
     try { return localStorage.getItem(storageKey) !== "off"; } catch { return true; }
   });

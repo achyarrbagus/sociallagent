@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link, useSearchParams } from "@/lib/router";

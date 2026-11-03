@@ -1,3 +1,5 @@
+"use client";
+
 import { useDesignSandbox } from "@/context/DesignSandboxContext";
 import { SaasRouteGuard } from "./SaasRouteGuard";
 import { DesignSandboxSidebar } from "./DesignSandboxSidebar";
@@ -81,7 +83,13 @@ const RESERVED_APP_SUBPATHS = new Set([
   "app",
 ]);
 
-export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
+export function Layout({
+  sidebarSections,
+  children,
+}: {
+  sidebarSections?: ReactNode;
+  children?: ReactNode;
+}) {
   const designSandbox = useDesignSandbox();
   const {
     sidebarOpen,
@@ -735,7 +743,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                 />
               ) : (
                 <RouteErrorBoundary>
-                  <SaasRouteGuard><Outlet /></SaasRouteGuard>
+                  <SaasRouteGuard>{children ?? <Outlet />}</SaasRouteGuard>
                 </RouteErrorBoundary>
               )}
               </main>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { RefreshCw } from "lucide-react";
 import { Navigate, Outlet, useLocation } from "@/lib/router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -65,7 +65,13 @@ function NoBoardAccessPage() {
   );
 }
 
-export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembershipRequest?: boolean } = {}) {
+export function CloudAccessGate({
+  allowMembershipRequest = false,
+  children,
+}: {
+  allowMembershipRequest?: boolean;
+  children?: ReactNode;
+} = {}) {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [hasOpenedBoard, setHasOpenedBoard] = useState(false);
@@ -227,7 +233,7 @@ export function CloudAccessGate({ allowMembershipRequest = false }: { allowMembe
           Connection interrupted. Reconnecting automatically…
         </div>
       )}
-      <Outlet />
+      {children ?? <Outlet />}
     </>
   );
 }

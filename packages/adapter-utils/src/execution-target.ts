@@ -2101,7 +2101,7 @@ export async function startAdapterExecutionTargetProcessSessionBridge(input: {
     // adapter/runtime inputs and registered contributions. Compare against an
     // empty inherited baseline so an explicit identity value (notably PATH)
     // is not reclassified as ambient merely because it equals the host value.
-    env: sanitizeRemoteExecutionEnv(launchEnv, {}),
+    env: sanitizeRemoteExecutionEnv(launchEnv, Object.create(null) as NodeJS.ProcessEnv),
   }), "utf8").toString("base64");
   // Base64 plus JSON escaping can push an otherwise valid child environment
   // past Linux's per-argument/per-variable exec limit. Keep small launches on

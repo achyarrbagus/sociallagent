@@ -49,9 +49,13 @@ const STORAGE_KEY = "paperclip.selectedCompanyId";
 
 // A refresh can replace consumers before a mounted provider is replaced. Keep
 // their context identity in Vite's per-module data; never store account state.
+type CompanyContextHotData = { companyContext?: Context<CompanyContextValue | null> };
+const companyContextHotData = (import.meta as ImportMeta & {
+  hot?: { data: CompanyContextHotData };
+}).hot?.data;
 const CompanyContext: Context<CompanyContextValue | null> =
-  import.meta.hot?.data?.companyContext ?? createContext<CompanyContextValue | null>(null);
-if (import.meta.hot?.data) import.meta.hot.data.companyContext = CompanyContext;
+  companyContextHotData?.companyContext ?? createContext<CompanyContextValue | null>(null);
+if (companyContextHotData) companyContextHotData.companyContext = CompanyContext;
 
 export function resolveBootstrapCompanySelection(input: {
   companies: Array<Pick<Company, "id">>;

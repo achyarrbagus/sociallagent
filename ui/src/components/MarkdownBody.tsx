@@ -1010,8 +1010,9 @@ function MarkdownBodyImpl({
       );
     } else if (resolveImageSrc || onImageClick) {
       map.img = ({ node: _node, src, alt, ...imgProps }) => {
-        const resolved = resolveImageSrc && src ? resolveImageSrc(src) : null;
-        const finalSrc = resolved ?? src;
+        const source = typeof src === "string" ? src : undefined;
+        const resolved = resolveImageSrc && source ? resolveImageSrc(source) : null;
+        const finalSrc = resolved ?? source;
         return (
           <img
             {...imgProps}

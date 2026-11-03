@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/lib/router": ["./src/lib/next-router.tsx"],
+      "@/*": ["./src/*"],
+      "lexical": ["./node_modules/lexical/index.d.ts"]
+    }
+  },
+  "include": [
+    "src/vite-env.d.ts",
+    ".next/types/**/*.ts",
+    "src/app/**/*.ts",
+    "src/app/**/*.tsx"
+  ],
+  "exclude": ["node_modules"]
+}

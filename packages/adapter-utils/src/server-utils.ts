@@ -3574,7 +3574,7 @@ export function isServerSecretEnvKey(key: string): boolean {
 
 /** Removes only the server-held secrets from a host-inherited env. */
 export function stripServerSecretEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {};
+  const env = Object.create(null) as NodeJS.ProcessEnv;
   for (const [key, value] of Object.entries(baseEnv)) {
     if (!isServerSecretEnvKey(key)) env[key] = value;
   }

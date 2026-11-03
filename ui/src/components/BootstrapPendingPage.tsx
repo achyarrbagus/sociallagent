@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Loader2, ShieldCheck, Terminal, TriangleAlert } from "lucide-react";
 import { Link } from "@/lib/router";
 import { Button } from "@/components/ui/button";
-import { BOOTSTRAP_FALLBACK_COMMAND } from "@/bootstrapSetup";
 import type { AuthSession } from "@paperclipai/shared";
 import { Card } from "@/components/ui/card";
 
@@ -20,16 +19,13 @@ function CliFallback({ hasActiveInvite = false }: { hasActiveInvite?: boolean })
     <div className="mt-6 border-t border-border pt-5">
       <div className="flex items-center gap-2 text-sm font-medium">
         <Terminal className="size-4 text-muted-foreground" aria-hidden />
-        <span>Prefer to finish setup from the host?</span>
+        <span>Butuh bantuan untuk menyelesaikan pengaturan?</span>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
         {hasActiveInvite
-          ? "A bootstrap invite is already active. Check your SocialAgent startup logs for the first-admin URL, or run this command on the host to rotate it:"
-          : "Run this command on the host that runs SocialAgent to print a one-time first-admin invite URL:"}
+          ? "Tautan undangan administrator sudah tersedia. Mintalah tautan tersebut kepada pengelola server."
+          : "Hubungi pengelola server untuk mendapatkan tautan undangan administrator."}
       </p>
-      <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs">
-{BOOTSTRAP_FALLBACK_COMMAND}
-      </pre>
     </div>
   );
 }
@@ -49,18 +45,18 @@ function displayIdentity(session: AuthSession) {
 function claimErrorCopy(error: BootstrapPendingPageProps["claimError"]) {
   if (error?.status === 409) {
     return {
-      title: "Someone else has already claimed this instance.",
-      body: "Refresh to sign in, or ask the existing admin to invite you from Settings -> Access.",
+      title: "SocialAgent ini sudah memiliki administrator.",
+      body: "Muat ulang untuk masuk, atau minta undangan kepada administrator melalui Pengaturan → Akses.",
     };
   }
   if (error?.status === 401) {
     return {
-      title: "Your session expired. Sign in again to claim this instance.",
+      title: "Sesi Anda telah berakhir. Masuk kembali untuk melanjutkan.",
       body: "",
     };
   }
   return {
-    title: "We couldn't reach the server. Try again in a moment.",
+    title: "Server tidak dapat dihubungi. Coba lagi sebentar lagi.",
     body: "",
   };
 }
@@ -76,15 +72,14 @@ export function BootstrapPendingPage({
   if (!claimAvailable) {
     return (
       <StateChrome>
-        <h1 className="text-xl font-semibold">This SocialAgent is waiting on its first admin</h1>
+        <h1 className="text-xl font-semibold">SocialAgent menunggu administrator pertama</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          This instance runs in invite-only mode. The operator must generate a one-time first-admin invite URL
-          from the host. Once you have the link, open it from this browser to finish setup.
+          Untuk menyelesaikan pengaturan, buka tautan undangan administrator yang diberikan oleh pengelola server.
+          Tautan ini hanya dapat digunakan satu kali.
         </p>
         <CliFallback hasActiveInvite={hasActiveInvite} />
         <p className="mt-4 text-xs text-muted-foreground">
-          Browser-based claim is intentionally disabled in public mode so anyone on the network can't promote
-          themselves.
+          Undangan diperlukan agar hanya orang yang berwenang dapat menjadi administrator.
         </p>
       </StateChrome>
     );
@@ -98,19 +93,19 @@ export function BootstrapPendingPage({
             <ShieldCheck className="size-5" aria-hidden />
           </div>
           <div>
-            <h1 className="text-xl font-semibold">You're the instance admin</h1>
+            <h1 className="text-xl font-semibold">Anda adalah administrator SocialAgent</h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Setup is complete. Taking you to onboarding to create your first organization...
+              Pengaturan selesai. Anda akan diarahkan untuk membuat organisasi pertama...
             </p>
           </div>
         </div>
         <div className="mt-5 flex items-center gap-3">
           <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />
-          <span className="text-sm text-muted-foreground">Redirecting...</span>
+          <span className="text-sm text-muted-foreground">Mengalihkan...</span>
         </div>
         <div className="mt-5">
           <Button asChild variant="outline">
-            <a href="/">Continue to dashboard</a>
+            <a href="/">Lanjut ke dashboard</a>
           </Button>
         </div>
       </StateChrome>
@@ -120,14 +115,13 @@ export function BootstrapPendingPage({
   if (!session) {
     return (
       <StateChrome>
-        <h1 className="text-xl font-semibold">Finish setting up this SocialAgent</h1>
+        <h1 className="text-xl font-semibold">Selesaikan pengaturan SocialAgent</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          No admin has claimed this instance yet. Sign in or create your SocialAgent account to become the first
-          admin from this browser.
+          Belum ada administrator. Masuk atau buat akun SocialAgent untuk menjadi administrator pertama.
         </p>
         <div className="mt-5">
           <Button asChild>
-            <Link to="/auth?next=/">Sign in / Create account</Link>
+            <Link to="/auth?next=/">Masuk / Buat akun</Link>
           </Button>
         </div>
         <CliFallback hasActiveInvite={hasActiveInvite} />
@@ -139,23 +133,23 @@ export function BootstrapPendingPage({
   const isClaiming = claimState === "claiming";
   return (
     <StateChrome>
-      <h1 className="text-xl font-semibold">Finish setting up this SocialAgent</h1>
+      <h1 className="text-xl font-semibold">Selesaikan pengaturan SocialAgent</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        No admin has claimed this instance yet. Claim it now to become the first admin and start onboarding.
+        Belum ada administrator. Jadilah administrator pertama untuk mulai mengatur SocialAgent.
       </p>
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <Button onClick={onClaim} disabled={isClaiming}>
           {isClaiming && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />}
-          {isClaiming ? "Claiming..." : "Claim this instance"}
+          {isClaiming ? "Memproses..." : "Jadi administrator"}
         </Button>
         <span className="text-sm text-muted-foreground">
-          Signed in as <span className="font-medium text-foreground">{displayIdentity(session)}</span>
+          Masuk sebagai <span className="font-medium text-foreground">{displayIdentity(session)}</span>
         </span>
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        Wrong account?{" "}
+        Akun salah?{" "}
         <Link to="/auth?next=/" className="underline underline-offset-2">
-          Switch account
+          Ganti akun
         </Link>
         .
       </p>
