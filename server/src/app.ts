@@ -10,6 +10,7 @@ import { createLifecycleDriver } from "./services/agent-lifecycle-driver.js";
 import { startAgentLifecycle } from "./services/agent-lifecycle.js";
 import { idleAdmissionMiddleware, trackIdleRequestHandlers } from "./middleware/idle-admission.js";
 import { staticUiFiles } from "./middleware/static-ui.js";
+import { nextUiProxy } from "./middleware/next-ui-proxy.js";
 import { isIdleTaskDrainActive, trackIdleWork } from "./services/task-admission.js";
 import { customerSuccessRoutes } from "./routes/customer-success.js";
 import { cloudWarmStandbyMiddleware } from "./middleware/cloud-warm-standby.js";
@@ -234,7 +235,7 @@ import { chatWebhookBodyParser } from "./middleware/chat-webhook-body.js";
 import { managedGatewayProxyRoutes } from "./routes/managed-gateway-proxy.js";
 import { createChatWebhookDiagnostics } from "./services/chat-webhook-diagnostics.js";
 
-type UiMode = "none" | "static" | "vite-dev";
+type UiMode = "none" | "static" | "vite-dev" | "next";
 const FEEDBACK_EXPORT_FLUSH_INTERVAL_MS = 5_000;
 const CHAT_PUBLICATION_FLUSH_INTERVAL_MS = 1_000;
 const VITE_DEV_ASSET_PREFIXES = [
@@ -515,6 +516,7 @@ export async function createApp(
   opts: {
     cloudWarmStandby?: CloudWarmStandby;
     uiMode: UiMode;
+    nextUi?: { origin: string; close(): Promise<void> };
     serverPort: number;
     storageService: StorageService;
     feedbackExportService?: {
@@ -1211,6 +1213,11 @@ export async function createApp(
     }
   }
 
+  if (opts.uiMode === "next") {
+    if (!opts.nextUi) throw new Error("Next UI mode requires a managed private Next.js runtime");
+    staticUi.use(nextUiProxy(opts.nextUi.origin));
+  }
+
   if (opts.uiMode === "vite-dev") {
     const uiRoot = path.resolve(__dirname, "../../ui");
     const publicUiRoot = path.resolve(uiRoot, "public");
@@ -1503,6 +1510,7 @@ export async function createApp(
       viteHtmlRenderer?.dispose();
       void viteDevServer?.close().catch(() => undefined);
       viteHmrServer?.close();
+      await opts.nextUi?.close();
       hostServiceCleanup.disposeAll();
       hostServiceCleanup.teardown();
       await stopMuseMaintenance();

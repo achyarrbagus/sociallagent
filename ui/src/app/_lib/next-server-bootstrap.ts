@@ -6,7 +6,9 @@ import { dehydrate, QueryClient, type DehydratedState } from "@tanstack/react-qu
 import {
   authSessionSchema,
   type AuthSession,
+  type Agent,
   type Company,
+  type DashboardSummary,
   type InstanceExperimentalSettingsWithManaged,
 } from "@paperclipai/shared";
 import type { HealthStatus } from "@/api/health";
@@ -123,6 +125,24 @@ export const getCompanyShellBootstrap = cache(async (companyPrefix: string): Pro
       initialCompanyId = companyList.companies.find(
         (company) => company.issuePrefix.trim().toUpperCase() === requestedPrefix,
       )?.id ?? null;
+    }
+
+    if (initialCompanyId) {
+      const [agentsResponse, dashboardResponse] = await Promise.all([
+        getApiJson<Agent[]>(origin, cookie, `/api/companies/${encodeURIComponent(initialCompanyId)}/agents`)
+          .catch(() => ({ status: 0, data: null })),
+        getApiJson<DashboardSummary>(origin, cookie, `/api/companies/${encodeURIComponent(initialCompanyId)}/dashboard`)
+          .catch(() => ({ status: 0, data: null })),
+      ]);
+      if (agentsResponse.status === 200 && Array.isArray(agentsResponse.data)) {
+        queryClient.setQueryData(queryKeys.agents.list(initialCompanyId), agentsResponse.data);
+      }
+      if (
+        dashboardResponse.status === 200 &&
+        dashboardResponse.data?.companyId === initialCompanyId
+      ) {
+        queryClient.setQueryData(queryKeys.dashboard(initialCompanyId), dashboardResponse.data);
+      }
     }
 
     if (experimentalResponse.status === 200 && experimentalResponse.data) {

@@ -55,6 +55,7 @@ import { connectionIntentDeliveryService } from "./services/connection-intent-de
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import type { Server, RequestListener } from "node:http";
 import { createPaperclipHttpServer } from "./http/server.js";
+import { expressInternalApiOrigin, startNextUiRuntime, type NextUiRuntime } from "./next-ui-runtime.js";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
@@ -845,7 +846,17 @@ async function startServerWithDatabaseTeardown(
     throw err;
   }
 
-  const uiMode = config.uiDevMiddleware ? "vite-dev" : config.serveUi ? "static" : "none";
+  const requestedUiRuntime = process.env.PAPERCLIP_UI_RUNTIME?.trim().toLowerCase();
+  if (requestedUiRuntime && requestedUiRuntime !== "next") {
+    throw new Error("PAPERCLIP_UI_RUNTIME currently supports only 'next'");
+  }
+  const uiMode = requestedUiRuntime === "next"
+    ? "next"
+    : config.uiDevMiddleware
+      ? "vite-dev"
+      : config.serveUi
+        ? "static"
+        : "none";
   const storageService = createStorageServiceFromConfig(config);
   const feedback = feedbackService(db as any, {
     shareClient: createFeedbackTraceShareClientFromConfig(config),
@@ -945,12 +956,19 @@ async function startServerWithDatabaseTeardown(
   // document parsed fail-closed above (`plugins.autoInstall`). Absent env means
   // self-hosted: createApp falls back to its built-in kubernetes-only default.
   const managedPluginAutoInstall = managedConfig?.plugins.autoInstall ?? null;
+  let nextUiRuntime: NextUiRuntime | null = null;
+  if (requestedUiRuntime === "next") {
+    nextUiRuntime = await startNextUiRuntime({
+      expressApiOrigin: expressInternalApiOrigin(config.host, listenPort),
+    });
+  }
   const app = await createApp(db as any, {
     prepareIdleDatabaseBackup: idleDatabaseBackupEnabled
       ? async () => (await runServerDatabaseBackup("idle")) !== null
       : undefined,
     cloudWarmStandby: isWarmStandby,
     uiMode,
+    nextUi: nextUiRuntime ?? undefined,
     serverPort: listenPort,
     storageService,
     feedbackExportService: feedback,
@@ -987,6 +1005,9 @@ async function startServerWithDatabaseTeardown(
     pluginWorkerManager,
     decisionServiceOptions,
     managedPluginAutoInstall,
+  }).catch(async (error) => {
+    await nextUiRuntime?.close();
+    throw error;
   });
   
   if (listenPort !== requestedListenPort) {
@@ -1006,6 +1027,7 @@ async function startServerWithDatabaseTeardown(
     apiUrl: configuredApiUrl,
     httpOptions: cloudWarmStandbyServerOptions(() => isWarmStandby() || isIdleTaskDrainActive()),
   });
+  nextUiRuntime?.attachUpgradeProxy(server);
   // Outlive reverse-proxy idle timeouts to avoid intermittent resets.
   server.keepAliveTimeout = 185000;
   server.headersTimeout = 186000;
@@ -2247,6 +2269,9 @@ async function startServerWithDatabaseTeardown(
     shutdown: (signal = "SIGTERM") => shutdown(signal, false),
   };
   } catch (error) {
+    await nextUiRuntime?.close().catch((closeError) => {
+      logger.error({ err: closeError }, "failed to stop private Next.js UI process after server startup failure");
+    });
     if (startupListenerBound) {
       await new Promise<void>((resolveClose) => {
         try {

@@ -217,6 +217,20 @@ This starts:
 
 `pnpm dev` runs the server in watch mode and restarts on changes from workspace packages (including adapter packages). Use `pnpm dev:once` to run without file watching.
 
+To exercise the in-progress Next.js App Router runtime locally, set
+`PAPERCLIP_UI_RUNTIME=next` when starting the server:
+
+```sh
+PAPERCLIP_UI_RUNTIME=next bun run dev
+```
+
+Express remains the public listener and API owner. It starts Next.js as a private
+Node child bound to loopback, proxies UI requests and dev HMR upgrades, and sets
+the trusted internal API origin for server-side bootstrap. `/api`, plugin UI,
+webhooks, and other Express-owned routes stay ahead of the Next UI fallback. This
+is an opt-in migration path; the normal Vite dev runtime remains the default, and
+Next standalone packaging/cutover is not complete yet.
+
 `pnpm dev:once` auto-applies pending local migrations by default before starting the dev server.
 
 `pnpm dev` and `pnpm dev:once` are now idempotent for the current repo and instance: if the matching Paperclip dev runner is already alive, Paperclip reports the existing process instead of starting a duplicate.

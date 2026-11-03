@@ -4,7 +4,7 @@ import type { BindMode, DeploymentExposure, DeploymentMode } from "@paperclipai/
 
 import { parse as parseEnvFileContents } from "dotenv";
 
-type UiMode = "none" | "static" | "vite-dev";
+type UiMode = "none" | "static" | "vite-dev" | "next";
 
 type ExternalPostgresInfo = {
   mode: "external-postgres";
