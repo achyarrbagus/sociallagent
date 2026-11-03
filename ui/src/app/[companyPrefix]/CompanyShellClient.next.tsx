@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { DehydratedState } from "@tanstack/react-query";
 import { AppProviders } from "@/AppProviders";
 import { CloudAccessGate } from "@/components/CloudAccessGate";
 import { Layout } from "@/components/Layout";
@@ -18,9 +19,21 @@ function CompanyBoardRoutes({ children }: { children: ReactNode }) {
   );
 }
 
-export default function CompanyShellClient({ children }: { children: ReactNode }) {
+export default function CompanyShellClient({
+  children,
+  dehydratedState,
+  initialCompanyId,
+}: {
+  children: ReactNode;
+  dehydratedState: DehydratedState | null;
+  initialCompanyId: string | null;
+}) {
   return (
-    <AppProviders enableServiceWorker={false}>
+    <AppProviders
+      enableServiceWorker={false}
+      dehydratedState={dehydratedState}
+      initialCompanyId={initialCompanyId}
+    >
       <CompanyBoardRoutes>{children}</CompanyBoardRoutes>
     </AppProviders>
   );

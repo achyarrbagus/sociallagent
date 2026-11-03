@@ -3,7 +3,7 @@
 import * as React from "react";
 import { StrictMode, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import * as ReactDOM from "react-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HydrationBoundary, QueryClient, QueryClientProvider, type DehydratedState } from "@tanstack/react-query";
 import { VoiceCallProvider } from "./components/voice/VoiceCallProvider";
 import { useAccountIdentity } from "./api/companies-query";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
@@ -52,10 +52,14 @@ export function AppProviders({
   children,
   router: Router,
   enableServiceWorker = true,
+  dehydratedState,
+  initialCompanyId = null,
 }: {
   children: ReactNode;
   router?: ComponentType<{ children: ReactNode }>;
   enableServiceWorker?: boolean;
+  dehydratedState?: DehydratedState | null;
+  initialCompanyId?: string | null;
 }) {
   const [queryClient] = useState(createApplicationQueryClient);
   const bridgeInitialized = useRef(false);
@@ -83,7 +87,7 @@ export function AppProviders({
   }, [enableServiceWorker]);
 
   const app = (
-    <CompanyProvider>
+    <CompanyProvider initialSelectedCompanyId={initialCompanyId}>
       <EditorAutocompleteProvider>
         <ToastProvider>
           <PrimaryAgentProvider>
@@ -114,8 +118,10 @@ export function AppProviders({
     <StrictMode>
       <AppErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <SentryGate />
-          <ThemeProvider>{Router ? <Router>{app}</Router> : app}</ThemeProvider>
+          <HydrationBoundary state={dehydratedState}>
+            <SentryGate />
+            <ThemeProvider>{Router ? <Router>{app}</Router> : app}</ThemeProvider>
+          </HydrationBoundary>
         </QueryClientProvider>
       </AppErrorBoundary>
     </StrictMode>

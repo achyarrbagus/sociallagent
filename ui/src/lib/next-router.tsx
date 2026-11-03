@@ -21,6 +21,8 @@ export type NavigateOptions = {
 
 type NavigationRenderState = { isActive: boolean; isPending: false };
 type LinkTarget = string | { pathname?: string; search?: string; hash?: string; state?: unknown };
+export type To = LinkTarget;
+export type NavigateFunction = (to: LinkTarget | number, options?: NavigateOptions) => void;
 type LinkProps = Omit<React.ComponentProps<typeof NextLink>, "href" | "className" | "children"> & {
   to: LinkTarget;
   children?: React.ReactNode | ((state: NavigationRenderState) => React.ReactNode);
@@ -129,10 +131,22 @@ export function useLocation() {
   const search = searchParams.size ? `?${searchParams.toString()}` : "";
   const hash = typeof window === "undefined" ? "" : window.location.hash;
   const key = `${pathname}${search}`;
-  return React.useMemo(() => ({ pathname, search, hash, state: null, key }), [pathname, search, hash, key]);
+  const state: unknown = typeof window === "undefined" ? null : window.history.state?.usr ?? null;
+  return React.useMemo(() => ({ pathname, search, hash, state, key }), [pathname, search, hash, key, state]);
 }
 
-export function useNavigate() {
+export function useBeforeUnload(
+  callback: (event: BeforeUnloadEvent) => void,
+  options?: { capture?: boolean },
+) {
+  React.useEffect(() => {
+    const capture = options?.capture ?? false;
+    window.addEventListener("beforeunload", callback, capture);
+    return () => window.removeEventListener("beforeunload", callback, capture);
+  }, [callback, options?.capture]);
+}
+
+export function useNavigate(): NavigateFunction {
   const router = useRouter();
   const companyPrefix = useActiveCompanyPrefix();
 
@@ -158,11 +172,59 @@ export function useNavigate() {
   );
 }
 
-export function useSearchParams() {
-  return [useNextSearchParams()!] as const;
+export type SearchParamsInit =
+  | string
+  | URLSearchParams
+  | Record<string, string | string[]>
+  | Array<[string, string]>;
+export type SetSearchParams = (
+  nextInit: SearchParamsInit | ((current: URLSearchParams) => SearchParamsInit),
+  options?: NavigateOptions,
+) => void;
+
+function serializeSearchParams(init: SearchParamsInit): string {
+  if (typeof init === "string") return new URLSearchParams(init.replace(/^\?/, "")).toString();
+  if (init instanceof URLSearchParams) return init.toString();
+  if (Array.isArray(init)) return new URLSearchParams(init).toString();
+
+  const entries: Array<[string, string]> = [];
+  for (const [key, value] of Object.entries(init)) {
+    for (const item of Array.isArray(value) ? value : [value]) entries.push([key, item]);
+  }
+  return new URLSearchParams(entries).toString();
 }
 
-export function useParams<T extends Record<string, string> = Record<string, string>>() {
+export function useSearchParams(): readonly [URLSearchParams, SetSearchParams] {
+  const searchParams = useNextSearchParams()!;
+  const router = useRouter();
+  const pathname = usePathname() ?? "/";
+  const setSearchParams = useCallback<SetSearchParams>(
+    (nextInit, options) => {
+      const current = new URLSearchParams(searchParams.toString());
+      const nextInitValue = typeof nextInit === "function" ? nextInit(current) : nextInit;
+      const search = serializeSearchParams(nextInitValue);
+      const hash = typeof window === "undefined" ? "" : window.location.hash;
+      const href = `${pathname}${search ? `?${search}` : ""}${hash}`;
+      const navigationOptions = {
+        ...(options?.scroll === undefined ? {} : { scroll: options.scroll }),
+        ...(options?.preventScrollReset === undefined ? {} : { scroll: !options.preventScrollReset }),
+      };
+      if (options?.replace) {
+        publishNavigationType("REPLACE");
+        router.replace(href, navigationOptions);
+      } else {
+        publishNavigationType("PUSH");
+        router.push(href, navigationOptions);
+      }
+    },
+    [pathname, router, searchParams],
+  );
+  return [searchParams, setSearchParams];
+}
+
+export function useParams<
+  T extends Record<string, string | string[] | undefined> = Record<string, string>,
+>() {
   return (useNextParams() ?? {}) as T;
 }
 

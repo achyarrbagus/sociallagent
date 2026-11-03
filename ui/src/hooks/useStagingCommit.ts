@@ -1,9 +1,14 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { healthApi } from "@/api/health";
 import { queryKeys } from "@/lib/queryKeys";
 
 export function useStagingCommit(menuOpen: boolean) {
-  const isStaging = window.location.hostname.endsWith(".staging.paperclip.app");
+  const [isStaging, setIsStaging] = useState(false);
+
+  useEffect(() => {
+    setIsStaging(window.location.hostname.endsWith(".staging.paperclip.app"));
+  }, []);
   const { data, isError } = useQuery({
     // Keep optional menu refresh failures separate from the board's access gate.
     queryKey: queryKeys.stagingCommit,

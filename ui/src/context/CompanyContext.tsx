@@ -110,10 +110,16 @@ export function shouldClearStoredCompanySelection(input: {
   return !input.isLoading && !input.unauthorized && input.companies.length === 0;
 }
 
-export function CompanyProvider({ children }: { children: ReactNode }) {
+export function CompanyProvider({
+  children,
+  initialSelectedCompanyId = null,
+}: {
+  children: ReactNode;
+  initialSelectedCompanyId?: string | null;
+}) {
   const queryClient = useQueryClient();
   const [selectionSource, setSelectionSource] = useState<CompanySelectionSource>("bootstrap");
-  const [selectedCompanyId, setSelectedCompanyIdState] = useState<string | null>(null);
+  const [selectedCompanyId, setSelectedCompanyIdState] = useState<string | null>(initialSelectedCompanyId);
 
   // Keyed by account, so there is no such thing here as "the list, but whose?".
   // A change of account changes the key, which leaves this observer pending
