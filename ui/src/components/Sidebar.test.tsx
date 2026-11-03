@@ -34,6 +34,9 @@ vi.mock("@/lib/router", () => ({
       {children}
     </a>
   ),
+  Link: ({ to, children, ...props }: { to: string; children: ReactNode }) => (
+    <a href={to} {...props}>{children}</a>
+  ),
 }));
 
 vi.mock("../context/DialogContext", () => ({
@@ -518,7 +521,8 @@ describe("Sidebar", () => {
     const labels = (section: Element | undefined) => [...(section?.querySelectorAll("a") ?? [])]
       .map((anchor) => anchor.textContent?.trim());
 
-    expect(labels(workSection)).toEqual(["Tasks", "Projects", "Clients & Brands", "Content & Review", "Calendar", "Reports", "Routines", "Artifacts"]);
+    expect(labels(workSection)).toEqual(["Tasks", "Projects", "Social Accounts", "Clients & Brands", "Content & Review", "Calendar", "Reports", "Routines", "Artifacts"]);
+        expect(container.querySelector('a[href="/social-accounts"]')?.textContent?.trim()).toBe("Social Accounts");
     expect(labels(orgSection)).toEqual(["Agents", "Connectors", "Audit"]);
     expect(container.querySelector('a[href="/skills"]')).toBeNull();
     expect(sections.indexOf(workSection!)).toBeLessThan(sections.indexOf(orgSection!));

@@ -121,6 +121,7 @@ import { managedAiAdminRoutes } from "./routes/managed-ai-admin.js";
 import { creditRoutes } from "./routes/credits.js";
 import { projectFileRoutes } from "./routes/project-files.js";
 import { agencyPublicationRoutes } from "./routes/agency-publications.js";
+import { agencySocialAccountRoutes } from "./routes/agency-social-accounts.js";
 import { boardChatRoutes } from "./routes/board-chat.js";
 import { approvalRoutes } from "./routes/approvals.js";
 import { secretRoutes } from "./routes/secrets.js";
@@ -887,6 +888,7 @@ export async function createApp(
   api.use(agencyRoutes(db));
   api.use(agencyContentRoutes(db));
   api.use(agencyPublicationRoutes(db));
+  api.use(agencySocialAccountRoutes(db));
   api.use(onboardingSeedRoutes(db));
   api.use(managedAiAdminRoutes(db));
   api.use(creditRoutes(db));

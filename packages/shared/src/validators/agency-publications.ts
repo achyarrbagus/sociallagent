@@ -2,21 +2,21 @@ import { z } from "zod";
 
 export const AGENCY_PUBLICATION_PLATFORMS = ["instagram", "facebook", "tiktok", "linkedin", "x", "youtube", "other"] as const;
 export type AgencyPublicationPlatform = (typeof AGENCY_PUBLICATION_PLATFORMS)[number];
-export const AGENCY_PUBLICATION_STATUSES = ["scheduled", "published", "failed", "cancelled"] as const;
+export const AGENCY_PUBLICATION_STATUSES = ["scheduled", "publishing", "published", "failed", "unknown", "cancelled"] as const;
 export type AgencyPublicationStatus = (typeof AGENCY_PUBLICATION_STATUSES)[number];
 
 /**
- * Schedule an approved content revision on one platform. `agent` hands the
- * post to the agency's Publishing Coordinator at the scheduled time (it posts
- * through the company's connectors); `manual` keeps it on the calendar for
- * the owner to post and mark.
+ * approved content revision on one platform. `connector` dispatches through a
+ * connected social account; `agent` creates a Publishing Coordinator handoff;
+ * `manual` keeps it on the calendar for the owner to post and mark.
  */
 export const createAgencyPublicationSchema = z.object({
   contentId: z.string().uuid(),
   platform: z.enum(AGENCY_PUBLICATION_PLATFORMS),
   accountLabel: z.string().trim().max(200).optional().nullable(),
+  socialAccountId: z.string().uuid().optional().nullable(),
   scheduledAt: z.string().datetime({ offset: true }),
-  dispatch: z.enum(["agent", "manual"]).default("agent"),
+  dispatch: z.enum(["agent", "manual", "connector"]).default("agent"),
 }).strict();
 export type CreateAgencyPublication = z.infer<typeof createAgencyPublicationSchema>;
 
@@ -44,7 +44,11 @@ export interface AgencyPublication {
   accountLabel: string | null;
   scheduledAt: string;
   timezone: string;
-  dispatch: "agent" | "manual";
+  dispatch: "agent" | "manual" | "connector";
+  groupId: string | null;
+  socialAccountId: string | null;
+  socialAccountName: string | null;
+  postText: string | null;
   status: AgencyPublicationStatus;
   /** False when the content was revised or its approval was withdrawn after scheduling. */
   approvalCurrent: boolean;
@@ -74,7 +78,7 @@ export interface AgencyBrandReport {
   /** Revisions the owner approved in the period. */
   approvedInPeriod: number;
   /** Posts scheduled in the period, by status. */
-  posts: { scheduled: number; published: number; failed: number; cancelled: number };
+  posts: { scheduled: number; published: number; failed: number; unknown: number; cancelled: number };
   /** Published posts in the period, by platform. */
   publishedByPlatform: Record<string, number>;
   recentPosts: Array<{ id: string; contentTitle: string; platform: string; externalUrl: string | null; publishedAt: string | null }>;

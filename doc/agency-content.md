@@ -54,9 +54,15 @@ Restoring an old campaign binding does not revive a prior approval.
 
 `approvalValid` is authoritative for this content review scope. Reads also check
 current parent context and asset metadata; stored status alone is insufficient.
-The target account is a planning reference, not a qualified provider account or
-connection grant. A future publisher must independently bind and authorize a real
-provider destination and recheck approval; this feature is not a dispatch gate.
+The target account remains a planning reference. Owner-managed social account
+bindings are available for Facebook Pages, X user accounts, and LinkedIn member
+profiles. The server verifies each provider identity, stores credentials through
+Paperclip's encrypted secret store, and returns identity/status only. X requires a
+user-context OAuth 2.0 token; LinkedIn currently supports member profiles with
+`openid`, `profile`, and `w_member_social`, not organization Pages. These account
+bindings alone do not publish. Automatic dispatch is an explicit calendar
+choice and requires a same-brand, same-platform active account at schedule time;
+the dispatcher rechecks approval, context, account and media before sending.
 
 ## Private sources and history
 
@@ -108,9 +114,57 @@ company-switch draft reset and safe task preparation/retry. OpenAPI, migration,
 token and type checks are recorded in the implementation plan.
 
 No live agent/provider execution or browser journey is implied by those tests.
-Scheduling, actual social account bindings and provider publication remain later
-PRD slices.
+Facebook, X, LinkedIn, and TikTok account bindings and adapter operations are
+covered with mocked provider responses; this does not prove real provider app
+review, permissions, scopes, or API access. The connector dispatcher is covered
+with mocked provider responses and exercises due-time claims,
+approval/account/media rechecks, checkpoints and ambiguous outcomes; it does not
+prove live posting. X supports text and up to four photos; Facebook supports
+text or one image; LinkedIn member profiles support text or one image; TikTok
+supports one video per post and currently always forces `SELF_ONLY` visibility;
+public TikTok posts are not enabled. TikTok photo posts, LinkedIn
+Page publishing, and provider OAuth consent screens remain unsupported. Never treat mocked provider tests as live-post proof.
 
+## Social account bindings
+
+Owners can connect one account per platform and brand from **Clients & Brands**.
+Facebook uses a Page ID and Page access token; the backend verifies the Page with
+the Graph API before persisting and requires `pages_manage_posts` and
+`pages_read_engagement`. X uses a user-context OAuth 2.0 access token with
+`users.read` and `tweet.write` (also `tweet.read` and `media.write` for photo
+publishing); app-only bearer tokens are rejected by identity verification.
+LinkedIn currently connects a member profile by access token and
+`urn:li:person:…`, verified through the LinkedIn userinfo endpoint, and requires
+`openid`, `profile`, and `w_member_social`. LinkedIn organization/Page posting is
+not enabled. TikTok uses the owner's Client Key, Client Secret, and a refresh
+token granted `video.publish`; the server refreshes access tokens and persists
+TikTok's rotated refresh token in the encrypted secret. The TikTok app must have
+Content Posting API enabled. TikTok direct posts are currently always forced to `SELF_ONLY`; public
+visibility is not enabled by this connector. TikTok may restrict unaudited apps
+to private posts, and public posting would require both a TikTok app audit and
+future support for selectable privacy settings. Provider app registration,
+permissions, API access, TikTok audit, and any X paid tier remain the account
+owner's responsibility.
+
+Credentials are company-scoped encrypted secrets and never returned by the API.
+Disconnect removes the local binding and secret but does not revoke the token at
+the provider; owners should revoke it in provider settings when needed. These
+manual token-entry forms are not OAuth consent flows. The Facebook adapter posts
+text or one image; X posts text or one-to-four photos; LinkedIn member profiles
+post text or one image; TikTok direct-posts one MP4, MOV, or WebM video with a
+caption. TikTok text-only, photo, and carousel posts and LinkedIn Page posts are
+not supported. TikTok videos are always private (`SELF_ONLY`) in this connector;
+public visibility is not enabled, even if the developer app later passes TikTok's
+audit.
+
+For `dispatch: "connector"`, the server claims due work atomically and sends the
+approved caption/assets through the selected provider adapter. Before sending it
+rechecks the exact approved revision, brand/client/campaign context, active
+company-scoped account, token availability and immutable asset metadata/checksum.
+Provider timeouts, missing post IDs and expired claims become `unknown`; they are
+never retried automatically. The owner must verify the provider account and
+confirm whether the post exists. `agent` still creates a Publishing Coordinator
+handoff, and `manual` remains owner-published.
 
 ## Content calendar (SocialAgent)
 
@@ -121,16 +175,20 @@ revision number and a copy of its snapshot (caption, script, assets), so it
 posts exactly what the owner approved.
 
 - `POST /api/companies/:companyId/agency/publications` (owner) schedules
-  approved content. `dispatch: "agent"` creates a one-off routine in the
-  brand's timezone for the Publishing Coordinator (or the Agency Director when
-  there is none); `dispatch: "manual"` leaves the post to the owner.
-- At the scheduled time the agent gets a task with the publication API. It
-  reads `GET .../publications/:id`, posts only when `approvalCurrent` is true,
-  through the company's connectors (for example Composio's Instagram, TikTok
-  or LinkedIn toolkits), and reports `POST .../publications/:id/complete` with
-  `published` and the post URL, or `failed` and a reason.
-- A new revision or withdrawn approval makes `approvalCurrent` false; marking
-  such a post published returns 409.
+  approved content. Optional `socialAccountId` binds it to an active account
+  from the same company, brand and platform; the server rejects mismatched or
+  revoked accounts. `dispatch: "connector"` requires that binding and publishes
+  automatically at the scheduled time. `dispatch: "agent"` creates a one-off
+  routine in the brand's timezone for the Publishing Coordinator (or the Agency
+  Director when there is none); `dispatch: "manual"` leaves the post to the owner.
+- `dispatch: "agent"` creates a one-off routine and hands the approved
+  snapshot and reporting API to the assigned Publishing Coordinator. It does
+  not invoke provider adapters. `dispatch: "manual"` leaves the post for the
+  owner to publish and record.
+- A new revision or withdrawn approval makes `approvalCurrent` false; scheduled
+  posts are not sent, and manually marking one published returns 409. Connector
+  posts that time out are shown as `unknown` for owner verification; they cannot
+  be automatically retried. The owner can record the verified outcome.
 - `POST .../publications/:id/cancel` (owner) cancels a scheduled post.
   Completing or cancelling archives the routine so it never fires again.
 

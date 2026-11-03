@@ -5,6 +5,7 @@ import {
   agencyContentItems,
   agencyContentRevisions,
   agencyPublications,
+  agencySocialAccounts,
   agents,
   type Db,
 } from "@paperclipai/db";
@@ -20,6 +21,8 @@ import {
 import { conflict, notFound, unprocessable } from "../errors.js";
 import { logActivity } from "./activity-log.js";
 import { routineService } from "./routines.js";
+import { DELIVERY_QUEUES, notifyDeliveryWork } from "./delivery-work-notifications.js";
+import { socialAdapter } from "./social-publishing/adapters.js";
 
 type PublicationRow = typeof agencyPublications.$inferSelect;
 
@@ -65,9 +68,12 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
 
   async function toView(row: PublicationRow): Promise<AgencyPublication> {
     const [joined] = await db
-      .select({ item: agencyContentItems, brand: agencyBrands })
+      .select({ item: agencyContentItems, brand: agencyBrands, socialAccount: agencySocialAccounts })
       .from(agencyContentItems)
       .innerJoin(agencyBrands, eq(agencyBrands.id, agencyContentItems.brandId))
+      .leftJoin(agencySocialAccounts, row.socialAccountId
+        ? and(eq(agencySocialAccounts.id, row.socialAccountId), eq(agencySocialAccounts.companyId, row.companyId))
+        : sql`false`)
       .where(eq(agencyContentItems.id, row.contentId));
     const snapshot = row.snapshot as unknown as AgencyContentSnapshot;
     const item = joined?.item;
@@ -84,6 +90,10 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
       scheduledAt: row.scheduledAt.toISOString(),
       timezone: row.timezone,
       dispatch: row.dispatch as AgencyPublication["dispatch"],
+      groupId: row.groupId ?? null,
+      socialAccountId: row.socialAccountId ?? null,
+      socialAccountName: joined?.socialAccount?.displayName ?? null,
+      postText: row.postText ?? null,
       status: row.status as AgencyPublication["status"],
       approvalCurrent: Boolean(item && item.status === "approved" && item.approvedRevisionNumber === row.revisionNumber),
       caption: snapshot.caption ?? null,
@@ -154,23 +164,50 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
       eq(agencyContentRevisions.revisionNumber, item.revisionNumber),
     ));
     if (!revision) throw notFound("Approved revision not found");
+    let socialAccount: typeof agencySocialAccounts.$inferSelect | null = null;
+    if (input.dispatch === "connector" && !input.socialAccountId) {
+      throw unprocessable("Choose a connected social account for automatic publishing.");
+    }
+    if (input.dispatch === "connector" && !socialAdapter(input.platform)) {
+      throw unprocessable(`Automatic publishing is not available for ${PLATFORM_NAMES[input.platform] ?? input.platform}.`);
+    }
+    if (input.socialAccountId) {
+      const [account] = await db.select().from(agencySocialAccounts).where(and(
+        eq(agencySocialAccounts.id, input.socialAccountId),
+        eq(agencySocialAccounts.companyId, companyId),
+        eq(agencySocialAccounts.brandId, brand.id),
+        eq(agencySocialAccounts.platform, input.platform),
+        eq(agencySocialAccounts.status, "active"),
+      ));
+      if (!account) throw unprocessable("Choose an active connected account for this brand and platform.");
+      socialAccount = account;
+    }
     const timezone = brand.timezone || "UTC";
     const publisher = input.dispatch === "agent" ? await publisherAgent(companyId) : null;
     if (input.dispatch === "agent" && !publisher) throw unprocessable("No Publishing Coordinator is available to post this. Schedule it as manual instead.");
 
-    const [row] = await db.insert(agencyPublications).values({
-      companyId,
-      contentId: item.id,
-      revisionNumber: item.revisionNumber,
-      snapshot: revision.snapshot as unknown as Record<string, unknown>,
-      platform: input.platform,
-      accountLabel: input.accountLabel ?? null,
-      scheduledAt,
-      timezone,
-      dispatch: input.dispatch,
-      agentId: publisher?.id ?? null,
-      createdByUserId: actorUserId,
-    }).returning();
+    const [row] = await db.transaction(async (tx) => {
+      if (input.dispatch === "connector") {
+        await notifyDeliveryWork(tx, DELIVERY_QUEUES.agencyPublications, companyId);
+      }
+      return tx.insert(agencyPublications).values({
+        companyId,
+        contentId: item.id,
+        revisionNumber: item.revisionNumber,
+        snapshot: revision.snapshot as unknown as Record<string, unknown>,
+        platform: input.platform,
+        accountLabel: input.accountLabel ?? socialAccount?.displayName ?? null,
+        socialAccountId: socialAccount?.id ?? null,
+        scheduledAt,
+        timezone,
+        dispatch: input.dispatch,
+        ...(input.dispatch === "connector" && socialAccount
+          ? { checkpoint: { expectedExternalAccountId: socialAccount.externalAccountId } }
+          : {}),
+        agentId: publisher?.id ?? null,
+        createdByUserId: actorUserId,
+      }).returning();
+    });
 
     if (publisher) {
       try {
@@ -199,7 +236,7 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
     await logActivity(db, {
       companyId, actorType: "user", actorId: actorUserId ?? "board",
       action: "agency.publication.scheduled", entityType: "agency_content", entityId: item.id,
-      details: { publicationId: row!.id, platform: input.platform, scheduledAt: scheduledAt.toISOString(), dispatch: input.dispatch },
+      details: { publicationId: row!.id, platform: input.platform, scheduledAt: scheduledAt.toISOString(), dispatch: input.dispatch, ...(socialAccount ? { socialAccountId: socialAccount.id } : {}) },
     });
     return toView(row!);
   }
@@ -221,8 +258,9 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
   /** The publishing agent or the owner records what happened. */
   async function complete(companyId: string, id: string, input: CompleteAgencyPublication, actor: { type: "user" | "agent"; id: string }) {
     const row = await getRow(companyId, id);
-    if (row.status !== "scheduled") throw conflict(`This post is already ${row.status}.`);
-    if (input.status === "published") {
+    const resolvingUnknown = row.status === "unknown" && actor.type === "user";
+    if (row.status !== "scheduled" && !resolvingUnknown) throw conflict(`This post is already ${row.status}.`);
+    if (input.status === "published" && !resolvingUnknown) {
       const [item] = await db.select({ status: agencyContentItems.status, approved: agencyContentItems.approvedRevisionNumber })
         .from(agencyContentItems).where(eq(agencyContentItems.id, row.contentId));
       if (!item || item.status !== "approved" || item.approved !== row.revisionNumber) {
@@ -231,9 +269,10 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
     }
     await archiveRoutine(row, actor.type === "user" ? actor.id : null);
     const [updated] = await db.update(agencyPublications).set(input.status === "published"
-      ? { status: "published", externalUrl: input.externalUrl ?? null, publishedAt: new Date(), updatedAt: new Date() }
+      ? { status: "published", externalUrl: input.externalUrl ?? null, publishedAt: new Date(), failureReason: null, updatedAt: new Date() }
       : { status: "failed", failureReason: input.failureReason, updatedAt: new Date() })
-      .where(eq(agencyPublications.id, row.id)).returning();
+      .where(and(eq(agencyPublications.id, row.id), eq(agencyPublications.status, row.status))).returning();
+    if (!updated) throw conflict("This post changed while it was being updated. Reload the calendar and try again.");
     await logActivity(db, {
       companyId, actorType: actor.type, actorId: actor.id, ...(actor.type === "agent" ? { agentId: actor.id } : {}),
       action: input.status === "published" ? "agency.publication.published" : "agency.publication.failed",
@@ -283,7 +322,7 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
     return brands.map((brand) => {
       const mine = (list: Array<Record<string, unknown>>) => list.filter((row) => row.brand_id === brand.id);
       const contentByStatus = Object.fromEntries(mine(content).map((row) => [String(row.status), Number(row.n)]));
-      const postCounts = { scheduled: 0, published: 0, failed: 0, cancelled: 0 };
+      const postCounts = { scheduled: 0, published: 0, failed: 0, unknown: 0, cancelled: 0 };
       const publishedByPlatform: Record<string, number> = {};
       for (const row of mine(posts)) {
         const status = String(row.status) as keyof typeof postCounts;

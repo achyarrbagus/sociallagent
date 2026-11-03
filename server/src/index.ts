@@ -23,6 +23,7 @@ import { subscribeAllCompanyLiveEvents } from "./services/live-events.js";
 import { DELIVERY_QUEUES } from "./services/delivery-work-notifications.js";
 import { registerBudgetEnforcementWork, registerCostAccountingWork } from "./services/budget-enforcement-worker.js";
 import { caseHandoffDeliveryService } from "./services/case-handoff-delivery.js";
+import { agencyPublicationDispatchService } from "./services/social-publishing/dispatch.js";
 import { registerScheduledWork } from "./services/scheduled-work.js";
 import type { createDeliveryWorkCoordinator } from "./services/delivery-work-coordinator.js";
 import { registerTerminalWorkspaceWork, TERMINAL_WORKSPACE_RETRY_MS } from "./services/terminal-workspace-work.js";
@@ -1363,6 +1364,13 @@ async function startServerWithDatabaseTeardown(
     resolveNativeQuestion: (interaction) => deliverNativeQuestionResponse(db as any, interaction),
   });
   const deliveryWork = app.locals.deliveryWork as ReturnType<typeof createDeliveryWorkCoordinator>;
+  const publicationDispatch = agencyPublicationDispatchService(db as any, storageService);
+  deliveryWork.register(DELIVERY_QUEUES.agencyPublications, {
+    retryMs: 5_000,
+    run: signal => publicationDispatch.sweepPending(signal),
+    hasPending: () => publicationDispatch.hasPending(),
+    nextRunAt: () => publicationDispatch.nextRunAt(),
+  });
   const executionSchedule = executionControlSchedule(db);
   registerExecutionControlWork(deliveryWork, [
     { queue: DELIVERY_QUEUES.executionFinalization, run: () => reconcileAbandonedExecutionControl(db), next: executionSchedule.finalization },

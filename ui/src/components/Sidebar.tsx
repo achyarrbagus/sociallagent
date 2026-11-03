@@ -25,6 +25,7 @@ import {
   GanttChartSquare,
   LayoutGrid,
   Users,
+  Share2,
 } from "lucide-react";
 import { useManagedAiLock } from "@/hooks/useManagedAiLock";
 import { useState, type ReactNode } from "react";
@@ -242,6 +243,7 @@ export function Sidebar({ children }: { children?: ReactNode }) {
               <SidebarStarredProjects />
             </>
           ) : null}
+          <SidebarNavItem to="/social-accounts" label="Social Accounts" icon={Share2} />
           <SidebarNavItem to="/agency" label="Clients & Brands" icon={Users} />
           <SidebarNavItem to="/content" label="Content & Review" icon={SquarePen} />
           <SidebarNavItem to="/calendar" label="Calendar" icon={CalendarDays} />

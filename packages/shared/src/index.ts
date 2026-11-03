@@ -2889,4 +2889,5 @@ export {
   brandReportRangeSchema,
   type AgencyBrandReport,
 } from "./validators/agency-publications.js";
+export * from "./validators/agency-social.js";
 export type { CreditSettings, CreditBalance } from "./types/credits.js";

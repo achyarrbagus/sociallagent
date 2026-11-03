@@ -3,10 +3,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Agency } from "./Agency";
+import { Agency, SocialAccounts } from "./Agency";
 
 const state = vi.hoisted(() => ({ companyId: "company-a", canManage: true }));
-const api = vi.hoisted(() => ({ directory: vi.fn(), createClient: vi.fn(), updateClient: vi.fn(), createBrand: vi.fn(), updateBrand: vi.fn() }));
+const api = vi.hoisted(() => ({ directory: vi.fn(), createClient: vi.fn(), updateClient: vi.fn(), createBrand: vi.fn(), updateBrand: vi.fn(), socialAccounts: vi.fn(), connectSocialAccount: vi.fn(), disconnectSocialAccount: vi.fn() }));
 vi.mock("../api/agency", () => ({ agencyApi: api }));
 vi.mock("../api/projects", () => ({ projectsApi: { list: vi.fn().mockResolvedValue([]), create: vi.fn(), update: vi.fn() } }));
 vi.mock("../context/CompanyContext", () => ({ useCompany: () => ({ selectedCompanyId: state.companyId }) }));
@@ -25,6 +25,7 @@ function click(text: string) {
 async function render() {
   state.companyId = "company-a";
   api.directory.mockImplementation(() => Promise.resolve({ clients: [], brands: [], canManage: state.canManage }));
+  api.socialAccounts.mockResolvedValue([]);
   container = document.createElement("div"); document.body.appendChild(container);
   root = createRoot(container);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -57,5 +58,19 @@ describe("Agency directory", () => {
     expect(container.textContent).toContain("Clients & Brands");
     expect(container.textContent).not.toContain("New client");
     expect(container.textContent).not.toContain("New brand");
+  });
+
+  it("shows the TikTok video connector and its required app credentials", async () => {
+    container = document.createElement("div"); document.body.appendChild(container);
+    root = createRoot(container);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    act(() => root.render(<QueryClientProvider client={client}><SocialAccounts companyId="company-a" brandId="brand-a" canManage accounts={[]} /></QueryClientProvider>));
+    await flush();
+    expect(container.textContent).toContain("Connect TikTok profile");
+    expect(container.textContent).toContain("video.publish");
+    expect(container.textContent).toContain("SELF_ONLY");
+    expect(container.textContent).toContain("TikTok Client Key");
+    expect(container.textContent).toContain("TikTok Client Secret");
+    expect(container.textContent).toContain("TikTok refresh token");
   });
 });

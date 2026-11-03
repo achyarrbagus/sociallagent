@@ -22,6 +22,8 @@ export { routineRoutes } from "./routines.js";
 export { goalRoutes } from "./goals.js";
 export { agencyRoutes } from "./agency.js";
 export { agencyContentRoutes } from "./agency-content.js";
+export { agencyPublicationRoutes } from "./agency-publications.js";
+export { agencySocialAccountRoutes } from "./agency-social-accounts.js";
 export { onboardingSeedRoutes } from "./onboarding-seed.js";
 export { approvalRoutes } from "./approvals.js";
 export { secretRoutes } from "./secrets.js";

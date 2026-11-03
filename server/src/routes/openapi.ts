@@ -2,7 +2,7 @@ import { MUSE_ASSET_VERSION, museStopBoundarySchema, museDetectorCleanupAttestat
 import { slackTestMessageSchema, slackTestMessageResultSchema, slackManagerAuthorizationSchema, slackSetupOptionsSchema, slackManagedProvisionSchema, slackManagedResultSchema, slackRegistrationSchema, slackSetupActionSchema, slackInstallAuthorizationSchema, slackRegistrationStateSchema, slackAppConfigurationSchema, slackAvatarStateSchema, slackAccountStateSchema } from "@paperclipai/shared";
 import { ensureAgencyTeamSchema, ensureManagedGatewaySchema, managedAiModelPolicySchema, updateAllowedConnectorsSchema, updateTenantBudgetSchema, createAgencyPublicationSchema, completeAgencyPublicationSchema } from "@paperclipai/shared";
 import { experimentalApiMetadata } from "./experimental-api-metadata.js";
-import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema } from "@paperclipai/shared";
+import { createAgencyClientSchema, updateAgencyClientSchema, createAgencyBrandSchema, updateAgencyBrandSchema, connectSocialAccountSchema } from "@paperclipai/shared";
 import { createAgencyContentSchema, reviseAgencyContentSchema, decideAgencyContentSchema, linkAgencyContentTaskSchema, contentRevisionExpectationSchema, listAgencyContentSchema } from "@paperclipai/shared";
 import { agentCaseHandoffSchema, caseWorkflowDocumentTextSchema, doneCaseHandoffSchema, createWorkflowSchema, updateWorkflowSchema, listWorkflowsSchema, readWorkflowQuerySchema } from "@paperclipai/shared";
 import {
@@ -1401,6 +1401,8 @@ const BOARD_ONLY_OPERATIONS = new Set([
   "PATCH /api/companies/{companyId}/agency/clients/{id}",
   "POST /api/companies/{companyId}/agency/brands",
   "PATCH /api/companies/{companyId}/agency/brands/{id}",
+  "POST /api/companies/{companyId}/agency/social-accounts",
+  "DELETE /api/companies/{companyId}/agency/social-accounts/{accountId}",
   "GET /api/agents/{id}/project-access",
   "POST /api/agents/{id}/project-access",
   "POST /api/issues/{id}/interactions/{interactionId}/dismiss",
@@ -6980,6 +6982,33 @@ registry.registerPath({
 
 registry.registerPath({
   method: "get",
+  path: "/api/companies/{companyId}/agency/social-accounts",
+  tags: ["agency"],
+  summary: "List connected social accounts without exposing credentials",
+  request: { params: z.object({ companyId: z.string() }), query: z.object({ brandId: z.string().uuid().optional() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/agency/social-accounts",
+  tags: ["agency"],
+  summary: "Verify and connect a supported social account (owner)",
+  request: { params: z.object({ companyId: z.string() }), body: jsonBody(connectSocialAccountSchema) },
+  responses: { 201: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/companies/{companyId}/agency/social-accounts/{accountId}",
+  tags: ["agency"],
+  summary: "Disconnect a social account and revoke its stored credential (owner)",
+  request: { params: z.object({ companyId: z.string(), accountId: z.string().uuid() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "get",
   path: "/api/companies/{companyId}/agency/publications",
   tags: ["agency"],
   summary: "List scheduled, published, failed and cancelled posts between from and to",
@@ -6991,7 +7020,7 @@ registry.registerPath({
   method: "post",
   path: "/api/companies/{companyId}/agency/publications",
   tags: ["agency"],
-  summary: "Schedule approved content on a platform (owner)",
+  summary: "Schedule approved content for manual, agent, or connected-account publishing (owner)",
   request: { params: z.object({ companyId: z.string() }), body: jsonBody(createAgencyPublicationSchema) },
   responses: { 201: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict, 422: r.unprocessable },
 });
@@ -7018,7 +7047,7 @@ registry.registerPath({
   method: "post",
   path: "/api/companies/{companyId}/agency/publications/{publicationId}/complete",
   tags: ["agency"],
-  summary: "Record that a scheduled post was published or failed (assigned agent or owner)",
+  summary: "Record a post outcome or resolve an uncertain connector result (assigned agent or owner)",
   request: { params: z.object({ companyId: z.string(), publicationId: z.string() }), body: jsonBody(completeAgencyPublicationSchema) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound, 409: r.conflict },
 });

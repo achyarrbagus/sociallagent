@@ -16,7 +16,7 @@ const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const dayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 
 function statusVariant(entry: AgencyPublication) {
-  if (entry.status === "failed" || (entry.status === "scheduled" && !entry.approvalCurrent)) return "destructive" as const;
+  if (entry.status === "failed" || entry.status === "unknown" || (entry.status === "scheduled" && !entry.approvalCurrent)) return "destructive" as const;
   if (entry.status === "published") return "secondary" as const;
   return "outline" as const;
 }
@@ -54,19 +54,22 @@ function PublicationPanel({ entry, companyId, onClose }: { entry: AgencyPublicat
         <div>
           <h2 className="text-base font-semibold">{entry.contentTitle}</h2>
           <p className="text-sm text-muted-foreground">
-            {entry.brandName} · {PLATFORM_LABELS[entry.platform]}{entry.accountLabel ? ` · ${entry.accountLabel}` : ""} · {new Date(entry.scheduledAt).toLocaleString()}
+            {entry.brandName} · {PLATFORM_LABELS[entry.platform]}{entry.socialAccountName || entry.accountLabel ? ` · ${entry.socialAccountName ?? entry.accountLabel}` : ""} · {new Date(entry.scheduledAt).toLocaleString()}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={statusVariant(entry)}>{entry.status === "scheduled" && !entry.approvalCurrent ? "needs approval" : entry.status}</Badge>
+          <Badge variant={statusVariant(entry)}>{entry.status === "scheduled" && !entry.approvalCurrent ? "needs approval" : entry.status === "unknown" ? "verify result" : entry.status}</Badge>
           <Button type="button" size="sm" variant="ghost" onClick={onClose}>Close</Button>
         </div>
       </div>
       {entry.status === "scheduled" && !entry.approvalCurrent && (
         <p role="alert" className="text-sm text-destructive">The content changed after it was scheduled. Approve the new revision and schedule it again; this post will not go out.</p>
       )}
+      {entry.status === "unknown" && (
+        <p role="alert" className="text-sm text-destructive">The provider may have accepted this post, but confirmation was lost. Check the social account before marking it as published or not posted. Automatic retry is disabled to prevent duplicates.</p>
+      )}
       <p className="text-xs text-muted-foreground">
-        {entry.dispatch === "agent" ? "The Publishing Coordinator posts it at the scheduled time through your connectors." : "You post this one yourself, then mark it here."}
+        {entry.dispatch === "connector" ? "Automatically published through the selected connected account." : entry.dispatch === "agent" ? "Scheduled handoff to the Publishing Coordinator." : "You post this one yourself, then mark it here."}
       </p>
       {entry.caption && (
         <div className="space-y-2">
@@ -81,14 +84,14 @@ function PublicationPanel({ entry, companyId, onClose }: { entry: AgencyPublicat
       )}
       {entry.externalUrl && <a className="text-sm underline" href={entry.externalUrl} target="_blank" rel="noreferrer">View post</a>}
       {entry.failureReason && <p className="text-sm text-destructive">{entry.failureReason}</p>}
-      {entry.status === "scheduled" && (
+      {(entry.status === "scheduled" || entry.status === "unknown") && (
         <div className="flex flex-wrap items-end gap-2 border-t border-border pt-3">
           <label className="min-w-0 flex-1 space-y-1 text-sm"><span className="font-medium">Post URL</span>
             <Input aria-label="Post URL" placeholder="https://" value={url} onChange={(event) => setUrl(event.target.value)} />
           </label>
-          <Button type="button" disabled={!entry.approvalCurrent || complete.isPending} onClick={() => complete.mutate("published")}>Mark published</Button>
-          <Button type="button" variant="outline" disabled={complete.isPending} onClick={() => complete.mutate("failed")}>Not posted</Button>
-          <Button type="button" variant="ghost" disabled={cancel.isPending} onClick={() => cancel.mutate()}>Cancel</Button>
+          <Button type="button" disabled={(entry.status === "scheduled" && !entry.approvalCurrent) || complete.isPending} onClick={() => complete.mutate("published")}>{entry.status === "unknown" ? "Confirm published" : "Mark published"}</Button>
+          <Button type="button" variant="outline" disabled={complete.isPending} onClick={() => complete.mutate("failed")}>{entry.status === "unknown" ? "Confirm not posted" : "Not posted"}</Button>
+          {entry.status === "scheduled" && <Button type="button" variant="ghost" disabled={cancel.isPending} onClick={() => cancel.mutate()}>Cancel</Button>}
         </div>
       )}
       {error && <p role="alert" className="text-sm text-destructive">{error instanceof Error ? error.message : "Action failed."}</p>}

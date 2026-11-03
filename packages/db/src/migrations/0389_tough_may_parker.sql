@@ -1,0 +1,2 @@
+ALTER TABLE "agency_publications" DROP CONSTRAINT "agency_publications_status_check";--> statement-breakpoint
+ALTER TABLE "agency_publications" ADD CONSTRAINT "agency_publications_status_check" CHECK ("agency_publications"."status" in ('scheduled', 'publishing', 'published', 'failed', 'unknown', 'cancelled'));

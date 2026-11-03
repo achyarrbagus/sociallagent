@@ -78,6 +78,7 @@ const apiPrefixes: Record<string, string> = {
   "managed-ai-admin.ts": "/api",
   "project-files.ts": "/api",
   "agency-publications.ts": "/api",
+  "agency-social-accounts.ts": "/api",
   "openapi.ts": "/api",
   "plugin-ui-static.ts": "/api",
   "plugins.ts": "/api",
@@ -334,6 +335,16 @@ describe("openapi routes", () => {
     expect(spec.paths[base].get["x-paperclip-authorization"]).toMatchObject({ actor: "board_or_agent" });
     expect(spec.paths[`${base}/brands`].post["x-paperclip-authorization"]).toMatchObject({ actor: "board", companyRole: "owner" });
     expect(spec.paths[`${base}/clients/{id}`].patch["x-paperclip-authorization"]).toMatchObject({ actor: "board", companyRole: "owner" });
+  });
+  it("documents owner-only social account binding without exposing credentials", () => {
+    const spec = buildOpenApiSpec() as any;
+    const base = "/api/companies/{companyId}/agency/social-accounts";
+    expect(spec.paths[base].get["x-paperclip-authorization"]).toMatchObject({ actor: "board_or_agent" });
+    expect(spec.paths[base].post["x-paperclip-authorization"]).toMatchObject({ actor: "board", companyRole: "owner" });
+    expect(spec.paths[`${base}/{accountId}`].delete["x-paperclip-authorization"]).toMatchObject({ actor: "board", companyRole: "owner" });
+    const requestSchema = spec.paths[base].post.requestBody.content["application/json"].schema;
+    expect(requestSchema.required).toContain("credentials");
+    expect(requestSchema.additionalProperties).toBe(false);
   });
   it("removes Pipelines discovery while retaining Cases and Routines", () => {
     const spec = buildOpenApiSpec() as any;

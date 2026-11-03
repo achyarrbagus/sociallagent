@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2 } from "lucide-react";
 import { agencyApi } from "../api/agency";
+import type { AgencySocialAccount } from "@paperclipai/shared";
 import { projectsApi } from "../api/projects";
 import { useCompany } from "../context/CompanyContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
@@ -12,6 +13,7 @@ import { PageSkeleton } from "../components/PageSkeleton";
 import { AgencyForm, type AgencyFormState } from "../components/agency/AgencyForm";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 export function Agency() {
   const { selectedCompanyId } = useCompany();
@@ -29,6 +31,7 @@ function AgencyWorkspace({ companyId }: { companyId: string }) {
   const [showArchived, setShowArchived] = useState(false);
   const directory = useQuery({ queryKey: queryKeys.agency(companyId), queryFn: () => agencyApi.directory(companyId) });
   const campaigns = useQuery({ queryKey: queryKeys.projects.list(companyId), queryFn: () => projectsApi.list(companyId) });
+  const socialAccounts = useQuery({ queryKey: ["agency-social-accounts", companyId], queryFn: () => agencyApi.socialAccounts(companyId) });
   const save = useMutation({
     mutationFn: async ({ target, data }: { target: AgencyFormState; data: Record<string, unknown> }) => {
       if (target.kind === "client") return target.value ? agencyApi.updateClient(companyId, target.value.id, data) : agencyApi.createClient(companyId, data);
@@ -88,6 +91,8 @@ function AgencyWorkspace({ companyId }: { companyId: string }) {
         {brand.audience && <p className="whitespace-pre-wrap text-sm"><span className="font-medium">Audience: </span>{brand.audience}</p>}
         {brand.toneOfVoice && <p className="whitespace-pre-wrap text-sm"><span className="font-medium">Tone: </span>{brand.toneOfVoice}</p>}
         {brand.brief && <p className="whitespace-pre-wrap text-sm">{brand.brief}</p>}
+        <SocialAccounts companyId={companyId} brandId={brand.id} canManage={canManage && !brand.archivedAt && !client.archivedAt}
+          accounts={socialAccounts.data?.filter(account => account.brandId === brand.id) ?? []} />
         <div className="space-y-2"><h4 className="text-sm font-medium">Campaigns</h4>
           {projects.filter(p => p.brandId === brand.id).map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 text-sm"><Link className="underline underline-offset-4" to={`/projects/${p.urlKey || p.id}`}>{p.name}</Link>
             {canManage && <Button size="sm" variant="ghost" disabled={save.isPending} onClick={() => save.mutate({ target: { kind: "campaign", brandId: brand.id }, data: { projectId: p.id, brandId: null } })}>Unlink</Button>}</div>)}
@@ -97,4 +102,73 @@ function AgencyWorkspace({ companyId }: { companyId: string }) {
       {!brands.some(b => b.clientId === client.id && (showArchived || !b.archivedAt)) && <p className="text-sm text-muted-foreground">No brands to show.</p>}
     </section>)}
   </div>;
+}
+
+export function SocialAccounts({ companyId, brandId, canManage, accounts }: {
+  companyId: string;
+  brandId: string;
+  canManage: boolean;
+  accounts: AgencySocialAccount[];
+}) {
+  const queryClient = useQueryClient();
+  const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const refresh = () => void queryClient.invalidateQueries({ queryKey: ["agency-social-accounts", companyId] });
+  const platforms = ["facebook", "x", "linkedin", "tiktok"] as const;
+  const labels = { facebook: "Facebook Page", x: "X", linkedin: "LinkedIn member profile", tiktok: "TikTok profile" } as const;
+  const accountsForPlatform = (platform: typeof platforms[number]) => accounts.find(item => item.platform === platform && item.status === "active");
+  const connect = useMutation({
+    mutationFn: async ({ platform, values }: { platform: typeof platforms[number]; values: Record<string, string> }) => agencyApi.connectSocialAccount(companyId, {
+      brandId,
+      platform,
+      credentials: Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value.trim()])),
+    }),
+    onSuccess: () => { setCredentials({}); refresh(); },
+  });
+  const accountToDisconnect = accounts.find(item => item.status === "active" && platforms.includes(item.platform as typeof platforms[number]));
+  const disconnect = useMutation({
+    mutationFn: (accountId: string) => agencyApi.disconnectSocialAccount(companyId, accountId),
+    onSuccess: refresh,
+  });
+  const fields = {
+    facebook: [{ key: "pageId", label: "Facebook Page ID", type: "text" }, { key: "pageAccessToken", label: "Page access token", type: "password" }],
+    x: [{ key: "accessToken", label: "X user access token", type: "password" }],
+    linkedin: [{ key: "accessToken", label: "LinkedIn access token", type: "password" }, { key: "authorUrn", label: "Member author URN", type: "text" }],
+    tiktok: [{ key: "clientKey", label: "TikTok Client Key", type: "text" }, { key: "clientSecret", label: "TikTok Client Secret", type: "password" }, { key: "refreshToken", label: "TikTok refresh token", type: "password" }],
+  } as const;
+  const help = {
+    facebook: <>Needs Meta permissions <code>pages_manage_posts</code> and <code>pages_read_engagement</code>.</>,
+    x: <>Use an OAuth 2.0 <strong>user-context</strong> token with <code>users.read</code>, <code>tweet.read</code>, <code>tweet.write</code>, and <code>media.write</code> for photos. App-only tokens cannot publish. <a className="underline" href="https://developer.x.com/en/docs/authentication/oauth-2-0/user-access-token" target="_blank" rel="noreferrer">X user-token guide</a>.</>,
+    linkedin: <>Member token must include <code>openid</code>, <code>profile</code>, and <code>w_member_social</code>. Only personal member profiles are supported; LinkedIn Page posting is not enabled. <a className="underline" href="https://learn.microsoft.com/linkedin/marketing/community-management/shares/posts-api" target="_blank" rel="noreferrer">LinkedIn Posts API</a>.</>,
+    tiktok: <>Your TikTok app needs Content Posting API and an authorized <code>video.publish</code> scope. This connector publishes one video at a time and currently always forces <code>SELF_ONLY</code>; public visibility is not enabled. TikTok may also restrict unaudited apps to private posts. Access and refresh tokens rotate automatically. <a className="underline" href="https://developers.tiktok.com/doc/content-posting-api-get-started" target="_blank" rel="noreferrer">TikTok Content Posting API setup</a>.</>,
+  } as const;
+  return <div className="space-y-3 rounded-md border border-border p-3">
+    <h4 className="text-sm font-medium">Social accounts</h4>
+    {socialAccountsError(connect.error) && <p role="alert" className="text-sm text-destructive">{socialAccountsError(connect.error)}</p>}
+    {socialAccountsError(disconnect.error) && <p role="alert" className="text-sm text-destructive">{socialAccountsError(disconnect.error)}</p>}
+    <div className="space-y-3">
+      {platforms.map(platform => {
+        const account = accountsForPlatform(platform);
+        const values = Object.fromEntries(fields[platform].map(field => [field.key, credentials[`${platform}.${field.key}`] ?? ""]));
+        return <section key={platform} className="space-y-2 rounded-md border border-border p-3">
+          {account ? <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span><Badge variant="secondary">{labels[platform]}</Badge> {account.displayName} <span className="text-muted-foreground">({account.externalAccountId})</span></span>
+            {canManage && <Button size="sm" variant="outline" disabled={disconnect.isPending} onClick={() => disconnect.mutate(account.id)}>{disconnect.isPending && accountToDisconnect?.id === account.id ? "Disconnecting…" : "Disconnect"}</Button>}
+          </div> : <>
+            <div className="text-sm font-medium">Connect {labels[platform]}</div>
+            {canManage && <form className="grid gap-2 sm:grid-cols-2" onSubmit={event => { event.preventDefault(); connect.mutate({ platform, values }); }}>
+              {fields[platform].map(field => <label key={field.key} className="space-y-1 text-sm"><span>{field.label}</span>
+                <Input type={field.type} inputMode={field.key === "pageId" ? "numeric" : undefined} autoComplete="new-password" value={values[field.key]} onChange={event => setCredentials(current => ({ ...current, [`${platform}.${field.key}`]: event.target.value }))} required />
+              </label>)}
+              <p className="text-xs text-muted-foreground sm:col-span-2">{help[platform]} Credentials are verified, encrypted at rest, and not shown again.</p>
+              <div className="sm:col-span-2"><Button size="sm" type="submit" disabled={connect.isPending || Object.values(values).some(value => !value.trim())}>{connect.isPending ? "Verifying…" : `Connect ${labels[platform]}`}</Button></div>
+            </form>}
+          </>}
+        </section>;
+      })}
+    </div>
+  </div>;
+}
+
+function socialAccountsError(error: unknown) {
+  return error instanceof Error ? error.message : error ? "The social account action failed." : null;
 }

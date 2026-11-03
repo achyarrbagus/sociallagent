@@ -77,6 +77,7 @@ const Companies = lazy(() => import("./pages/Companies").then((module) => ({ def
 const AgentDetail = lazy(() => import("./pages/AgentDetailPage").then((module) => ({ default: module.AgentDetailPage })));
 const Projects = lazy(() => import("./pages/Projects").then((module) => ({ default: module.Projects })));
 const Agency = lazy(() => import("./pages/Agency").then(module => ({ default: module.Agency })));
+const AgencySocialAccounts = lazy(() => import("./pages/AgencySocialAccounts").then(module => ({ default: module.AgencySocialAccounts })));
 const AgencyContent = lazy(() => import("./pages/AgencyContent").then(module => ({ default: module.AgencyContent })));
 const AgencyCalendar = lazy(() => import("./pages/AgencyCalendar").then((module) => ({ default: module.AgencyCalendar })));
 const AgencyReports = lazy(() => import("./pages/AgencyReports").then((module) => ({ default: module.AgencyReports })));
@@ -306,6 +307,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
       <Route path="agents/:agentId/runs/:runId" element={<AgentDetail />} />
       <Route path="projects" element={<Projects />} />
       <Route path="agency" element={<Agency />} />
+      <Route path="social-accounts" element={<AgencySocialAccounts />} />
       <Route path="content" element={<AgencyContent />} />
       <Route path="calendar" element={<AgencyCalendar />} />
       <Route path="reports" element={<AgencyReports />} />
@@ -865,6 +867,7 @@ export function App() {
           <Route path="agents/:agentId/runs/:runId" element={<UnprefixedBoardRedirect />} />
           <Route path="projects" element={<UnprefixedBoardRedirect />} />
           <Route path="agency" element={<UnprefixedBoardRedirect />} />
+          <Route path="social-accounts" element={<UnprefixedBoardRedirect />} />
           <Route path="content" element={<UnprefixedBoardRedirect />} />
           <Route path="calendar" element={<UnprefixedBoardRedirect />} />
           <Route path="reports" element={<UnprefixedBoardRedirect />} />
