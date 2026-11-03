@@ -8,12 +8,12 @@ An operator can provide 9Router for every company. Set these in the server envir
 |---|---|---|---|
 | `SOCIALAGENT_9ROUTER_API_KEY` | yes | — | 9Router API key. Enables the managed gateway. |
 | `SOCIALAGENT_9ROUTER_BASE_URL` | no | `https://9router.amifish.com/v1` | Gateway URL. HTTPS, or HTTP on localhost. |
-| `SOCIALAGENT_9ROUTER_ADAPTER` | no | `claude_local` | Onboarding agent: `claude_local` or `codex_local`. |
-| `SOCIALAGENT_9ROUTER_CLAUDE_MODEL` | no | first gateway model | Preferred Claude model ID. |
-| `SOCIALAGENT_9ROUTER_CODEX_MODEL` | no | first gateway model | Preferred Codex model ID. |
+| `SOCIALAGENT_9ROUTER_ADAPTER` | no | `codex_local` | Onboarding agent: `claude_local` or `codex_local`. |
+| `SOCIALAGENT_9ROUTER_CLAUDE_MODEL` | no | unset | Optional preferred Claude model ID. |
+| `SOCIALAGENT_9ROUTER_CODEX_MODEL` | no | `cx/gpt-6-luna[1m]` | Preferred Codex model ID; used automatically when no instance model policy overrides it. |
 | `SOCIALAGENT_PUBLIC_URL` | in SaaS mode | — | Server origin sandboxes can reach. In SaaS mode runs use the run-scoped proxy at `<url>/api/managed-gateway/v1`, never the key. |
 
-When the key is set, **Connect a model** does not ask for a key. Onboarding calls `POST /api/companies/:companyId/onboarding/managed-gateway`. That route stores the key once per company and protocol as a shared AI connection named `9Router (Claude)` or `9Router (Codex)`, installed for all agents. The route reuses the connection on replay. The owner confirms the model and presses **Connect**. The agent connection test still runs before the hire. The agency team specialists use the Director's shared connection.
+When the key is set, **Connect a model** does not ask for a key. Onboarding calls `POST /api/companies/:companyId/onboarding/managed-gateway`. That route stores the key once per company and protocol as a shared AI connection named `9Router (Claude)` or `9Router (Codex)`, installed for all agents. The route reuses the connection on replay. The default adapter and model are selected from the settings above; the connection test still runs before the hire. The agency team specialists use the Director's shared connection.
 
 The key stays on the server. `GET /api/companies/:companyId/onboarding/managed-gateway` reports only `enabled`, `name` and `defaultAdapterType`. Creating the connection needs the same permission as saving a shared AI connection, and it writes `ai_connection.connected` to the activity log. A changed key in the environment does not rotate connections that already exist. Rotate those connections from the company's AI connection settings.
 

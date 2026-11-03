@@ -42,6 +42,8 @@ import { logger } from "../middleware/logger.js";
 
 export const MANAGED_GATEWAY_NAME = "9Router";
 export const MANAGED_GATEWAY_DEFAULT_BASE_URL = "https://9router.amifish.com/v1";
+export const MANAGED_GATEWAY_DEFAULT_ADAPTER: ManagedGatewayAdapterType = "codex_local";
+export const MANAGED_GATEWAY_DEFAULT_CODEX_MODEL = "cx/gpt-6-luna[1m]";
 /**
  * The non-secret value stored as a managed connection's credential in SaaS
  * mode. Runs reach 9Router only through the run-scoped proxy, which reads the
@@ -75,10 +77,10 @@ export function readManagedGatewayConfig(env: NodeJS.ProcessEnv = process.env): 
   return {
     apiKey,
     baseUrl: env.SOCIALAGENT_9ROUTER_BASE_URL?.trim() || MANAGED_GATEWAY_DEFAULT_BASE_URL,
-    defaultAdapterType: env.SOCIALAGENT_9ROUTER_ADAPTER?.trim() === "codex_local" ? "codex_local" : "claude_local",
+    defaultAdapterType: env.SOCIALAGENT_9ROUTER_ADAPTER?.trim() === "claude_local" ? "claude_local" : MANAGED_GATEWAY_DEFAULT_ADAPTER,
     models: {
       claude_local: model(env.SOCIALAGENT_9ROUTER_CLAUDE_MODEL),
-      codex_local: model(env.SOCIALAGENT_9ROUTER_CODEX_MODEL),
+      codex_local: model(env.SOCIALAGENT_9ROUTER_CODEX_MODEL) || MANAGED_GATEWAY_DEFAULT_CODEX_MODEL,
     },
   };
 }

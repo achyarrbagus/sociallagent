@@ -65,9 +65,10 @@ chooses which model each agent runs.
    SOCIALAGENT_9ROUTER_API_KEY=<your 9Router key>
    # optional
    SOCIALAGENT_9ROUTER_BASE_URL=https://9router.amifish.com/v1
-   SOCIALAGENT_9ROUTER_ADAPTER=claude_local          # or codex_local
-   SOCIALAGENT_9ROUTER_CLAUDE_MODEL=ocz/claude-sonnet-5
-   SOCIALAGENT_9ROUTER_CODEX_MODEL=ocz/gpt-5.3-codex
+   SOCIALAGENT_9ROUTER_ADAPTER=codex_local           # default; or claude_local
+   SOCIALAGENT_9ROUTER_CODEX_MODEL=cx/gpt-6-luna[1m] # default model
+   # optional override for Claude Code
+   # SOCIALAGENT_9ROUTER_CLAUDE_MODEL=ocz/claude-sonnet-5
    ```
 
 2. Restart SocialAgent (`bun run dev`).

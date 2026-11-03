@@ -1,0 +1,16 @@
+services:
+  supabase:
+    image: public.ecr.aws/supabase/postgres:17.11.0.004
+    container_name: sociallagent-supabase
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: supabase_admin
+      POSTGRES_PASSWORD: ${SUPABASE_DB_PASSWORD:?Set SUPABASE_DB_PASSWORD in .env}
+      POSTGRES_DB: paperclip
+    ports:
+      - "127.0.0.1:54322:5432"
+    volumes:
+      - supabase_data:/var/lib/postgresql/data
+
+volumes:
+  supabase_data:
