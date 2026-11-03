@@ -113,8 +113,8 @@ export function SocialAccounts({ companyId, brandId, canManage, accounts }: {
   const queryClient = useQueryClient();
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["agency-social-accounts", companyId] });
-  const platforms = ["facebook", "x", "linkedin", "tiktok"] as const;
-  const labels = { facebook: "Facebook Page", x: "X", linkedin: "LinkedIn member profile", tiktok: "TikTok profile" } as const;
+  const platforms = ["facebook", "instagram", "x", "linkedin", "tiktok"] as const;
+  const labels = { facebook: "Facebook Page", instagram: "Instagram professional account", x: "X", linkedin: "LinkedIn member profile", tiktok: "TikTok profile" } as const;
   const accountsForPlatform = (platform: typeof platforms[number]) => accounts.find(item => item.platform === platform && item.status === "active");
   const connect = useMutation({
     mutationFn: async ({ platform, values }: { platform: typeof platforms[number]; values: Record<string, string> }) => agencyApi.connectSocialAccount(companyId, {
@@ -131,12 +131,14 @@ export function SocialAccounts({ companyId, brandId, canManage, accounts }: {
   });
   const fields = {
     facebook: [{ key: "pageId", label: "Facebook Page ID", type: "text" }, { key: "pageAccessToken", label: "Page access token", type: "password" }],
+    instagram: [{ key: "accessToken", label: "Instagram access token", type: "password" }],
     x: [{ key: "accessToken", label: "X user access token", type: "password" }],
     linkedin: [{ key: "accessToken", label: "LinkedIn access token", type: "password" }, { key: "authorUrn", label: "Member author URN", type: "text" }],
     tiktok: [{ key: "clientKey", label: "TikTok Client Key", type: "text" }, { key: "clientSecret", label: "TikTok Client Secret", type: "password" }, { key: "refreshToken", label: "TikTok refresh token", type: "password" }],
   } as const;
   const help = {
     facebook: <>Needs Meta permissions <code>pages_manage_posts</code> and <code>pages_read_engagement</code>.</>,
+    instagram: <>Use a Business or Creator account and an Instagram Login token with <code>instagram_business_basic</code> and <code>instagram_business_content_publish</code>. The account ID is detected from the token. Automatic publishing needs a public HTTPS URL for media; configure <code>SOCIALAGENT_PUBLIC_URL</code>. <a className="underline" href="https://developers.facebook.com/docs/instagram-platform/instagram-api-with-instagram-login/" target="_blank" rel="noreferrer">Instagram Login setup</a>.</>,
     x: <>Use an OAuth 2.0 <strong>user-context</strong> token with <code>users.read</code>, <code>tweet.read</code>, <code>tweet.write</code>, and <code>media.write</code> for photos. App-only tokens cannot publish. <a className="underline" href="https://developer.x.com/en/docs/authentication/oauth-2-0/user-access-token" target="_blank" rel="noreferrer">X user-token guide</a>.</>,
     linkedin: <>Member token must include <code>openid</code>, <code>profile</code>, and <code>w_member_social</code>. Only personal member profiles are supported; LinkedIn Page posting is not enabled. <a className="underline" href="https://learn.microsoft.com/linkedin/marketing/community-management/shares/posts-api" target="_blank" rel="noreferrer">LinkedIn Posts API</a>.</>,
     tiktok: <>Your TikTok app needs Content Posting API and an authorized <code>video.publish</code> scope. This connector publishes one video at a time and currently always forces <code>SELF_ONLY</code>; public visibility is not enabled. TikTok may also restrict unaudited apps to private posts. Access and refresh tokens rotate automatically. <a className="underline" href="https://developers.tiktok.com/doc/content-posting-api-get-started" target="_blank" rel="noreferrer">TikTok Content Posting API setup</a>.</>,

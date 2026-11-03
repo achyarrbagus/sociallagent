@@ -60,6 +60,21 @@ describe("Agency directory", () => {
     expect(container.textContent).not.toContain("New brand");
   });
 
+  it("shows Instagram publishing scopes and the public media URL requirement", async () => {
+    container = document.createElement("div"); document.body.appendChild(container);
+    root = createRoot(container);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    act(() => root.render(<QueryClientProvider client={client}><SocialAccounts companyId="company-a" brandId="brand-a" canManage accounts={[]} /></QueryClientProvider>));
+    await flush();
+    expect(container.textContent).toContain("Connect Instagram professional account");
+    expect(container.textContent).toContain("instagram_business_basic");
+    expect(container.textContent).toContain("instagram_business_content_publish");
+    expect(container.textContent).toContain("SOCIALAGENT_PUBLIC_URL");
+    expect(container.textContent).toContain("Instagram access token");
+    expect(container.textContent).toContain("account ID is detected from the token");
+    expect(container.textContent).not.toContain("Instagram professional account ID");
+  });
+
   it("shows the TikTok video connector and its required app credentials", async () => {
     container = document.createElement("div"); document.body.appendChild(container);
     root = createRoot(container);

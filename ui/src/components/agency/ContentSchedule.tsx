@@ -29,7 +29,7 @@ export function ContentSchedule({ data }: { data: AgencyContentDetail }) {
     queryKey: ["agency-social-accounts", data.companyId, data.brandId],
     queryFn: () => agencyApi.socialAccounts(data.companyId, data.brandId),
   });
-  const connectedPlatforms = ["facebook", "x", "linkedin"];
+  const connectedPlatforms = ["facebook", "instagram", "x", "linkedin"];
   const availableAccounts = socialAccounts.data?.filter(item => item.platform === platform && item.status === "active") ?? [];
   const usesConnectedAccount = connectedPlatforms.includes(platform);
   const scheduled = useQuery({
@@ -59,7 +59,7 @@ export function ContentSchedule({ data }: { data: AgencyContentDetail }) {
         </label>
         {usesConnectedAccount ? <>
           <label className="space-y-1 text-sm"><span className="font-medium">Connected account</span>
-            <NativeSelect aria-label="Connected account" value={socialAccountId} onChange={(event) => { setSocialAccountId(event.target.value); if (!event.target.value && dispatch === "connector") setDispatch("agent"); }}>
+            <NativeSelect aria-label="Connected account" value={socialAccountId} onChange={(event) => { setSocialAccountId(event.target.value); setDispatch(event.target.value ? "connector" : "agent"); }}>
               <option value="">No connected account</option>
               {availableAccounts.map(item => <option key={item.id} value={item.id}>{item.displayName}</option>)}
             </NativeSelect>

@@ -55,14 +55,16 @@ Restoring an old campaign binding does not revive a prior approval.
 `approvalValid` is authoritative for this content review scope. Reads also check
 current parent context and asset metadata; stored status alone is insufficient.
 The target account remains a planning reference. Owner-managed social account
-bindings are available for Facebook Pages, X user accounts, and LinkedIn member
-profiles. The server verifies each provider identity, stores credentials through
-Paperclip's encrypted secret store, and returns identity/status only. X requires a
-user-context OAuth 2.0 token; LinkedIn currently supports member profiles with
-`openid`, `profile`, and `w_member_social`, not organization Pages. These account
-bindings alone do not publish. Automatic dispatch is an explicit calendar
-choice and requires a same-brand, same-platform active account at schedule time;
-the dispatcher rechecks approval, context, account and media before sending.
+bindings are available for Facebook Pages, Instagram Business/Creator accounts,
+X user accounts, LinkedIn member profiles, and TikTok creator profiles. The server
+verifies each provider identity, stores credentials through Paperclip's encrypted
+secret store, and returns identity/status only. Instagram uses Instagram Login
+with `instagram_business_basic` and `instagram_business_content_publish`; LinkedIn
+member profiles use `openid`, `profile`, and `w_member_social`, not organization
+Pages. These account bindings alone do not publish. Automatic dispatch is an
+explicit calendar choice and requires a same-brand, same-platform active account
+at schedule time; the dispatcher rechecks approval, context, account and media
+before sending.
 
 ## Private sources and history
 
@@ -114,23 +116,30 @@ company-switch draft reset and safe task preparation/retry. OpenAPI, migration,
 token and type checks are recorded in the implementation plan.
 
 No live agent/provider execution or browser journey is implied by those tests.
-Facebook, X, LinkedIn, and TikTok account bindings and adapter operations are
-covered with mocked provider responses; this does not prove real provider app
-review, permissions, scopes, or API access. The connector dispatcher is covered
-with mocked provider responses and exercises due-time claims,
-approval/account/media rechecks, checkpoints and ambiguous outcomes; it does not
-prove live posting. X supports text and up to four photos; Facebook supports
-text or one image; LinkedIn member profiles support text or one image; TikTok
-supports one video per post and currently always forces `SELF_ONLY` visibility;
-public TikTok posts are not enabled. TikTok photo posts, LinkedIn
-Page publishing, and provider OAuth consent screens remain unsupported. Never treat mocked provider tests as live-post proof.
+Facebook, Instagram, X, LinkedIn, and TikTok account bindings and adapter
+operations are covered with mocked provider responses; this does not prove real
+provider app review, permissions, scopes, public media reachability, or API access.
+The connector dispatcher is covered with mocked provider responses and exercises
+due-time claims, approval/account/media rechecks, checkpoints and ambiguous
+outcomes; it does not prove live posting. Instagram supports one JPEG image, a
+2–10 item mixed image/video carousel, or one Reel video; each media item must be
+publicly fetchable through a one-hour signed URL. X supports text and up to four
+photos; Facebook supports text or one image; LinkedIn member profiles support
+text or one image; TikTok supports one video per post and currently always forces
+`SELF_ONLY` visibility; public TikTok posts are not enabled. Instagram text-only
+posts, TikTok photo posts, LinkedIn Page publishing, and provider OAuth consent
+screens remain unsupported. Never treat mocked provider tests as live-post proof.
 
 ## Social account bindings
 
 Owners can connect one account per platform and brand from **Clients & Brands**.
 Facebook uses a Page ID and Page access token; the backend verifies the Page with
 the Graph API before persisting and requires `pages_manage_posts` and
-`pages_read_engagement`. X uses a user-context OAuth 2.0 access token with
+`pages_read_engagement`. Instagram uses a Business or Creator account and a
+long-lived Instagram Login user token with `instagram_business_basic` and
+`instagram_business_content_publish`; the account ID is detected from the token
+and stored with the encrypted credentials. Personal accounts are not supported. X uses
+a user-context OAuth 2.0 access token with
 `users.read` and `tweet.write` (also `tweet.read` and `media.write` for photo
 publishing); app-only bearer tokens are rejected by identity verification.
 LinkedIn currently connects a member profile by access token and
@@ -138,7 +147,13 @@ LinkedIn currently connects a member profile by access token and
 `openid`, `profile`, and `w_member_social`. LinkedIn organization/Page posting is
 not enabled. TikTok uses the owner's Client Key, Client Secret, and a refresh
 token granted `video.publish`; the server refreshes access tokens and persists
-TikTok's rotated refresh token in the encrypted secret. The TikTok app must have
+TikTok's rotated refresh token in the encrypted secret. Instagram's long-lived
+token expiry is not inferred from the identity endpoint; reconnect it in the
+provider portal if it expires. The Instagram media fetch endpoint requires
+`SOCIALAGENT_PUBLIC_URL` (or `PAPERCLIP_PUBLIC_URL`) to be a publicly reachable
+HTTPS origin. It serves only the approved asset for the active publication using
+a one-hour HMAC-signed URL, scoped to company, publication, asset, and checksum.
+The TikTok app must have
 Content Posting API enabled. TikTok direct posts are currently always forced to `SELF_ONLY`; public
 visibility is not enabled by this connector. TikTok may restrict unaudited apps
 to private posts, and public posting would require both a TikTok app audit and
@@ -150,10 +165,11 @@ Credentials are company-scoped encrypted secrets and never returned by the API.
 Disconnect removes the local binding and secret but does not revoke the token at
 the provider; owners should revoke it in provider settings when needed. These
 manual token-entry forms are not OAuth consent flows. The Facebook adapter posts
-text or one image; X posts text or one-to-four photos; LinkedIn member profiles
-post text or one image; TikTok direct-posts one MP4, MOV, or WebM video with a
-caption. TikTok text-only, photo, and carousel posts and LinkedIn Page posts are
-not supported. TikTok videos are always private (`SELF_ONLY`) in this connector;
+text or one image; Instagram posts one JPEG image, a mixed carousel of 2–10
+images/videos, or one Reel; X posts text or one-to-four photos; LinkedIn member
+profiles post text or one image; TikTok direct-posts one MP4, MOV, or WebM video
+with a caption. Instagram text-only posts, TikTok text/photo/carousel posts, and
+LinkedIn Page posts are not supported. TikTok videos are always private (`SELF_ONLY`) in this connector;
 public visibility is not enabled, even if the developer app later passes TikTok's
 audit.
 

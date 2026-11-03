@@ -1349,6 +1349,7 @@ const RUNTIME_TOOLS_OPERATIONS = new Set([
 
 const PUBLIC_OPERATIONS = new Set([
   "GET /api/agent-avatars/{version}/{palette}/{file}",
+  "GET /api/social-media/public-media",
   "GET /api/health",
   "GET /api/liveness",
   "HEAD /api/liveness",
@@ -8605,6 +8606,16 @@ registry.registerPath({
   summary: "Connect the company to the instance-managed 9Router gateway",
   request: { params: z.object({ companyId: z.string() }), body: jsonBody(ensureManagedGatewaySchema) },
   responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/social-media/public-media",
+  tags: ["agency"],
+  summary: "Serve approved Instagram media using a short-lived signed capability",
+  description: "Public capability URL used by Instagram to fetch one approved asset while its connector publication is active. The signature is time-limited and scoped to the company, publication, asset, and immutable checksum.",
+  request: { query: z.object({ token: z.string().min(1) }) },
+  responses: { 200: { description: "Approved media bytes" }, 404: r.notFound },
 });
 
 registry.registerPath({

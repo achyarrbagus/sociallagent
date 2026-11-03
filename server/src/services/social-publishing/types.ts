@@ -4,7 +4,7 @@ export interface PublishMedia { assetId: string; kind: MediaKind; contentType: s
 export interface PlatformRules { maxTextLength: number; countText?: (text: string) => number; shapes: PostShape[]; carousel: { min: number; max: number; allowVideo: boolean } | null; maxImageBytes: number; maxVideoBytes: number; imageTypes: string[]; videoTypes: string[]; publicUrlShapes: PostShape[] }
 export interface VerifiedAccount { externalAccountId: string; displayName: string; tokenExpiresAt: Date | null; credentials?: Record<string, string> }
 export interface PublishContext { text: string; shape: PostShape; media: PublishMedia[]; credentials: Record<string, string>; checkpoint: Record<string, unknown>; saveCheckpoint(next: Record<string, unknown>): Promise<void>; withFreshCredentials?: (refresh: (credentials: Record<string, string>) => Promise<{ credentials: Record<string, string>; tokenExpiresAt: Date }>) => Promise<Record<string, string>>; fetch: typeof fetch }
-export type PublishOutcome = { status: "published"; providerPostId: string; externalUrl: string } | { status: "failed"; reason: string } | { status: "unknown"; reason: string };
+export type PublishOutcome = { status: "published"; providerPostId: string; externalUrl: string | null } | { status: "failed"; reason: string } | { status: "unknown"; reason: string };
 export interface SocialAdapter { platform: "facebook" | "instagram" | "x" | "linkedin" | "tiktok"; label: string; credentialFields: Array<{ key: string; label: string; help: string }>; rules: PlatformRules; verify(credentials: Record<string, string>, fetchImpl: typeof fetch): Promise<VerifiedAccount>; publish(context: PublishContext): Promise<PublishOutcome> }
 
 export function mediaKindOf(contentType: string | null): MediaKind | null {

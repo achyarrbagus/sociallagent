@@ -79,6 +79,7 @@ const apiPrefixes: Record<string, string> = {
   "project-files.ts": "/api",
   "agency-publications.ts": "/api",
   "agency-social-accounts.ts": "/api",
+  "social-media-public.ts": "/api",
   "openapi.ts": "/api",
   "plugin-ui-static.ts": "/api",
   "plugins.ts": "/api",
@@ -186,6 +187,7 @@ function normalizeExpressPath(routePath: string) {
 
 function resolveMountedPath(file: string, prefix: string, routePath: string) {
   if (file === "public-mcp.ts" && (routePath.startsWith("/mcp/oauth/") || routePath.startsWith("/.well-known/"))) return routePath;
+  if (file === "social-media-public.ts" && routePath.startsWith("/api/")) return routePath;
   if (
     (file === "chat-channels.ts" || file === "email.ts") &&
     routePath.startsWith("/api/chat-webhooks/")

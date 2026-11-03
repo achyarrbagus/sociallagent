@@ -50,10 +50,19 @@ suite("agency social account credentials", () => {
 
     const providerFetch = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      if (url.startsWith("https://graph.instagram.com/")) return Response.json({ user_id: "17841400000000000", username: "coffee_creator" });
       if (url.startsWith("https://api.x.com/")) return Response.json({ data: { id: "x-user-42", username: "coffee" } });
       return Response.json({ sub: "li-member-42", name: "Coffee Member" });
     });
     const connectedProviders = socialAccountsService(db, providerFetch);
+    const instagramCredentials = { accessToken: "opaque-instagram-user-token" };
+    expect(connectSocialAccountSchema.safeParse({ brandId: brand!.id, platform: "instagram", credentials: instagramCredentials }).success).toBe(true);
+    const instagramAccount = await connectedProviders.connect(company!.id, brand!.id, "instagram", instagramCredentials, "owner", actor);
+    expect(instagramAccount).toMatchObject({ platform: "instagram", externalAccountId: "17841400000000000", displayName: "@coffee_creator" });
+    expect(JSON.stringify(instagramAccount)).not.toContain(instagramCredentials.accessToken);
+    const instagramSecretId = (await db.select().from(agencySocialAccounts).where(eq(agencySocialAccounts.id, instagramAccount.id)))[0]!.credentialsSecretId!;
+    expect(JSON.parse(await secretService(db).resolveSecretValue(company!.id, instagramSecretId, "latest"))).toEqual({ ...instagramCredentials, instagramAccountId: "17841400000000000" });
+
     const xCredentials = { accessToken: "opaque-x-user-token" };
     expect(connectSocialAccountSchema.safeParse({ brandId: brand!.id, platform: "x", credentials: xCredentials }).success).toBe(true);
     const xAccount = await connectedProviders.connect(company!.id, brand!.id, "x", xCredentials, "owner", actor);
@@ -63,7 +72,7 @@ suite("agency social account credentials", () => {
     expect(xAccount).toMatchObject({ platform: "x", externalAccountId: "x-user-42", displayName: "@coffee" });
     expect(linkedinAccount).toMatchObject({ platform: "linkedin", externalAccountId: "li-member-42", displayName: "Coffee Member" });
     expect(JSON.stringify([xAccount, linkedinAccount])).not.toContain("opaque-");
-    expect(providerFetch).toHaveBeenCalledTimes(2);
+    expect(providerFetch).toHaveBeenCalledTimes(3);
 
     const tiktokFetch = vi.fn(async (input: string | URL | Request) => {
       if (String(input).endsWith("/oauth/token/")) {

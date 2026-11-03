@@ -147,6 +147,26 @@ suite("agency content calendar", () => {
     expect(blockedProvider).not.toHaveBeenCalled();
   });
 
+  it("does not route an Instagram post to an agent when the brand has a native account", async () => {
+    const f = await fixture();
+    const item = await f.approvedContent();
+    await db.insert(agencySocialAccounts).values({
+      companyId: f.companyId,
+      brandId: f.brand.id,
+      platform: "instagram",
+      displayName: "@coffee",
+      externalAccountId: "17841400000000000",
+    });
+    const response = await request(f.app()).post(f.calendar).send({
+      contentId: item.id,
+      platform: "instagram",
+      scheduledAt: inAnHour(),
+      dispatch: "agent",
+    });
+    expect(response.status).toBe(422);
+    expect(response.body.error).toContain("Choose automatic publishing or manual publishing");
+  });
+
   it("binds an approved publication only to an active account for its own brand and platform", async () => {
     const f = await fixture();
     const item = await f.approvedContent();

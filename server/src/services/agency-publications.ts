@@ -182,6 +182,17 @@ export function agencyPublicationsService(db: Db, deps: Parameters<typeof routin
       if (!account) throw unprocessable("Choose an active connected account for this brand and platform.");
       socialAccount = account;
     }
+    if (input.dispatch === "agent") {
+      const [connectedAccount] = await db.select({ id: agencySocialAccounts.id }).from(agencySocialAccounts).where(and(
+        eq(agencySocialAccounts.companyId, companyId),
+        eq(agencySocialAccounts.brandId, brand.id),
+        eq(agencySocialAccounts.platform, input.platform),
+        eq(agencySocialAccounts.status, "active"),
+      ));
+      if (connectedAccount) {
+        throw unprocessable(`A ${PLATFORM_NAMES[input.platform] ?? input.platform} account is connected to this brand. Choose automatic publishing or manual publishing instead of an agent handoff.`);
+      }
+    }
     const timezone = brand.timezone || "UTC";
     const publisher = input.dispatch === "agent" ? await publisherAgent(companyId) : null;
     if (input.dispatch === "agent" && !publisher) throw unprocessable("No Publishing Coordinator is available to post this. Schedule it as manual instead.");

@@ -3,12 +3,14 @@ import { facebookPageAdapter } from "./facebook.js";
 import { xAdapter } from "./x.js";
 import { linkedinAdapter } from "./linkedin.js";
 import { tiktokAdapter } from "./tiktok.js";
+import { instagramAdapter } from "./instagram.js";
 
 const adapters = new Map<string, SocialAdapter>([
   [facebookPageAdapter.platform, facebookPageAdapter],
   [xAdapter.platform, xAdapter],
   [linkedinAdapter.platform, linkedinAdapter],
   [tiktokAdapter.platform, tiktokAdapter],
+  [instagramAdapter.platform, instagramAdapter],
 ]);
 
 export function registerSocialAdapter(adapter: SocialAdapter): void {

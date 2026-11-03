@@ -122,6 +122,7 @@ import { creditRoutes } from "./routes/credits.js";
 import { projectFileRoutes } from "./routes/project-files.js";
 import { agencyPublicationRoutes } from "./routes/agency-publications.js";
 import { agencySocialAccountRoutes } from "./routes/agency-social-accounts.js";
+import { socialMediaPublicRoutes } from "./routes/social-media-public.js";
 import { boardChatRoutes } from "./routes/board-chat.js";
 import { approvalRoutes } from "./routes/approvals.js";
 import { secretRoutes } from "./routes/secrets.js";
@@ -665,6 +666,9 @@ export async function createApp(
       deliverNativeQuestionResponse(db, interaction),
     storage: opts.storageService,
   });
+  // Instagram fetches approved publication media from short-lived signed URLs.
+  // The HMAC capability is the only authorization for this narrowly scoped route.
+  app.use(socialMediaPublicRoutes(db, opts.storageService));
   // Voice capabilities are verified by the signed callback route, not by
   // board/agent bearer authentication. Mount before actorMiddleware so its
   // per-session Bearer cannot be mistaken for an agent API key.

@@ -19,6 +19,7 @@ import { logActivity } from "../activity-log.js";
 import { lockAgencyContentCompany } from "../agency-content-lifecycle.js";
 import type { StorageService } from "../../storage/types.js";
 import { redactSecrets } from "./redact.js";
+import { createDispatchSocialMediaUrl, resolveSocialMediaPublicBaseUrl } from "./public-media.js";
 
 export const AGENCY_PUBLICATION_CLAIM_LEASE_MS = 5 * 60_000;
 const DEFAULT_SWEEP_LIMIT = 10;
@@ -133,7 +134,7 @@ export function agencyPublicationDispatchService(
     return updated ?? null;
   }
 
-  async function finish(claim: Claim, result: { status: "published"; providerPostId: string; externalUrl: string } | { status: "failed" | "unknown"; reason: string }, credentials: Record<string, string> = {}) {
+  async function finish(claim: Claim, result: { status: "published"; providerPostId: string; externalUrl: string | null } | { status: "failed" | "unknown"; reason: string }, credentials: Record<string, string> = {}) {
     const reason = result.status === "published" ? null : failureText(result.reason, credentials);
     const updated = await updateClaim(claim, result.status === "published"
       ? { status: "published", providerPostId: result.providerPostId, externalUrl: result.externalUrl, publishedAt: now(), failureReason: null }
@@ -183,6 +184,7 @@ export function agencyPublicationDispatchService(
     if (rows.length !== approvedAssets.length) throw new Error("An approved media asset is no longer available.");
     const byId = new Map(rows.map(asset => [asset.id, asset]));
     const media: PublishMedia[] = [];
+    const publicBaseUrl = resolveSocialMediaPublicBaseUrl();
     for (const approved of approvedAssets as SnapshotAsset[]) {
       const asset = byId.get(approved.assetId);
       if (!asset || asset.byteSize !== approved.byteSize || asset.contentType !== approved.contentType || asset.sha256 !== approved.sha256) {
@@ -196,7 +198,13 @@ export function agencyPublicationDispatchService(
         contentType: asset.contentType,
         byteSize: asset.byteSize,
         filename: asset.originalFilename,
-        signedUrl: null,
+        signedUrl: adapter.platform === "instagram" ? createDispatchSocialMediaUrl({
+          companyId: publication.companyId,
+          publicationId: publication.id,
+          assetId: asset.id,
+          sha256: asset.sha256,
+          publicBaseUrl,
+        }) : null,
         read: () => readObject(storage, publication.companyId, asset.objectKey, asset.byteSize, asset.sha256),
       });
     }
@@ -204,7 +212,7 @@ export function agencyPublicationDispatchService(
     const problems = checkPostAgainstRules(adapter.label, adapter.rules, {
       text,
       media: media.map(({ kind, contentType, byteSize, filename }) => ({ kind, contentType, byteSize, filename })),
-    }, { publicBaseUrl: false });
+    }, { publicBaseUrl: publicBaseUrl !== null });
     if (problems.length) throw new Error(problems.join(" "));
     return media;
   }
@@ -272,7 +280,7 @@ export function agencyPublicationDispatchService(
       const issues = checkPostAgainstRules(adapter.label, adapter.rules, {
         text,
         media: media.map(({ kind, contentType, byteSize, filename }) => ({ kind, contentType, byteSize, filename })),
-      }, { publicBaseUrl: false });
+      }, { publicBaseUrl: resolveSocialMediaPublicBaseUrl() !== null });
       if (!text.trim()) issues.push("The approved revision has no caption to publish.");
       if (issues.length) throw new Error(issues.join(" "));
     } catch (error) {
