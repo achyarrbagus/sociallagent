@@ -484,7 +484,13 @@ bun run dev:once         # Full dev without file watching
 bun run dev:server       # Server only
 bun run dev:mobile       # Serve prebuilt UI on :3101 for phones/tablets (proxies /api → :3100)
 bun run dev:both         # Run `bun run dev` and `bun run dev:mobile` together
-bun run build            # Build all
+bun run build:ui         # Build only the frontend
+bun run build:server     # Build only the backend
+bun run build:app        # Build frontend + backend for deployment
+bun run build:server:local # Backend + Runner TypeScript; skip Rust binary
+bun run build:runner     # Build the Runner package and native binary
+bun run build:runner:typescript # Runner TypeScript only
+bun run build            # Build all workspace packages (CI/release)
 bun run typecheck        # Type checking
 bun run test             # Cheap default test run (Vitest only)
 bun run test:watch       # Vitest watch mode

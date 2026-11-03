@@ -2,8 +2,8 @@
 // at runtime is also declared as a direct dependency of server/package.json.
 //
 // packages/paperclip-runner is private and never published, so the server
-// build vendors its compiled dist/ tree wholesale with `cp -R` (see the
-// `build` script's `... dist/vendor/paperclip-runner/` step) -- code only,
+// build syncs its compiled dist/ tree wholesale (see the `build` script's
+// `dist/vendor/paperclip-runner` step) -- code only,
 // no node_modules alongside it. Every npm package the vendored code
 // actually imports is therefore also a runtime dependency of server once
 // vendored, and has to be declared there too (see acpx, ajv). That mirror
@@ -74,7 +74,7 @@ export async function findRunnerExternalPackages(entryPoints) {
   }
 
   // write: false means this never touches disk -- it's a module-graph scan,
-  // not a real bundle. Vendoring itself still happens via `cp -R` elsewhere
+  // not a real bundle. Vendoring itself still happens via the asset sync helper
   // in the build script. `outdir` is required by esbuild for multiple entry
   // points but nothing is ever written there, so any sibling path will do.
   const result = await build({

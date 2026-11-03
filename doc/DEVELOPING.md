@@ -263,6 +263,28 @@ The vite dev server serves an unbundled module graph. This is fast to reload on 
 
 The preview server binds `0.0.0.0` and accepts any Host, so a tailnet or LAN address (e.g. `http://<host>.ts.net:3101/`) works out of the box. The `/api` proxy sets `x-forwarded-host` and `x-forwarded-proto`, which the server's board mutation guard uses to trust the browser's Origin — mutations from `:3101` succeed against the API on `:3100` without further configuration. An HTTPS tunnel in front of the preview server (ngrok, tailscale funnel) is also supported: the tunnel's `x-forwarded-proto` header is preserved when set.
 
+## Modular Builds
+
+From the repository root, build only the part being changed:
+
+```sh
+bun run build:ui      # UI only
+bun run build:server  # API server only
+bun run build:app     # UI plus server, ready for deployment
+bun run build:server:local # backend + Runner TypeScript; skip Rust binary
+bun run build:runner  # Runner package and native binary
+bun run build:runner:typescript # Runner TypeScript only
+bun run build         # all workspace packages, used by CI and releases
+```
+
+The server build may rebuild Paperclip Runner when its source inputs change or
+its cached output is missing. The full workspace build remains the CI and
+release check. `build:server:local` is for local iteration; it leaves any
+existing Runner binary untouched and must not be used to prepare a release.
+CI caches Rust and TypeScript compiler state, then builds only the UI, server,
+and Runner when a change is isolated to those areas. Changes to shared packages
+or build configuration fall back to the full workspace build.
+
 Static UI mode compresses built JavaScript, CSS, and HTML with Brotli or gzip
 when the browser supports it. Hashed assets retain their immutable cache policy;
 byte-range responses retain their original representation. This reduces initial

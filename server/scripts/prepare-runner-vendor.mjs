@@ -34,7 +34,9 @@ import {
 
 /** The command the server build has always run here; the rebuild path is unchanged. */
 export const RUNNER_VENDOR_BUILD_COMMAND = "bun run --filter @paperclipai/paperclip-runner build";
+export const RUNNER_VENDOR_TYPESCRIPT_BUILD_COMMAND = "bun run --filter @paperclipai/paperclip-runner build:typescript";
 export const FORCE_REBUILD_VARIABLE = "PAPERCLIP_RUNNER_VENDOR_REBUILD";
+export const TYPESCRIPT_ONLY_VARIABLE = "PAPERCLIP_RUNNER_TYPESCRIPT_ONLY";
 export const TIMING_SCHEMA = "paperclip.runner-vendor.timing.v1";
 
 export function decideRunnerVendorAction({ env, assessment }) {
@@ -120,14 +122,20 @@ export function prepareRunnerVendor({
     return 0;
   }
 
-  log(`prepare:runner-vendor: rebuilding the Runner (${decision.detail})`);
+  const typescriptOnly = env[TYPESCRIPT_ONLY_VARIABLE] === "1";
+  const command = typescriptOnly
+    ? RUNNER_VENDOR_TYPESCRIPT_BUILD_COMMAND
+    : RUNNER_VENDOR_BUILD_COMMAND;
+  log(typescriptOnly
+    ? `prepare:runner-vendor: rebuilding Runner TypeScript only (${decision.detail}); retaining the current native binary`
+    : `prepare:runner-vendor: rebuilding the Runner (${decision.detail})`);
   // A build that stops partway must not leave a stamp that vouches for it. The
   // Runner's own build removes the stamp in its first step and writes a fresh
   // one in its last; removing it here as well covers a build command that
   // fails before its first step runs.
   removeBuildInputsStamp(assessment.stampPath);
   const buildStart = now();
-  const status = run(RUNNER_VENDOR_BUILD_COMMAND, { cwd: path.join(repoRoot, "server"), env });
+  const status = run(command, { cwd: path.join(repoRoot, "server"), env });
   const buildMs = Math.round(now() - buildStart);
   log(
     `${TIMING_SCHEMA},action:rebuild,reason:${decision.code},check_ms:${checkMs},build_ms:${buildMs},status:${status}`,

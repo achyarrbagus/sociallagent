@@ -4,7 +4,9 @@
     "jsx": "react-jsx",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "incremental": true,
+    "tsBuildInfoFile": "./surfaces.tsbuildinfo"
   },
   "include": [
     "src/browser/**/*.ts",

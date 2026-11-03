@@ -29,6 +29,5 @@ if [ ! -f "$UI_DIST/index.html" ]; then
   exit 1
 fi
 
-rm -rf "$SERVER_UI_DIST"
-cp -r "$UI_DIST" "$SERVER_UI_DIST"
-echo "  -> Copied ui/dist to server/ui-dist"
+node "$REPO_ROOT/server/scripts/sync-build-assets.mjs" "$UI_DIST" "$SERVER_UI_DIST"
+echo "  -> Synced ui/dist to server/ui-dist"

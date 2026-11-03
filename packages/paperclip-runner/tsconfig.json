@@ -3,7 +3,9 @@
   "compilerOptions": {
     "lib": ["ES2023"],
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
+    "incremental": true,
+    "tsBuildInfoFile": "./runner.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
   "exclude": [

@@ -42,8 +42,8 @@
 // package (rust-toolchain.toml, runner/Cargo.lock), and the TypeScript version
 // comes from bun.lock, so both are covered.
 //
-// Outputs: the server build vendors packages/paperclip-runner/dist wholesale
-// (`cp -Rf ../packages/paperclip-runner/dist/. dist/vendor/paperclip-runner/`),
+// Outputs: the server build syncs packages/paperclip-runner/dist wholesale
+// into dist/vendor/paperclip-runner while skipping files whose bytes match,
 // so the stamp lists every file under dist with its size and reuse needs all
 // of them present; a helper such as dist/cli/acpx-runtime-sidecar.cjs is
 // opened by path at runtime, so a tree that lost it must not count as current.

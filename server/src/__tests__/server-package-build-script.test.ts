@@ -30,19 +30,18 @@ describe("server package build script", () => {
     );
   });
 
-  it("copies static runtime asset directories into dist", () => {
+  it("syncs static runtime asset directories into dist", () => {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
       scripts?: Record<string, string>;
     };
     const buildScript = packageJson.scripts?.build ?? "";
 
     expect(buildScript).toContain(
-      "mkdir -p dist/onboarding-assets dist/built-ins",
+      "node scripts/sync-build-assets.mjs src/onboarding-assets dist/onboarding-assets",
     );
     expect(buildScript).toContain(
-      "cp -R src/onboarding-assets/. dist/onboarding-assets/",
+      "node scripts/sync-build-assets.mjs src/built-ins dist/built-ins",
     );
-    expect(buildScript).toContain("cp -R src/built-ins/. dist/built-ins/");
   });
 
   it("vendors the private runner runtime without a production workspace dependency", () => {
@@ -70,7 +69,7 @@ describe("server package build script", () => {
     );
     expect(packageJson.scripts?.build.startsWith("bun run prepare:runner-vendor && ")).toBe(true);
     expect(packageJson.scripts?.build).toContain(
-      "cp -Rf ../packages/paperclip-runner/dist/. dist/vendor/paperclip-runner/",
+      "node scripts/sync-build-assets.mjs ../packages/paperclip-runner/dist dist/vendor/paperclip-runner",
     );
   });
 
@@ -94,9 +93,9 @@ describe("server package build script", () => {
   it("replaces an existing read-only image manifest with the build's copy step", () => {
     const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
     const step = packageJson.scripts.build.split(" && ").find((command: string) =>
-      command.includes("../packages/paperclip-runner/dist/."));
+      command.includes("../packages/paperclip-runner/dist dist/vendor/paperclip-runner"));
     expect(step).toBeDefined();
-    const [command, ...args] = step.split(" ");
+    const [, , sourceArgument, destinationArgument] = step.split(" ");
     const root = mkdtempSync(path.join(tmpdir(), "runner-vendor-copy-"));
     try {
       const relative = "remote-provider-packs/linux-x64/provider-pack.json";
@@ -106,7 +105,11 @@ describe("server package build script", () => {
       mkdirSync(path.dirname(destination), { recursive: true });
       writeFileSync(source, "qualified image identity", { mode: 0o444 });
       writeFileSync(destination, "previous image identity", { mode: 0o444 });
-      execFileSync(command, args, { cwd: path.join(root, "server") });
+      execFileSync(process.execPath, [
+        path.join(path.dirname(packageJsonPath), "scripts/sync-build-assets.mjs"),
+        sourceArgument,
+        destinationArgument,
+      ], { cwd: path.join(root, "server") });
       expect(readFileSync(destination, "utf8")).toBe("qualified image identity");
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -119,7 +122,7 @@ describe("server package build script", () => {
     };
 
     // See scripts/verify-runner-vendor-dependencies.mjs: packages/paperclip-runner
-    // is vendored with a raw copy of its compiled dist/, so every runtime
+    // is vendored with its compiled dist/, so every runtime
     // dependency it imports must also be a direct dependency of server. This
     // check derives that requirement from an esbuild scan of the vendored
     // entry points instead of relying on a human to have kept a hand-copied

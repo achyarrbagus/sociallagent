@@ -10,7 +10,7 @@ import {
 // server/src/onboarding-assets/first-task/ so the board can edit the wording
 // without touching TypeScript. These loaders read those files at runtime the
 // same way loadDefaultAgentInstructionsBundle reads default/ and ceo/ (the build
-// copies src/onboarding-assets/. into dist/onboarding-assets/), and fill the
+// syncs src/onboarding-assets/ into dist/onboarding-assets/), and fill the
 // {{agentName}} / {{organizationName}} / {{proposalMode}} placeholders.
 
 export interface OnboardingFirstTaskPlaceholders {
