@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.94",
+    "@ai-sdk/react": "^4.0.183",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "ai": "^7.0.179",
@@ -24,6 +25,8 @@
     "radix-ui": "^1.8.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.7.1",
     "three": "0.185.1",

@@ -240,6 +240,7 @@ model Agent {
   reportsTo      Agent?        @relation("AgentHierarchy", fields: [reportsToId], references: [id], onDelete: SetNull)
   reports        Agent[]       @relation("AgentHierarchy")
   tasks          ContentTask[]
+  chats          ChatThread[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -486,4 +487,48 @@ model Publication {
   @@index([organizationId, scheduledAt])
   @@index([contentId])
   @@map("publication")
+}
+
+// ─── Chat dengan agent ───────────────────────────────────────────────────────
+// One running conversation per user per agent; the Director's thread is the board chat.
+
+model ChatThread {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  agentId        String
+  // AI SDK UIMessage[]; validated against current tools on every request.
+  messages       Json     @default("[]")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  agent          Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, agentId])
+  @@index([organizationId])
+  @@map("chat_thread")
+}
+
+// ─── Pemakaian AI (dasar laporan & kuota) ─────────────────────────────────────
+
+enum AiUsageSource {
+  task
+  chat
+}
+
+model AiUsageEvent {
+  id             String        @id @default(cuid())
+  organizationId String
+  source         AiUsageSource
+  agentId        String?
+  userId         String?
+  brandId        String?
+  contentId      String?
+  model          String
+  inputTokens    Int           @default(0)
+  outputTokens   Int           @default(0)
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([brandId, createdAt])
+  @@map("ai_usage_event")
 }

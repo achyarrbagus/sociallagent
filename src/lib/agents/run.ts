@@ -1,21 +1,12 @@
 import "server-only";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateText, Output, type LanguageModel } from "ai";
+import { generateText, Output } from "ai";
+import { describeModelError, languageModel } from "@/lib/ai/model";
+import { recordUsage } from "@/lib/ai/usage";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ContentConflict, loadContent, reviseContent, submitContent } from "@/lib/content/lifecycle";
 import { CONTENT_FORMATS, PRODUCTION_ROLE_LABELS, snapshotInput } from "@/lib/content/schemas";
 
-/**
- * LLM_BASE_URL points at any OpenAI-compatible router (9Router, OpenRouter, LiteLLM).
- * Without it, AI_MODEL is a Vercel AI Gateway model string.
- */
-function model(): LanguageModel {
-  const id = process.env.AI_MODEL ?? "anthropic/claude-sonnet-5-5";
-  const baseURL = process.env.LLM_BASE_URL;
-  if (!baseURL) return id;
-  return createOpenAICompatible({ name: "llm-router", baseURL, apiKey: process.env.LLM_API_KEY, supportsStructuredOutputs: true })(id);
-}
 
 const draftSchema = z.object({
   title: z.string().describe("Judul konten, maksimal 200 karakter"),
@@ -59,7 +50,7 @@ export async function runContentTask(taskId: string) {
     });
 
     const { output, usage } = await generateText({
-      model: model(),
+      model: languageModel(),
       system: `You are ${task.agent.name} (${task.agent.title}) at a creative agency.\n\n${task.agent.instructions}\n\n${CONTRACT}`,
       output: Output.object({ schema: draftSchema }),
       prompt: [
@@ -81,6 +72,10 @@ export async function runContentTask(taskId: string) {
       ].filter(Boolean).join("\n\n"),
     });
 
+    await recordUsage({
+      organizationId: task.organizationId, source: "task", agentId: task.agentId, userId: task.createdByUserId,
+      brandId: content.brandId, contentId: content.id, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens,
+    });
     const { summary, ...draft } = output;
     // Agents write copy; the media the owner picked stays attached.
     const snapshot = snapshotInput.parse({ ...draft, assetIds: revision.assetIds });
@@ -116,9 +111,5 @@ export async function runContentTask(taskId: string) {
 }
 
 function describeFailure(error: unknown) {
-  if (error instanceof ContentConflict) return error.message;
-  // Provider errors arrive with terminal colour codes.
-  const raw = error instanceof Error ? error.message.replace(/\u001b\[[0-9;]*m/g, "") : "";
-  if (/AI_GATEWAY_API_KEY|Unauthenticated|401/i.test(raw)) return "Model AI belum dikonfigurasi. Isi LLM_BASE_URL + LLM_API_KEY atau AI_GATEWAY_API_KEY.";
-  return raw ? `Agent gagal: ${raw.split("\n")[0]}` : "Agent gagal.";
+  return error instanceof ContentConflict ? error.message : describeModelError(error);
 }

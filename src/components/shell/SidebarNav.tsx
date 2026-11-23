@@ -2,22 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, CalendarDays, FileText, FolderKanban, LayoutDashboard, LineChart, Building2 } from "lucide-react";
+import { Bot, CalendarDays, FileText, FolderKanban, LayoutDashboard, LineChart, Building2, MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "dashboard", label: "Hari ini", icon: LayoutDashboard },
   { href: "brands", label: "Klien & Brand", icon: Building2 },
   { href: "campaigns", label: "Campaign", icon: FolderKanban },
+  { href: "chat", label: "Chat", icon: MessagesSquare },
   { href: "content", label: "Konten", icon: FileText },
   { href: "calendar", label: "Kalender", icon: CalendarDays },
   { href: "team", label: "Tim AI", icon: Bot },
+  { href: "reports", label: "Laporan", icon: LineChart },
 ] as const;
 
-// Later phases. Shown so the agency sees where the product is heading.
-const SOON = [
-  { label: "Laporan", icon: LineChart },
-] as const;
 
 const itemClass = "flex items-center gap-3 rounded-full border border-transparent px-3 py-2 text-sm font-medium";
 
@@ -35,15 +33,6 @@ export function SidebarNav({ slug, compact = false }: { slug: string; compact?: 
           </Link>
         );
       })}
-      {!compact && <>
-      <p className="mt-4 px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Segera hadir</p>
-      {SOON.map(({ label, icon: Icon }) => (
-        <span key={label} aria-disabled="true" className={cn(itemClass, "text-muted-foreground")}>
-          <Icon className="size-4" aria-hidden="true" />
-          {label}
-        </span>
-      ))}
-      </>}
     </nav>
   );
 }

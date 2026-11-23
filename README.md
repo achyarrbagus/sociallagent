@@ -44,7 +44,10 @@ src/lib/cliplab/                Karakter agent ClipLab (MIT, vendored dari socia
 src/lib/social/adapters/        Facebook, Instagram, X, LinkedIn, TikTok (port dari socialagent)
 src/lib/publications/           Jadwal, worker publish (klaim + lease), zona waktu brand
 src/lib/crypto.ts               AES-256-GCM untuk kredensial akun sosial, HMAC untuk URL media
-src/app/[agency]/...            Hari ini, Klien & Brand, Campaign, Konten, Tim AI
+src/lib/chat/                   Tools agent untuk chat (baca data agensi, buat ide, beri tugas)
+src/app/api/chat/               Streaming chat 1:1 dengan agent (AI SDK), riwayat per user per agent
+src/lib/reports/                Laporan bulanan per brand
+src/app/[agency]/...            Hari ini, Klien & Brand, Campaign, Chat, Konten, Kalender, Tim AI, Laporan
 src/app/globals.css             Token desain SocialAgent (sa-*, today-*, landing-*)
 ```
 
@@ -53,7 +56,8 @@ src/app/globals.css             Token desain SocialAgent (sa-*, today-*, landing
 1. ✅ Auth, agency, CRUD klien/brand/campaign, dashboard
 2. ✅ Onboarding wizard, Tim AI (12 agent agency-core + karakter ClipLab), konten + review owner, tugas produksi ke agent
 3. ✅ Akun sosial per brand, media konten, jadwal posting, Kalender, publish otomatis
-4. Laporan, billing, kuota AI
+3b. ✅ Chat dengan agent (1:1) + Board chat dengan Director
+4. Laporan ✅, pencatatan pemakaian AI ✅, kuota AI + billing (menunggu keputusan paket & gateway)
 5. Backlog (dikerjakan terakhir, dari Paperclip/socialagent):
    - Issue tracker umum (tugas di luar konten)
    - Routine (tugas berulang, mis. director-review mingguan)
