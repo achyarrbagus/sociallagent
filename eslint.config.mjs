@@ -12,6 +12,11 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendored ClipLab runtime (MIT), kept byte-for-byte with upstream.
+    "src/lib/cliplab/**",
+    // Platform adapters ported verbatim from socialagent.
+    "src/lib/social/adapters/**",
+    "src/generated/**",
   ]),
 ]);
 

@@ -1,0 +1,489 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Better Auth (user, session, account, verification) ───────────────────────
+
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  members       Member[]
+  invitations   Invitation[]
+
+  @@map("user")
+}
+
+model Session {
+  id                   String   @id
+  expiresAt            DateTime
+  token                String   @unique
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  activeOrganizationId String?
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ─── Better Auth organization plugin: Organization = Agency (tenant) ──────────
+
+model Organization {
+  id             String          @id
+  name           String
+  slug           String          @unique
+  logo           String?
+  metadata       String?
+  createdAt      DateTime        @default(now())
+  members        Member[]
+  invitations    Invitation[]
+  clients        Client[]
+  brands         Brand[]
+  campaigns      Campaign[]
+  activities     ActivityLog[]
+  agents         Agent[]
+  contents       Content[]
+  socialAccounts SocialAccount[]
+  publications   Publication[]
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id
+  organizationId String
+  userId         String
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+// ─── SocialAgent domain: Agency → Client → Brand → Campaign ───────────────────
+// Every row carries organizationId so tenant scoping is one WHERE clause.
+
+model Client {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  contactName    String?
+  contactEmail   String?
+  archivedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brands         Brand[]
+
+  @@index([organizationId])
+  @@map("client")
+}
+
+model Brand {
+  id             String          @id @default(cuid())
+  organizationId String
+  clientId       String
+  name           String
+  websiteUrl     String?
+  audience       String?
+  toneOfVoice    String?
+  brief          String?
+  timezone       String          @default("Asia/Jakarta")
+  archivedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client         Client          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  campaigns      Campaign[]
+  contents       Content[]
+  socialAccounts SocialAccount[]
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@map("brand")
+}
+
+enum CampaignStatus {
+  planned
+  in_progress
+  completed
+  cancelled
+}
+
+model Campaign {
+  id             String         @id @default(cuid())
+  organizationId String
+  brandId        String
+  name           String
+  objective      String?
+  status         CampaignStatus @default(planned)
+  startDate      DateTime?
+  targetDate     DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brand          Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  contents       Content[]
+
+  @@index([organizationId])
+  @@index([brandId])
+  @@map("campaign")
+}
+
+model ActivityLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String
+  summary        String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("activity_log")
+}
+
+// ─── Tim AI ───────────────────────────────────────────────────────────────────
+// Mirrors socialagent's agency-core team. Agents run as LLM calls, not local CLIs.
+
+enum AgentStatus {
+  idle
+  running
+  paused
+  error
+}
+
+model Agent {
+  id             String        @id @default(cuid())
+  organizationId String
+  slug           String
+  name           String
+  title          String
+  role           String
+  reportsToId    String?
+  instructions   String
+  paletteId      String
+  status         AgentStatus   @default(idle)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reportsTo      Agent?        @relation("AgentHierarchy", fields: [reportsToId], references: [id], onDelete: SetNull)
+  reports        Agent[]       @relation("AgentHierarchy")
+  tasks          ContentTask[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("agent")
+}
+
+// ─── Konten & review owner ────────────────────────────────────────────────────
+// Same lifecycle as socialagent: revisions are immutable, decisions bind to a revision.
+
+enum ContentStatus {
+  idea
+  in_production
+  awaiting_owner
+  changes_requested
+  approved
+  rejected
+}
+
+enum ContentFormat {
+  text
+  image
+  carousel
+  video
+}
+
+enum ContentDecisionKind {
+  select_idea
+  approve
+  request_changes
+  reject
+}
+
+enum ProductionRole {
+  creative
+  strategy
+  copywriting
+  design
+  seo
+  marketing
+  analysis
+}
+
+enum TaskStatus {
+  queued
+  running
+  done
+  failed
+}
+
+model Content {
+  id                     String            @id @default(cuid())
+  organizationId         String
+  brandId                String
+  campaignId             String
+  title                  String
+  status                 ContentStatus     @default(idea)
+  revisionNumber         Int               @default(1)
+  approvedRevisionNumber Int?
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+  organization           Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brand                  Brand             @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  campaign               Campaign          @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  revisions              ContentRevision[]
+  decisions              ContentDecision[]
+  tasks                  ContentTask[]
+  assets                 ContentAsset[]
+  publications           Publication[]
+
+  @@index([organizationId, status])
+  @@index([brandId])
+  @@index([campaignId])
+  @@map("content")
+}
+
+model ContentRevision {
+  id                String        @id @default(cuid())
+  organizationId    String
+  contentId         String
+  revisionNumber    Int
+  title             String
+  idea              String        @default("")
+  hook              String        @default("")
+  caption           String        @default("")
+  script            String        @default("")
+  cta               String        @default("")
+  format            ContentFormat @default(text)
+  targetAccount     String        @default("")
+  // Ordered ContentAsset ids. Assets are immutable, so the id pins the exact bytes approved.
+  assetIds          String[]      @default([])
+  // Context snapshot: approval goes stale when brand/client/campaign guidance changes.
+  brandUpdatedAt    DateTime
+  clientUpdatedAt   DateTime
+  campaignObjective String?
+  createdByType     String
+  createdById       String
+  createdAt         DateTime      @default(now())
+  content           Content       @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, revisionNumber])
+  @@map("content_revision")
+}
+
+model ContentDecision {
+  id              String              @id @default(cuid())
+  organizationId  String
+  contentId       String
+  revisionNumber  Int
+  decision        ContentDecisionKind
+  note            String?
+  decidedByUserId String
+  createdAt       DateTime            @default(now())
+  content         Content             @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId, revisionNumber])
+  @@map("content_decision")
+}
+
+model ContentTask {
+  id                   String         @id @default(cuid())
+  organizationId       String
+  contentId            String
+  agentId              String
+  role                 ProductionRole
+  instructions         String?
+  status               TaskStatus     @default(queued)
+  baseRevisionNumber   Int
+  resultRevisionNumber Int?
+  summary              String?
+  error                String?
+  inputTokens          Int?
+  outputTokens         Int?
+  createdByUserId      String
+  createdAt            DateTime       @default(now())
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  content              Content        @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  agent                Agent          @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@index([organizationId, status])
+  @@map("content_task")
+}
+
+// ─── Media, akun sosial, publikasi ───────────────────────────────────────────
+
+model ContentAsset {
+  id             String   @id @default(cuid())
+  organizationId String
+  contentId      String
+  filename       String
+  contentType    String
+  byteSize       Int
+  sha256         String
+  storageKey     String   @unique
+  uploadedById   String
+  createdAt      DateTime @default(now())
+  content        Content  @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@index([contentId])
+  @@map("content_asset")
+}
+
+enum SocialPlatform {
+  facebook
+  instagram
+  x
+  linkedin
+  tiktok
+}
+
+enum SocialAccountStatus {
+  active
+  revoked
+}
+
+model SocialAccount {
+  id                String              @id @default(cuid())
+  organizationId    String
+  brandId           String
+  platform          SocialPlatform
+  displayName       String
+  externalAccountId String
+  // AES-256-GCM JSON blob; null once revoked.
+  credentials       String?
+  status            SocialAccountStatus @default(active)
+  tokenExpiresAt    DateTime?
+  lastVerifiedAt    DateTime?
+  createdByUserId   String
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  brand             Brand               @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  publications      Publication[]
+
+  @@unique([brandId, platform])
+  @@index([organizationId])
+  @@map("social_account")
+}
+
+enum PublicationDispatch {
+  manual
+  connector
+}
+
+enum PublicationStatus {
+  scheduled
+  publishing
+  published
+  failed
+  unknown
+  cancelled
+}
+
+model Publication {
+  id              String              @id @default(cuid())
+  organizationId  String
+  contentId       String
+  revisionNumber  Int
+  platform        String
+  accountLabel    String?
+  socialAccountId String?
+  dispatch        PublicationDispatch
+  status          PublicationStatus   @default(scheduled)
+  scheduledAt     DateTime
+  timezone        String
+  // Copy of the approved caption and media at scheduling time.
+  postText        String
+  assetIds        String[]            @default([])
+  checkpoint      Json?
+  claimedAt       DateTime?
+  providerPostId  String?
+  externalUrl     String?
+  failureReason   String?
+  publishedAt     DateTime?
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  content         Content             @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  socialAccount   SocialAccount?      @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+
+  @@index([status, dispatch, scheduledAt])
+  @@index([organizationId, scheduledAt])
+  @@index([contentId])
+  @@map("publication")
+}
