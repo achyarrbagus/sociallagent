@@ -86,10 +86,41 @@ jobs:
           CI_BUILD_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: node scripts/ci-build-changed.mjs
 
-  test:
-    name: Tests
+  test-shards:
+    name: Tests (${{ matrix.suite }})
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: Server 1/3
+            script: test:run:general
+            args: --group general-server-without-chat --shard-index 0 --shard-count 3
+          - suite: Server 2/3
+            script: test:run:general
+            args: --group general-server-without-chat --shard-index 1 --shard-count 3
+          - suite: Server 3/3
+            script: test:run:general
+            args: --group general-server-without-chat --shard-index 2 --shard-count 3
+          - suite: Chat integration
+            script: test:run:general
+            args: --group general-chat
+          - suite: UI and CLI
+            script: test:run:general
+            args: --group general-workspaces-a
+          - suite: Workspace packages
+            script: test:run:general
+            args: --group general-workspaces-b
+          - suite: Database
+            script: test:run:general
+            args: --group general-workspaces-c
+          - suite: Serialized 1/2
+            script: test:run:serialized
+            args: --shard-index 0 --shard-count 2
+          - suite: Serialized 2/2
+            script: test:run:serialized
+            args: --shard-index 1 --shard-count 2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -112,4 +143,15 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run tests
-        run: bun run test:run
+        run: bun run ${{ matrix.script }} ${{ matrix.args }}
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: test-shards
+    if: ${{ always() }}
+    steps:
+      - name: Require all test shards to pass
+        env:
+          TEST_RESULT: ${{ needs.test-shards.result }}
+        run: test "$TEST_RESULT" = success
