@@ -1,0 +1,85 @@
+name: SocialAgent PM2 deployment
+
+# Run explicitly after the desired commit has passed CI. The workflow is
+# manual until a deployment account and production environment exist.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: socialagent-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build Linux release
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 24
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install and build
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+          test -f server/dist/index.js
+          test -f ui/dist/index.html
+      - name: Create Linux release archive
+        run: |
+          tar --exclude=.git --exclude='.env' --exclude='.env.*' \
+            --exclude='*/.env' --exclude='*/.env.*' \
+            --exclude='packages/paperclip-runner/runner/target' \
+            -czf "$RUNNER_TEMP/sociallagent.tar.gz" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sociallagent-linux-${{ github.sha }}
+          path: ${{ runner.temp }}/sociallagent.tar.gz
+          retention-days: 3
+          if-no-files-found: error
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@v4
+        with:
+          name: sociallagent-linux-${{ github.sha }}
+          path: ${{ runner.temp }}
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.SOCIALAGENT_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SOCIALAGENT_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_KEY" && test -n "$KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/sociallagent
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/sociallagent ~/.ssh/known_hosts
+      - name: Upload and activate release
+        env:
+          DEPLOY_HOST: ${{ secrets.SOCIALAGENT_SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.SOCIALAGENT_SSH_USER }}
+          DEPLOY_PORT: ${{ vars.SOCIALAGENT_SSH_PORT || '22' }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
+          ssh_opts=(-i ~/.ssh/sociallagent -p "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes)
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          ssh "${ssh_opts[@]}" "$target" 'mkdir -p "$HOME/sociallagent/incoming"'
+          scp -i ~/.ssh/sociallagent -P "$DEPLOY_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes "$RUNNER_TEMP/sociallagent.tar.gz" "$target:sociallagent/incoming/$RELEASE_SHA.tar.gz"
+          ssh "${ssh_opts[@]}" "$target" "bash -s -- $RELEASE_SHA" < scripts/deploy/pm2-release.sh
