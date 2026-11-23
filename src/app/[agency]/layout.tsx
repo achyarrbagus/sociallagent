@@ -1,48 +1,42 @@
-import Link from "next/link";
-import { SocialAgentLockup } from "@/components/brand/SocialAgentLockup";
-import { AccountMenu } from "@/components/shell/AccountMenu";
-import { SidebarNav } from "@/components/shell/SidebarNav";
+import { AppSidebar, MobileHeader, ShellProvider, type ShellProps } from "@/components/shell/AppSidebar";
+import { inboxCount } from "@/lib/inbox";
 import { prisma } from "@/lib/prisma";
 import { listAgencies, requireAgency } from "@/lib/session";
 
 export default async function AgencyLayout({ children, params }: LayoutProps<"/[agency]">) {
   const { agency: slug } = await params;
   const { user, agency } = await requireAgency(slug);
-  const [agencies, agentRows] = await Promise.all([
+  const [agencies, agentRows, inbox, brands, campaigns] = await Promise.all([
     listAgencies(user.id),
     prisma.agent.findMany({ where: { organizationId: agency.id }, select: { id: true, name: true, paletteId: true, status: true, reportsToId: true }, orderBy: { createdAt: "asc" } }),
+    inboxCount(agency.id),
+    prisma.brand.findMany({ where: { organizationId: agency.id, archivedAt: null, client: { archivedAt: null } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    prisma.campaign.findMany({ where: { organizationId: agency.id, status: { not: "cancelled" } }, select: { id: true, name: true, brandId: true }, orderBy: { name: "asc" } }),
   ]);
   const directorId = agentRows.find((a) => !a.reportsToId)?.id;
-  const agents = agentRows.map(({ reportsToId, ...a }) => ({ ...a, isDirector: !reportsToId, isLead: !!directorId && reportsToId === directorId }));
   const pick = ({ id, name, slug }: { id: string; name: string; slug: string }) => ({ id, name, slug });
+  const shell: ShellProps = {
+    studio: pick(agency),
+    studios: agencies.map(pick),
+    user: { name: user.name, email: user.email },
+    agents: agentRows.map(({ reportsToId, ...a }) => ({ ...a, isDirector: !reportsToId, isLead: !!directorId && reportsToId === directorId })),
+    inboxCount: inbox,
+    brief: { brands, campaigns },
+  };
 
   return (
+    <ShellProvider studio={shell.studio} brief={shell.brief}>
     <div className="socialagent-shell flex h-dvh">
       <div className="socialagent-shell-frame flex min-w-0 flex-1 overflow-hidden">
-        <aside className="sidebar-shell-panel hidden w-64 shrink-0 flex-col gap-4 md:flex">
-          <Link href={`/${agency.slug}/dashboard`} className="socialagent-brand-home" aria-label="SocialAgent beranda">
-            <SocialAgentLockup decorative />
-          </Link>
-          <div className="flex-1 overflow-y-auto">
-            <SidebarNav slug={agency.slug} agents={agents} />
-          </div>
-          <div className="p-3">
-            <AccountMenu user={{ name: user.name, email: user.email }} agency={pick(agency)} agencies={agencies.map(pick)} />
-          </div>
-        </aside>
+        <AppSidebar {...shell} />
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sidebar-shell-panel border-b md:hidden">
-            <div className="flex items-center justify-between gap-3 p-3">
-              <Link href={`/${agency.slug}/dashboard`} aria-label="SocialAgent beranda"><SocialAgentLockup decorative className="h-5 w-auto" /></Link>
-              <div className="w-48"><AccountMenu user={{ name: user.name, email: user.email }} agency={pick(agency)} agencies={agencies.map(pick)} /></div>
-            </div>
-            <SidebarNav slug={agency.slug} compact />
-          </header>
+          <MobileHeader {...shell} />
           <main id="main-content" className="min-w-0 flex-1 overflow-y-auto">
             {children}
           </main>
         </div>
       </div>
     </div>
+    </ShellProvider>
   );
 }

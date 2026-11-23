@@ -1093,3 +1093,28 @@ body { overflow: auto; }
     stroke-dashoffset: 0;
   }
 }
+
+/* Paperclip size/motion tokens used by the ported UI primitives. */
+@layer base {
+  :root {
+    --e-cubic-bezier-0_16-1-0_3-1: cubic-bezier(0.16,1,0.3,1);
+    --gtc-17: 1fr auto;
+    --gtr-1: auto auto;
+    --pct-50: 50%;
+    --pct-neg-50: -50%;
+    --rad-2: 2px;
+    --rad-3: 3px;
+    --rad-4: 4px;
+    --sz-300px: 300px;
+    --sz-3px: 3px;
+    --sz-8rem: 8rem;
+    --sz-calc-25: calc(100% - 2rem);
+    --sz-calc-26: max(1rem,env(safe-area-inset-top));
+    --sz-calc-27: calc(100% - 1px);
+    --sz-calc-28: calc(-50% - 2px);
+    --sz-neg-5px: -5px;
+    --tp-color-background-color-border-color-box-shadow: color,background-color,border-color,box-shadow;
+    --tp-color-background-color-border-color-box-shadow-opacity: color,background-color,border-color,box-shadow,opacity;
+    --tp-color-box-shadow: color,box-shadow;
+  }
+}
