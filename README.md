@@ -57,7 +57,7 @@ src/app/globals.css             Token desain SocialAgent (sa-*, today-*, landing
 2. ✅ Onboarding wizard, Tim AI (12 agent agency-core + karakter ClipLab), konten + review owner, tugas produksi ke agent
 3. ✅ Akun sosial per brand, media konten, jadwal posting, Kalender, publish otomatis
 3b. ✅ Chat dengan agent (1:1) + Board chat dengan Director
-4. Laporan ✅, pencatatan pemakaian AI ✅, kuota AI + billing (menunggu keputusan paket & gateway)
+4. Laporan ✅, pencatatan pemakaian AI ✅. Kuota AI + billing: ditunda (pilih gateway: Xendit/Midtrans/Stripe, dan harga paket)
 5. Backlog (dikerjakan terakhir, dari Paperclip/socialagent):
    - Issue tracker umum (tugas di luar konten)
    - Routine (tugas berulang, mis. director-review mingguan)
