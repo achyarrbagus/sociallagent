@@ -2,12 +2,18 @@ import Link from "next/link";
 import { SocialAgentLockup } from "@/components/brand/SocialAgentLockup";
 import { AccountMenu } from "@/components/shell/AccountMenu";
 import { SidebarNav } from "@/components/shell/SidebarNav";
+import { prisma } from "@/lib/prisma";
 import { listAgencies, requireAgency } from "@/lib/session";
 
 export default async function AgencyLayout({ children, params }: LayoutProps<"/[agency]">) {
   const { agency: slug } = await params;
   const { user, agency } = await requireAgency(slug);
-  const agencies = await listAgencies(user.id);
+  const [agencies, agentRows] = await Promise.all([
+    listAgencies(user.id),
+    prisma.agent.findMany({ where: { organizationId: agency.id }, select: { id: true, name: true, paletteId: true, status: true, reportsToId: true }, orderBy: { createdAt: "asc" } }),
+  ]);
+  const directorId = agentRows.find((a) => !a.reportsToId)?.id;
+  const agents = agentRows.map(({ reportsToId, ...a }) => ({ ...a, isDirector: !reportsToId, isLead: !!directorId && reportsToId === directorId }));
   const pick = ({ id, name, slug }: { id: string; name: string; slug: string }) => ({ id, name, slug });
 
   return (
@@ -18,7 +24,7 @@ export default async function AgencyLayout({ children, params }: LayoutProps<"/[
             <SocialAgentLockup decorative />
           </Link>
           <div className="flex-1 overflow-y-auto">
-            <SidebarNav slug={agency.slug} />
+            <SidebarNav slug={agency.slug} agents={agents} />
           </div>
           <div className="p-3">
             <AccountMenu user={{ name: user.name, email: user.email }} agency={pick(agency)} agencies={agencies.map(pick)} />
