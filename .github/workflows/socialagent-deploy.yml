@@ -38,7 +38,7 @@ jobs:
             --exclude='*/.env' --exclude='*/.env.*' \
             --exclude='packages/paperclip-runner/runner/target' \
             -czf "$RUNNER_TEMP/sociallagent.tar.gz" .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sociallagent-linux-${{ github.sha }}
           path: ${{ runner.temp }}/sociallagent.tar.gz
