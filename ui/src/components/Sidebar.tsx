@@ -19,7 +19,6 @@ import {
   Package,
   Settings,
   FolderOpen,
-  Unplug,
   MessagesSquare,
   MessageCircle,
   GanttChartSquare,
@@ -288,7 +287,6 @@ export function Sidebar({ children }: { children?: ReactNode }) {
             collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
           >
             <SidebarNavItem to="/agents" label="Agents" icon={Users} />
-            <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} />
             <SidebarNavItem to="/activity" label={saasUser ? "Activity" : "Audit"} icon={History} />
           </SidebarSection>
         ) : null}
@@ -306,7 +304,6 @@ export function Sidebar({ children }: { children?: ReactNode }) {
               collapsible={{ open: organizationOpen, onOpenChange: setOrganizationOpen }}
             >
               {!saasUser && <SidebarNavItem to="/org" label="Org" icon={Network} />}
-              <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} />
               {!saasUser && <SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />}
               {!saasUser && <SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />}
               <SidebarNavItem to="/activity" label="Activity" icon={History} />

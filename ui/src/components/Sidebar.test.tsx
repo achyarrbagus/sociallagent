@@ -314,7 +314,7 @@ describe("Sidebar", () => {
     expect(container.querySelector('[data-testid="sidebar-projects"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="sidebar-agents"]')?.getAttribute("data-streamlined")).toBe("undefined");
     expect(container.textContent).toContain("Organization");
-    expect(labels).toEqual(expect.arrayContaining(["Org", "Connectors", "Timeline", "Costs", "Activity", "Settings"]));
+    expect(labels).toEqual(expect.arrayContaining(["Org", "Timeline", "Costs", "Activity", "Settings"]));
     expect(labels).not.toContain("Audit");
     expect(labels).not.toContain("Projects");
     expect(container.querySelector('a[href="/skills"]')).toBeNull();
@@ -523,7 +523,7 @@ describe("Sidebar", () => {
 
     expect(labels(workSection)).toEqual(["Tasks", "Projects", "Social Accounts", "Clients & Brands", "Content & Review", "Calendar", "Reports", "Routines", "Artifacts"]);
         expect(container.querySelector('a[href="/social-accounts"]')?.textContent?.trim()).toBe("Social Accounts");
-    expect(labels(orgSection)).toEqual(["Agents", "Connectors", "Audit"]);
+    expect(labels(orgSection)).toEqual(["Agents", "Audit"]);
     expect(container.querySelector('a[href="/skills"]')).toBeNull();
     expect(sections.indexOf(workSection!)).toBeLessThan(sections.indexOf(orgSection!));
     expect(
@@ -613,20 +613,12 @@ describe("Sidebar", () => {
     });
   });
 
-  it("always shows Connectors in the Org section", async () => {
+  it("hides Connectors from the sidebar", async () => {
     mockInstanceSettingsApi.getExperimental.mockResolvedValue({ enableApps: false });
     const root = await renderSidebar();
 
     const links = [...container.querySelectorAll("a")];
-    const link = links.find((anchor) => anchor.textContent === "Connectors");
-    expect(link?.getAttribute("href")).toBe("/apps");
-    expect(link?.querySelector("svg")?.classList).toContain("lucide-unplug");
-    expect(links.findIndex((anchor) => anchor.textContent === "Connectors")).toBeGreaterThan(
-      links.findIndex((anchor) => anchor.textContent === "Agents"),
-    );
-    expect(links.findIndex((anchor) => anchor.textContent === "Connectors")).toBeLessThan(
-      links.findIndex((anchor) => anchor.textContent === "Audit"),
-    );
+    expect(links.find((anchor) => anchor.textContent === "Connectors")).toBeUndefined();
 
     flushSync(() => {
       root.unmount();

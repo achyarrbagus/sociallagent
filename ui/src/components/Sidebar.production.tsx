@@ -20,7 +20,6 @@ import {
   Package,
   Settings,
   FolderOpen,
-  Unplug,
   MessagesSquare,
   GanttChartSquare,
   LayoutGrid,
@@ -89,7 +88,6 @@ export function Sidebar() {
   usePublishSharedQueryData(sharedLiveRuns, liveRuns, liveRunsUpdatedAt);
   const liveRunCount = liveRuns?.length ?? 0;
   const showWorkspacesLink = experimentalSettings?.enableIsolatedWorkspaces === true;
-  const showApps = experimentalSettings?.enableApps === true;
   const showStatusCards = experimentalSettings?.enableStatusCards === true;
   const goalsLinkPending = experimentalSettings === undefined;
   const showGoalsLink = experimentalSettings?.enableGoalsSidebarLink === true;
@@ -245,7 +243,6 @@ export function Sidebar() {
 
         <SidebarSection label="Company" collapsible={{ open: companyOpen, onOpenChange: setCompanyOpen }}>
           {!saasUser && (<SidebarNavItem to="/org" label="Org" icon={Network} />)}
-          {showApps ? <SidebarNavItem to="/apps" label="Connectors" icon={Unplug} /> : null}
           {!saasUser && (<SidebarNavItem to="/timeline" label="Timeline" icon={GanttChartSquare} />)}
           {!saasUser && (<SidebarNavItem to="/costs" label="Costs" icon={DollarSign} />)}
           {/* One entry — /audit merged into the rich Activity feed (PAP-16302). */}
