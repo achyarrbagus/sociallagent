@@ -1,0 +1,120 @@
+name: SocialAgent CI and PM2 release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the verified main revision to EC2
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify Next.js app
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: socialagent
+          POSTGRES_PASSWORD: socialagent
+          POSTGRES_DB: socialagent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U socialagent -d socialagent"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://socialagent:socialagent@127.0.0.1:5432/socialagent
+      BETTER_AUTH_SECRET: ci-only-secret-not-used-in-production-01
+      BETTER_AUTH_URL: http://127.0.0.1:3101
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma migrate deploy
+      - run: pnpm lint
+      - run: pnpm build
+      - name: Smoke test built app
+        run: |
+          pnpm start --hostname 127.0.0.1 --port 3101 &
+          trap 'kill "$!" 2>/dev/null || true' EXIT
+          curl --fail --silent --show-error --retry 15 --retry-connrefused \
+            --retry-delay 1 --max-time 5 http://127.0.0.1:3101/ >/dev/null
+      - name: Package Linux release
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy && github.ref == 'refs/heads/main'
+        run: |
+          tar --exclude=.next/cache --exclude=node_modules/.cache \
+            -czf "$RUNNER_TEMP/socialagent.tar.gz" \
+            .next node_modules public prisma prisma.config.ts next.config.ts \
+            package.json scripts/start-production.mjs
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.deploy && github.ref == 'refs/heads/main'
+        with:
+          name: socialagent-linux
+          path: ${{ runner.temp }}/socialagent.tar.gz
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: error
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    concurrency:
+      group: socialagent-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: socialagent-linux
+          path: ${{ runner.temp }}
+      - name: Deploy to PM2
+        env:
+          DEPLOY_HOST: ${{ secrets.SOCIALAGENT_SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.SOCIALAGENT_SSH_USER }}
+          DEPLOY_KEY: ${{ secrets.SOCIALAGENT_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.SOCIALAGENT_SSH_KNOWN_HOSTS }}
+          DEPLOY_PORT: ${{ vars.SOCIALAGENT_SSH_PORT || '22' }}
+        run: |
+          set -euo pipefail
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_KEY KNOWN_HOSTS; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing SSH configuration ($name) in production environment"
+              exit 1
+            fi
+          done
+          [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ "$DEPLOY_PORT" =~ ^[0-9]+$ ]]
+          umask 077
+          key="$RUNNER_TEMP/deploy.key"
+          hosts="$RUNNER_TEMP/known_hosts"
+          printf '%s\n' "$DEPLOY_KEY" > "$key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$hosts"
+          options=(-i "$key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o "UserKnownHostsFile=$hosts" -o ConnectTimeout=10)
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+          release="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          ssh "${options[@]}" -p "$DEPLOY_PORT" "$target" 'mkdir -p "$HOME/sociallagent/incoming"'
+          scp "${options[@]}" -P "$DEPLOY_PORT" "$RUNNER_TEMP/socialagent.tar.gz" "$target:sociallagent/incoming/$release.tar.gz"
+          ssh "${options[@]}" -p "$DEPLOY_PORT" "$target" "bash -s -- $release" < scripts/pm2-release.sh

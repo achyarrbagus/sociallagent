@@ -65,3 +65,27 @@ src/app/globals.css             Token desain SocialAgent (sa-*, today-*, landing
    - Decision queue (antrean keputusan owner lintas fitur)
    - Org chart visual tim AI
    - Budget policy lengkap (batas biaya per agent/brand, insiden, auto-pause)
+
+## CI dan deploy EC2
+
+GitHub Actions memeriksa lint, migrasi Prisma pada PostgreSQL sementara, build
+Next.js, dan respons HTTP aplikasi untuk pull request serta push ke `main`.
+Untuk merilis commit di `main`, jalankan **SocialAgent CI and PM2 release**
+dengan opsi **Deploy**. Deployment dimulai setelah semua pemeriksaan lulus.
+
+Siapkan Node.js 24 dan PM2 pada akun deploy EC2. Tambahkan GitHub environment
+`production` dengan secrets `SOCIALAGENT_SSH_HOST`, `SOCIALAGENT_SSH_USER`,
+`SOCIALAGENT_SSH_KEY`, dan `SOCIALAGENT_SSH_KNOWN_HOSTS`. Variabel
+`SOCIALAGENT_SSH_PORT` bisa diatur jika port SSH berbeda dari 22.
+
+Simpan konfigurasi runtime di `~/sociallagent/shared/production.env` dengan
+izin 600. Gunakan `.env.example` sebagai acuan dan arahkan `DATABASE_URL` ke
+database untuk schema rewrite. Periksa database dan siapkan backup sebelum
+deploy pertama jika sudah berisi data. Workflow menjalankan `prisma migrate deploy`
+sebelum menjalankan proses PM2 `sociallagent-next`. Rollback proses tidak
+membatalkan perubahan schema.
+
+Arahkan reverse proxy HTTPS untuk `sociallagent.amifish.com` ke
+`127.0.0.1:3101`. Gunakan URL HTTPS tersebut di `BETTER_AUTH_URL` dan
+`PUBLIC_APP_URL`. Berkas media disimpan di `~/sociallagent/shared/storage`
+kecuali Anda sudah menentukan lokasi persisten melalui `STORAGE_DIR`.
